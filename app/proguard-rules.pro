@@ -1,0 +1,12 @@
+# Keep rules mínimas para bundles vendorados e integraciones por reflexión.
+-keep class com.arthenica.ffmpegkit.** { *; }
+-keep class org.schabi.newpipe.extractor.** { *; }
+-dontwarn com.arthenica.smartexception.java.Exceptions
+-dontwarn com.google.re2j.Matcher
+-dontwarn com.google.re2j.Pattern
+-dontwarn java.beans.BeanDescriptor
+-dontwarn java.beans.BeanInfo
+-dontwarn java.beans.IntrospectionException
+-dontwarn java.beans.Introspector
+-dontwarn java.beans.PropertyDescriptor
+-dontwarn javax.script.ScriptEngineFactory

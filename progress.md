@@ -1,0 +1,591 @@
+# Progreso de implementación — SnapMusic Android
+
+## 2026-05-21
+- Se ejecutó una auditoría integral de flujos completos de la app apoyada en:
+  - proceso vivo en el teléfono
+  - `adb shell am start -W`
+  - `adb shell dumpsys gfxinfo com.juan.snapmusic`
+  - `adb logcat -d`
+  - auditorías previas y estado actual del código
+- Se consolidó el hallazgo más importante del momento:
+  - el proceso vivo sigue con jank estructural alto (`91.53%` en `gfxinfo`)
+  - p50 `101ms`, p90 `350ms`, p95 `450ms`
+  - dominan `Slow UI thread` y `Slow issue draw commands`
+- Se detectó además en logs que el playback sigue mostrando ciclos repetidos de:
+  - `AudioTrack pause`
+  - `AudioTrack stop`
+  - `AudioTrack start`
+  consistentes con reconfiguraciones todavía demasiado frecuentes.
+- Se documentó el reporte consolidado de lag, bugs y jank en:
+  - `docs/auditoria-flujos-completos-app.md`
+- La auditoría dejó fijadas las tres prioridades reales siguientes:
+  1. endurecer el arranque del watch player
+  2. recortar recomposición/jank de la raíz de navegación/Home
+  3. seguir bajando el costo de la biblioteca local y sus miniaturas
+- Se hizo además una re-auditoría de regresión por jank reintroducido.
+- Se corrigieron tres focos estructurales concretos:
+  - `SnapMusicApp` dejó de recomponer la raíz por PiP/autoplay
+  - `PreviewScreen` dejó de observar en raíz la lista completa de descargas activas
+  - el polling visual de progreso/buffer del watch player pasó a hosts dedicados para no recomponer el shell completo del video
+- Validación ejecutada:
+  - `.\gradlew.bat :app:compileDebugKotlin`
+
+## 2026-05-15
+- Se creó la memoria persistente del proyecto (`task_plan.md`, `findings.md`, `progress.md`).
+- Se consolidó el alcance v1 y las decisiones técnicas.
+- Se copió el wrapper Gradle y los assets donor `snapmusic_logo.png` / `snapmusic_splash.png`.
+- Se bootstrappeó el proyecto Android nativo con Compose, Room, DataStore, WorkManager, Media3, Coil, OkHttp y NewPipeExtractor.
+- Se implementó la base visual SnapMusic con navegación inferior y pantallas de inicio, cola, historial, preview y ajustes.
+- Se implementó análisis de URL YouTube, resolución de streams, cola persistente, descargas directas, historial y preview local.
+- Se dejó `TranscodeEngine` aislado con implementación temporal `NoOpTranscodeEngine` para conectar FFmpegKit en el siguiente slice.
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest`
+  - `.\gradlew.bat assembleDebug`
+
+## 2026-05-16
+- Se investigaron patrones públicos de SnapTube para definir ajustes normales y realistas para SnapMusic.
+- Se documentó el siguiente backlog en:
+  - `docs/research-snaptube-y-ajustes-v2.md`
+  - `docs/plan-ajustes-v2-pendientes.md`
+- Se dejó fijado que la pantalla “Acerca de” debe mostrar:
+  - `Hecho por Juanchi López`
+- Se espera confirmación antes de implementar esa siguiente etapa.
+- Se revisó el fallo real en dispositivo al intentar descargar.
+- Causa raíz detectada en logs: `InvalidForegroundServiceTypeException` al iniciar el worker foreground sin tipo explícito en Android 14.
+- Se corrigió:
+  - permiso `FOREGROUND_SERVICE_DATA_SYNC`
+  - tipo `dataSync` en el servicio foreground de WorkManager
+  - `ForegroundInfo` con `FOREGROUND_SERVICE_TYPE_DATA_SYNC`
+- Se evitó además que opciones todavía no soportadas (transcode/mux) entren a cola y fallen después.
+- Se reordenaron variantes de audio para priorizar descargas directas.
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest`
+  - `.\gradlew.bat assembleDebug`
+- APK actualizado e instalado nuevamente en el teléfono por ADB.
+- Se reemplazó la selección simple por un modal de formatos estilo SnapTube/SnapMusic donor:
+  - thumbnail + título + autor
+  - tabs Audio / Video
+  - grilla de formatos
+  - CTA final de descarga
+- Se priorizó una UX más realista para descarga:
+  - botón único “Elegir formato”
+  - formatos directos visibles primero
+  - formatos todavía no soportados visibles pero no descargables
+- Validaciones ejecutadas con éxito tras el cambio:
+  - `.\gradlew.bat testDebugUnitTest`
+  - `.\gradlew.bat assembleDebug`
+- Se ajustó el flujo para dar feedback inmediato al descargar:
+  - al confirmar un formato, SnapMusic navega automáticamente a la pantalla de cola
+  - ahí se ve enseguida el item y su progreso
+- APK reinstalado en el teléfono por ADB.
+- Se profesionalizó la pantalla de cola guiándose por el donor `snapmusic`:
+  - header con badge de cantidad
+  - secciones separadas para activas y actividad reciente
+  - cards con thumbnail, badges, barra de progreso y CTA de cancelación
+  - estado vacío más claro
+  - badge numérico en la pestaña de cola mientras haya descargas activas
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest`
+  - `.\gradlew.bat assembleDebug`
+- Se profesionalizaron las notificaciones de descargas:
+## 2026-05-20
+- Se auditó el feed real de YouTube/SnapTube contra la implementación actual de SnapMusic.
+- Se confirmó que el cuello principal no estaba en Compose sino en la fuente de datos:
+  - SnapMusic solo consumía la primera página de trending y búsquedas de YouTube.
+  - eso dejaba Home, búsqueda y watch-next con sensación de feed corto/improvisado.
+- Se implementó paginación real en `NewPipeStreamResolverRepository` para:
+  - `loadTrendingPage(...)`
+  - `searchVideosPage(...)`
+  - serialización segura del `Page` de NewPipe para continuaciones.
+- Se mantuvieron los métodos anteriores como wrappers para no romper el resto del dominio.
+- Se reforzó el motor musical para watch-next:
+  - más queries de estilo alrededor del video actual
+  - diversidad fuerte al principio, pero sin bloquear el resto de la cola a pocas apariciones por artista/canal.
+- Validación ejecutada con éxito:
+  - `.\gradlew.bat :app:compileDebugKotlin`
+- Se auditó además la calidad de video real tomando como base:
+  - ayuda oficial de YouTube para Android
+  - documentación oficial de Media3/track selection
+  - observación verificable de paquetes YouTube/SnapTube instalados en el teléfono por ADB
+- Se corrigió la parte más grave del bug de calidad:
+  - SnapMusic ya no adelanta 1080p/720p como “activa” sin confirmación real;
+  - el override manual ahora elige el mejor track soportado entre todos los grupos de video, no solo el primero;
+  - el playback mantiene prioridad adaptativa y la UI muestra “Aplicando calidad...” hasta que la calidad real quede confirmada.
+- Validación ejecutada con éxito:
+  - `.\gradlew.bat :app:compileDebugKotlin`
+- Se corrigió además el freeze de “cargando más” en el feed Home:
+  - la continuación ahora usa cursores vivos en memoria para `Page` de NewPipe;
+  - si un cursor ya no se puede resolver, SnapMusic corta la paginación en vez de recargar la primera página y quedar en loop.
+- Se corrigió la causa raíz más dura del bug de calidad 360p:
+  - SnapMusic estaba tratando muchos manifiestos adaptativos válidos de YouTube como si no lo fueran solo porque la URL no terminaba en `.mpd` o `.m3u8`;
+  - ahora detecta también rutas reales de manifest `dash/hls` de YouTube y vuelve a habilitar el flujo adaptativo completo para playback y selector de calidad.
+- Se auditó además el extractor con una prueba real sobre YouTube y se confirmó el caso faltante:
+  - muchos videos no traen `dashMpdUrl` ni `hlsUrl`, pero sí `videoOnlyStreams` HD + `audioStreams` separados.
+- Se endureció entonces el playback de calidad:
+  - auto/manual ya pueden caer a una URI interna fusionada video+audio cuando no hay manifest adaptativo;
+  - `Media3` reproduce esa combinación mediante `MergingMediaSource`, evitando quedar clavado en el progresivo 360p.
+  - copy más natural y menos técnico
+  - progreso con contexto real del formato
+  - acción `Ver cola`
+  - acción `Cancelar`
+  - notificación de éxito con entrada directa a descargas
+  - notificación de error con mensaje más humano
+- Se corrigió además la cancelación real por tag de WorkManager para que funcione desde la cola y desde la notificación.
+- APK reinstalado en el teléfono por ADB.
+- Se dejó operativa la nueva interacción de cola:
+  - menú de 3 puntos por canción para acciones contextuales
+  - tap sobre canciones listas para abrir preview con reproducción automática
+  - orden descendente para mostrar primero las descargas más nuevas
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest`
+  - `.\gradlew.bat assembleDebug`
+- APK reinstalado en el teléfono por ADB.
+- Se reemplazó el menú simple de canciones descargadas por un modal inferior estilo SnapTube/SnapMusic:
+  - cabecera con portada, título y origen
+  - acción nativa de compartir
+  - acción real para borrar el archivo del dispositivo
+
+## 2026-05-19
+- Se auditó SnapTube en el dispositivo solo por superficie observable/verificable:
+  - paquete/versiones/sdk
+  - permisos solicitados
+  - `appops`
+  - intents visibles (`SEND`, `SEND_MULTIPLE`, `VIEW`, `BROWSABLE`)
+  - flags de paquete y tamaño del `base.apk`
+- Se contrastó esa evidencia contra SnapMusic instalada y contra el `AndroidManifest.xml` del repo.
+- Se documentó la decisión de **no copiar permisos invasivos** de SnapTube y de adoptar solo mejoras seguras en routing externo, share target y continuidad de notificaciones.
+- Se actualizaron:
+  - `task_plan.md`
+  - `findings.md`
+- Se crearon:
+  - `docs/auditoria-snaptube-observable.md`
+  - `docs/plan-adopcion-mejoras-snaptube.md`
+
+## 2026-05-18
+- Se auditó el tamaño real del proyecto y se confirmó:
+  - `app-debug.apk` ~`99.45 MB`
+  - `ffmpeg-kit-full-6.1.4.aar` ~`33.32 MB`
+- Se activó reducción real para `release`:
+  - `isMinifyEnabled = true`
+  - `isShrinkResources = true`
+  - APKs separados por ABI (`arm64-v8a` y `armeabi-v7a`)
+- Se ajustó `proguard-rules.pro` con keep/dontwarn mínimos para que `assembleRelease` cierre sin romper FFmpegKit/NewPipe.
+- `assembleRelease` quedó validado con outputs:
+  - `app-arm64-v8a-release-unsigned.apk` ~`43.66 MB`
+  - `app-armeabi-v7a-release-unsigned.apk` ~`39.62 MB`
+- Se recortó carga innecesaria al arranque:
+  - se quitó el refresh de biblioteca local desde `init`
+  - la biblioteca local pasa a cargarse bajo demanda
+  - se agregó caché en `StorageRepository.listLocalMedia(...)`
+- Se redujo trabajo duplicado en Reproducir:
+  - `PreviewScreen` ya no refresca la biblioteca con dos `LaunchedEffect` distintos
+  - al borrar una descarga se invalida el caché y se limpia la entrada local visible
+- Se redujo recomposición global en raíz:
+  - `SnapMusicApp` dejó de observar `youtubePlaybackRenderState` completo solo para PiP
+  - ahora observa solo el booleano derivado `youtubePlaybackAutoPlay`
+- Se alivió polling de playback:
+  - YouTube overlay: `250ms -> 500ms` y `650ms -> 2000ms`
+  - Preview local: `900ms -> 500ms` cuando reproduce y `2000ms -> 1500ms` cuando no
+- Se amplió `SnapMusicMacrobenchmark` con escenarios extra:
+  - `youtubeWatchAndMiniplayer`
+  - `previewLibraryAndPlayback`
+- Validaciones ejecutadas:
+  - `.\gradlew.bat :app:compileDebugKotlin`
+  - `.\gradlew.bat :app:assembleRelease`
+- `installDebug` falló por `ADB EOF` al sincronizar el split `arm64-v8a`; quedó pendiente reintentar instalación directa.
+
+## 2026-05-17
+- Se abrió una auditoría enterprise completa sobre SnapMusic con prioridad en estabilidad release, compatibilidad Android, rendimiento visible y consistencia UX.
+- Se ejecutó `lintDebug` y quedó confirmado el estado real:
+  - 33 errores
+  - 85 warnings
+- Se consolidaron hallazgos técnicos ya verificables:
+  - PiP/API level sin encapsulado suficiente para `minSdk 24`
+  - `java.util.Base64` incompatible sin desugaring
+  - contrato erróneo de `SessionResult`
+  - deuda estructural por archivos monolíticos
+  - acceso a MediaStore sin estrategia enterprise de threading
+  - placeholder `NoOpTranscodeEngine` todavía activo
+- Se actualizaron los archivos de memoria persistente:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Se prepararon los reportes de auditoría y remediación:
+  - `docs/auditoria-enterprise-snapmusic.md`
+  - `docs/auditoria-rendimiento-y-compose.md`
+  - `docs/plan-remediacion-enterprise.md`
+  - `docs/matriz-riesgos-y-bugs.md`
+- La fase actual queda definida como:
+  - auditoría completa terminada a nivel documental
+  - siguiente foco: comenzar la estabilización release-blocker corrigiendo lint/compatibilidad antes de seguir agregando features
+- Se agregó soporte de borrado local real para URIs de MediaStore, SAF y archivos legacy.
+- Se agregó solicitud nativa de permisos multimedia al entrar a la app para cubrir acceso local en Android.
+- Se añadió `FileProvider` para compartir archivos legacy de forma segura en versiones anteriores.
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest`
+  - `.\gradlew.bat assembleDebug`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se completó el bloque 3.9 del plan con un preview más serio:
+  - duración visible en la tarjeta de reproducción
+  - controles fijos propios de SnapMusic con play/pausa, seek, retroceso y avance
+  - rediseño del panel para integrar artwork/video y eliminar el fondo negro plano de controles
+- Se actualizó la versión de la app a `1.0.19` (`versionCode 20`).
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest --no-daemon`
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- Se auditó el rendimiento visible con foco mínimo en feed, listas y navegación viva.
+- Correcciones aplicadas:
+  - throttling real en `syncYouTubePlaybackProgress()` para no escribir estado en cada pulso de reproducción
+  - `HomeScreen` dejó de precargar páginas extra del `HorizontalPager`
+  - `YouTubeTabContent` quedó separado entre estado de feed y estado de player para bajar recomposición sobre la lista
+  - `QueueScreen` memoiza la partición de cola activa / historial
+- Validaciones ejecutadas con éxito tras el ajuste:
+  - `.\gradlew.bat testDebugUnitTest --no-daemon`
+  - `.\gradlew.bat lintDebug --no-daemon`
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- Se corrigió otra tanda de fricción visible orientada a percepción 60fps:
+  - tabs de Inicio sin doble trabajo de animación/scroll
+  - sincronización del tab usando `settledPage` en vez de reaccionar a cada cambio intermedio
+  - watch screen de YouTube mantiene thumbnail hasta primer frame, evitando negro inicial y loader invasivo
+  - se removió la percepción de espera visual al abrir videos, dejando la transición más inmediata
+- Validaciones ejecutadas con éxito tras esta segunda pasada:
+  - `.\gradlew.bat testDebugUnitTest --no-daemon`
+  - `.\gradlew.bat lintDebug --no-daemon`
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se completó el bloque 3 restante:
+  - deduplicación real por URL + formato + calidad + destino
+  - reanudación visual de descargas tras reinicio, mostrando estado de reanudación en la cola
+  - historial útil con abrir archivo, abrir carpeta y reintentar descarga desde el modal
+- Se actualizó la versión de la app a `1.0.20` (`versionCode 21`).
+- Se avanzó con el bloque 4 completo:
+  - nueva pantalla de ajustes estilo SnapTube con secciones General e Información
+  - subpantallas animadas con zoom in / zoom out para descarga, notificaciones, tema y acerca de
+  - nueva pantalla “Acerca de” con logo SnapMusic, versión y texto fijo “Hecho por Juanchi López”
+  - sanitización de errores técnicos crudos para red, extracción, transcodificación y carpeta/permisos
+- Se actualizó la versión de la app a `1.0.21` (`versionCode 22`).
+- Se completó la base del Bloque 1 del plan técnico:
+  - se vendoró `FFmpegKit` como AAR local dentro de `app/libs`
+  - se conectó `TranscodeEngine` real con `FFmpegKit`
+  - quedaron habilitadas conversiones reales a MP3 128/192/256/320
+  - se mantuvo descarga directa M4A cuando no hace falta convertir
+  - se agregaron variantes MP4 con streams separados y mux final
+- Se reforzó la persistencia de cola para soportar mux:
+  - cada variante ahora puede guardar un `secondaryUrl`
+  - Room pasó a versión `2` con recreación local controlada para esta etapa
+- Se actualizó la versión de la app a `1.0.11` (`versionCode 12`).
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest --no-daemon`
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se corrigió el modal de formatos para habilitar de verdad las opciones con conversión local:
+  - MP3 y variantes que dependen de FFmpeg local ya no quedan bloqueadas en la UI
+  - el copy del modal ahora refleja que SnapMusic sí usa el motor local para convertir o unir streams
+- Se corrigió la restauración del video activo al volver desde mini player o PiP:
+  - si hay reproducción activa y tocás la pestaña `YouTube`, ahora vuelve al video actual en lugar de abrir el feed vacío
+  - al salir de PiP y volver a la app, SnapMusic restaura la pantalla del video en `YouTube`
+- Se actualizó la versión de la app a `1.0.12` (`versionCode 13`).
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat assembleDebug --no-daemon`
+  - `.\gradlew.bat testDebugUnitTest --no-daemon`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se ajustó la altura visual del reproductor principal de YouTube para acercarlo más al look de YouTube/SnapTube:
+  - el stream activo ahora tiene más presencia vertical
+  - también se sincronizó el estado de carga para que no “salte” de tamaño al abrir un video
+- Se actualizó la versión de la app a `1.0.13` (`versionCode 14`).
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest --no-daemon`
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se corrigió la interacción del botón de descarga dentro del feed de YouTube:
+  - la tarjeta completa sigue abriendo el video
+  - el ícono de descarga ahora captura su propio toque y abre el modal de formatos
+  - si el item todavía no estaba resuelto, SnapMusic prepara la metadata en segundo plano y abre el modal al terminar
+- Se actualizó la versión de la app a `1.0.14` (`versionCode 15`).
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest --no-daemon`
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se reforzó que la app no fuerce bloqueo de orientación:
+  - `MainActivity` ahora declara orientación `unspecified`
+  - con eso SnapMusic respeta el giro automático nativo del sistema en lugar de fijar la pantalla
+- Se actualizó la versión de la app a `1.0.7` (`versionCode 8`).
+- Validación ejecutada con éxito:
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- Se habilitó el popup flotante real de Android para YouTube con `Picture-in-Picture`:
+  - la actividad ahora soporta PiP nativo
+  - al dejar la app con un video listo, el reproductor puede seguir en ventana flotante
+  - en Android 12+ quedó activado el autoingreso a PiP al salir con gestos
+- Se agregó una acción directa para mandar el video actual a popup desde la ficha del reproductor.
+- Se actualizó la versión de la app a `1.0.6` (`versionCode 7`).
+- Validación ejecutada con éxito:
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- Se corrigió el flujo de video flotante estilo YouTube:
+  - al cambiar de tab con un video abierto, ahora pasa a mini reproductor dentro de la app
+  - al volver a tocar ese mini reproductor, se restaura la pantalla completa del video
+  - al cerrar el mini reproductor, se descarta la vista flotante sin dejar pegado el player
+- Se agregó gesto real de deslizamiento hacia abajo sobre el video para minimizarlo dentro de la app.
+- Se ajustó el modo `Picture-in-Picture` para mostrar solo el video:
+  - se ocultan las tabs y el resto de la interfaz mientras la app entra en PiP nativo
+  - la elegibilidad de PiP ahora también funciona cuando el video quedó minimizado en otra pestaña
+- Se quitó el botón manual de flecha hacia abajo del reproductor.
+- Se actualizó la versión de la app a `1.0.8` (`versionCode 9`).
+- Validación ejecutada con éxito:
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se corrigió la vuelta al tab `YouTube` con video activo:
+  - si el video quedó minimizado al cambiar de tab, al regresar a `YouTube` ahora se restaura el reproductor en vez de dejar solo el audio sonando
+  - se mantuvo la transición automática a mini reproductor al salir del tab para conservar el comportamiento tipo YouTube/SnapTube
+- Se actualizó la versión de la app a `1.0.9` (`versionCode 10`).
+- Validación ejecutada con éxito:
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se corrigió la continuidad automática al terminar un video:
+  - ahora se detecta `STATE_ENDED` del reproductor
+  - SnapMusic resuelve el siguiente item del feed y sigue reproduciendo sin cortar la sesión
+  - si el usuario estaba en mini player, se conserva ese modo al pasar al siguiente video
+- Se documentó la referencia de comportamiento de streaming en `docs/streaming-youtube-snaptube.md`:
+  - autoplay
+  - miniplayer
+  - PiP
+  - segundo plano
+  - continuidad tipo YouTube/SnapTube
+- Se actualizó la versión de la app a `1.0.10` (`versionCode 11`).
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest --no-daemon`
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se reforzó la entrada al tab `YouTube` para que siempre abra como feed:
+  - al tocar la pestaña `YouTube` se resetea la vista de reproductor y vuelve al listado principal
+  - al reingresar desde navegación inferior o restauración de estado ya no debe quedar “pegada” la pantalla de video
+  - el buscador se mantiene arriba del feed, como acceso principal de exploración
+- Se ajustó la URL de reproducción para priorizar video progresivo compatible antes de `hls/dash`, reduciendo casos de audio con pantalla negra.
+- Se actualizó la versión de la app a `1.0.5` (`versionCode 6`).
+- Validación ejecutada con éxito:
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se integró una experiencia nueva tipo SnapTube dentro del hub de descargas:
+  - la antigua pestaña `Historial` ahora se muestra como `YouTube`
+  - `Cola` y `YouTube` conviven en el mismo hub con tabs superiores sincronizadas con la navegación
+  - el tab `YouTube` carga un feed real desde NewPipe y permite abrir videos dentro de la app
+- Se agregó reproducción directa de videos remotos con Media3:
+  - player superior con autoplay
+  - CTA grande de descarga
+  - lista de videos sugeridos para cambiar rápido el contenido destacado
+- Se conectó búsqueda simple y presets rápidos para poblar el feed sin salir de la app.
+- Se reutilizó el modal de formatos para descargar también desde la experiencia `YouTube`, redirigiendo luego a `Cola`.
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest`
+  - `.\gradlew.bat assembleDebug`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se corrigió la estructura pedida de navegación:
+  - `Cola` y `Historial` quedaron juntos dentro de la pantalla de descargas
+  - `YouTube` volvió a ser una pantalla separada en la barra inferior
+- Se reemplazó la apertura inicial fallida de YouTube:
+  - se dejó de depender del kiosk problemático de NewPipe al entrar
+  - ahora el feed base carga con una búsqueda real por defecto para evitar la pantalla rota
+  - los errores visibles al usuario se humanizaron para no mostrar trazas crudas
+- Se corrigió el bug del video en negro:
+  - la reproducción visual del tab `YouTube` pasó a un embed real dentro de `WebView`
+  - el video ahora se ve y se reproduce con autoplay, en lugar de quedar solo con audio
+- Se rediseñó la pantalla `YouTube` para acercarla más al layout tipo SnapTube:
+  - video protagonista arriba
+  - título y metadata debajo
+  - botón grande de descarga
+  - bloque de comentarios
+  - lista de sugerencias reales debajo
+  - exploración/búsqueda movida a una zona secundaria para no romper la vista principal
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest`
+  - `.\gradlew.bat assembleDebug`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se corrigió el cambio automático de video al buscar:
+  - si ya hay un video reproduciéndose, una búsqueda nueva ya no reemplaza sola el contenido actual
+  - ahora el usuario decide cuándo abrir otro resultado, más parecido al flujo de YouTube
+- Se migró la reproducción del tab `YouTube` a un `MediaSessionService` con `MediaController`:
+  - el video actual sigue sonando al cambiar de tab
+  - también continúa al salir de la app, con comportamiento de segundo plano
+  - la sesión quedó preparada para notificación y controles del sistema
+- Se ajustó la selección de streams de NewPipe para priorizar video MP4 progresivo más compatible y reducir casos de audio con pantalla negra.
+- Se actualizó la versión de la app a `1.0.1` (`versionCode 2`).
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest`
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se corrigió el arranque de la pantalla `YouTube` para que vuelva a comportarse como feed:
+  - ya no se autoselecciona ni se reproduce solo el primer video al entrar
+  - el buscador quedó arriba del feed principal
+  - el buscador deja de aparecer debajo del video en reproducción
+- Se corrigió la vista del reproductor:
+  - `PlayerView` ahora ocupa correctamente toda el área del video
+  - se quitaron los indicadores superpuestos de “cargando” arriba a la derecha
+  - se prioriza una URL de reproducción real para video (`hls/dash` o la mejor variante disponible) en lugar de forzar audio/URL inadecuada
+- Se actualizó la versión de la app a `1.0.2` (`versionCode 3`).
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest --no-daemon`
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se agregó la solicitud nativa de `POST_NOTIFICATIONS` junto con los permisos runtime para que la reproducción en segundo plano pueda mostrar el popup/notificación multimedia del sistema.
+- Se actualizó la versión de la app a `1.0.3` (`versionCode 4`).
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest --no-daemon`
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se completó el bloque 2 del flujo tipo SnapTube:
+  - share target para recibir URLs de YouTube y abrir SnapMusic con análisis directo
+  - detección de link copiado en Home con CTA “Usar link copiado”
+  - botones “Pegar” y “Pegar y analizar”
+  - presets rápidos `MP3 320`, `M4A` y `MP4 720p`
+- Se actualizó la versión de la app a `1.0.15` (`versionCode 16`).
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest --no-daemon`
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- APK reinstalado en el teléfono por ADB y abierta en el dispositivo.
+- Se implementÃ³ la base del feed musical personalizado:
+  - perfil local mixto con seÃ±ales de reproducciÃ³n, bÃºsqueda y descargas
+  - feed musical variable por sesiÃ³n con filtro solo mÃºsica
+  - recomendaciones de â€œSeguÃ­ mirandoâ€ desacopladas del feed visible y mÃ¡s diversas por artista/canal
+  - persistencia de seÃ±ales e impresiones locales para evitar repetir siempre los mismos videos
+- Se actualizÃ³ la versiÃ³n de la app a `1.0.41` (`versionCode 42`).
+- Validaciones ejecutadas con Ã©xito:
+  - `.\gradlew.bat testDebugUnitTest --no-daemon`
+  - `.\gradlew.bat assembleDebug --no-daemon`
+  - `.\gradlew.bat lintDebug --no-daemon`
+- Se rehizo el flujo Buscar → YouTube dentro del route Descargar:
+  - input de Buscar ahora abre overlay full-screen opaco estilo SnapMusic
+  - búsquedas populares musicales reales cuando el query está vacío
+  - sugerencias en vivo letra por letra al tipear
+  - submit real con teclado que cambia al tab YouTube y ejecuta la búsqueda allí
+  - panel de búsqueda duplicado removido del tab YouTube
+- Se actualizó la versión de la app a `1.0.42` (`versionCode 43`).
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat testDebugUnitTest --no-daemon`
+  - `.\gradlew.bat lintDebug --no-daemon`
+  - `.\gradlew.bat assembleDebug --no-daemon`
+- Se cerró otra etapa de remediación de lag residual:
+  - se agregaron proyecciones mínimas `DownloadSearchSuggestionUiState`, `YouTubeSuggestionsUiState` y `YouTubeWatchNextUiState`
+  - se movió el armado del corpus y del watch-next a use cases previos al render
+  - `YouTubeTabContent` quedó partido en hosts finos para player, comentario, sugerencias y sheet
+  - el flujo Buscar → YouTube sumó escenario dedicado en macrobenchmark
+- Se documentó la auditoría final de lag residual y el plan de remediación restante:
+  - `docs/auditoria-lag-dispositivo-final.md`
+  - `docs/plan-remediacion-60fps-restante.md`
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat :app:assembleDebug`
+  - `.\gradlew.bat :benchmark:assembleAndroidTest`
+- APK debug reinstalado en el teléfono por ADB.
+## 2026-05-18 - Slice 60fps residual
+
+- Inicio de slice para cerrar lag residual en `release/profileable arm64`.
+- Objetivo inmediato: reforzar medición real en benchmark/telemetría y seguir desacoplando navegación, tabs y render pesado fuera del player.
+- `PreviewScreen` dejo de observar `previewState` completo en la raiz y ahora usa `PreviewPerformanceUiState`.
+- `SnapMusicMacrobenchmark` se amplio para cubrir tabs, Buscar -> YouTube, minimizar/restaurar y scroll mas largo en Reproducir.
+- Version de app subida a `1.0.62`.
+- El mini reproductor de Preview dejo de disparar navegacion redundante cuando ya estabamos en Reproducir.
+- Se recorto el costo visual de filas y mini reproductor en Reproducir, y las miniaturas locales usan request mas chico con cache key estable.
+- Version de app subida a `1.0.63`.
+- Se corrigio de raiz la descarga desde otro video del feed:
+  - el sheet de formatos ya no depende del `featured` en reproduccion
+  - ya no se ocultan stream ni mini player al resolver formatos de otro item
+- Se conecto la notificacion de reproduccion a `ROUTE_PLAYBACK` con `sessionActivity` real para restaurar el stream activo al tocarla.
+- Version de app subida a `1.0.64`.
+- Se agrego badge real de SnapMusic sobre la miniatura de la notificacion de reproduccion usando `favicon.png`, resuelto y cacheado fuera del hilo principal.
+- Version de app subida a `1.0.65`.
+## 2026-05-20 - Slice Fase C continuidad local
+
+- Se cerro la base de continuidad local entre foreground/background/notificaciones sin agregar polling nuevo.
+- Se agrego `PreviewPlaybackSnapshot` persistido en preferencias con:
+  - cola local
+  - indice actual
+  - posicion
+  - estado mini/detail
+- Se agrego `PreviewPlaybackSnapshotCodec` y metodos nuevos en `PreferencesRepository` para guardar, leer y limpiar snapshot local.
+- `SnapMusicViewModel` ahora:
+  - persiste snapshot local al abrir preview, cambiar item, pausar, minimizar, restaurar o cerrar
+  - resuelve `ROUTE_PLAYBACK` por prioridad entre preview local viva, snapshot local, YouTube vivo y snapshot YouTube
+  - restaura la preview local completa desde snapshot al tocar la notificacion en app fria o al volver desde sistema
+- La cola local ya no depende solo de la biblioteca cargada:
+  - se agrego un override de cola local para que `MediaController` conserve `next/prev` y el item actual aunque `MediaStore` todavia no haya reconstruido la lista
+- `rememberPreviewPlayer` ahora sincroniza:
+  - transicion de item
+  - progreso util para checkpoint de snapshot
+  - restauracion de posicion al reengancharse con la sesion local
+- `SnapMusicNavHost` ya no asume solo estado vivo para `ROUTE_PLAYBACK`; intenta restaurar la preview local completa antes de caer en YouTube o Home.
+- Version de app subida a `1.0.82`.
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat :app:compileDebugKotlin :app:assembleBenchmark`
+  - instalacion por ADB del APK benchmark `arm64-v8a`
+
+## 2026-05-20 — Fase D de share/deeplink visible al usuario
+
+- Se unificó la entrada externa con `IncomingSharePayload` para dejar de depender de un solo `sharedUrl`:
+  - distingue `SEND`, `SEND_MULTIPLE` y `VIEW`
+  - deduplica links válidos
+  - conserva orden estable
+- `MainActivity` ya procesa:
+  - texto compartido
+  - múltiples textos compartidos
+  - texto dentro de `clipData`
+  - deeplinks compatibles
+- El share entrante ya no corta la reproducción actual:
+  - abre Home en el flujo de análisis
+  - precarga el link entrante sin reemplazar el player activo
+- Si entran varios links válidos:
+  - SnapMusic muestra un sheet liviano para elegir cuál analizar
+  - ya no se queda solo con el primero ni intenta abrir todos juntos
+- `HomeScreen` suma un host dedicado para la selección de links compartidos, desacoplado del player y sin navegación redundante.
+- Version de app subida a `1.0.83`.
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat :app:compileDebugKotlin :app:assembleBenchmark`
+  - instalacion por ADB del APK benchmark `arm64-v8a`
+
+## 2026-05-20 — Auditoría ADB nueva de SnapTube y YouTube para stream/fullscreen/UX
+
+- Se auditó por ADB el dispositivo conectado `23129RA5FL` para comparar SnapTube, YouTube y SnapMusic en flujo de stream, fullscreen y continuidad UX.
+- Evidencia recolectada:
+  - `dumpsys package` de `com.snaptube.premium`
+  - `dumpsys package` de `com.google.android.youtube`
+  - `dumpsys package` de `com.juan.snapmusic`
+  - `uiautomator dump` de:
+    - `docs/snaptube-home.xml`
+    - `docs/snaptube-clean.xml`
+    - `docs/youtube-home.xml`
+    - `docs/youtube-watch.xml`
+- Se documentaron auditorías separadas para:
+  - SnapTube observable por ADB en flujo de búsqueda, formatos y shell de descarga
+  - YouTube observable por ADB en home, watch, overlays y shell de player
+- Se dejó un plan nuevo por fases para importar solo mejoras observables útiles a SnapMusic, omitiendo lo ya cubierto por auditorías anteriores de permisos e intents.
+
+## 2026-05-20 — Corrección de foco para clonado de watch player y fullscreen
+
+- Se corrigió el enfoque de la auditoría para que deje de ser generalista y pase a cubrir exactamente:
+  - watch player
+  - controles sobre video
+  - fullscreen horizontal
+  - continuidad watch → mini player → restore
+- Se agregaron documentos focalizados:
+  - `docs/auditoria-snaptube-watch-player-controles.md`
+  - `docs/auditoria-youtube-watch-player-adb-focalizada.md`
+  - `docs/plan-clonado-watch-player-fullscreen.md`
+- Se dejó explícito que:
+  - SnapTube aporta la referencia visual exacta ya aprobada en el chat
+  - YouTube aporta la estructura real del watch observada por ADB
+  - SnapMusic debe clonar el stack del player por shells, no por parches sueltos
+
+## 2026-05-20 — Fase 2 del plan de stream/watch separada como shells
+
+- Se ejecutó la Fase 2 de `docs/plan-adopcion-mejoras-stream-ux.md`.
+- El watch actual de YouTube en SnapMusic quedó partido en dos superficies más estables:
+  - `FeaturedVideoPlayerShell`
+  - `FeaturedVideoMetadataPanel`
+- El player, overlays, barra de tiempo y fullscreen siguen actualizándose en su shell propia, sin arrastrar al bloque de metadata, CTA y `Sigue:`.
+- Se agregó un fondo cinemático barato y separado para el panel inferior del watch, sin mezclarlo con el frame del video.
+- Validación ejecutada con éxito:
+  - `.\gradlew.bat :app:compileDebugKotlin`
+- 
+## 2026-05-20 — Fase 3 del plan de stream/watch endurecida
+
+- Se endureció el restore de YouTube y Preview para que vuelva por shells explícitas y no mezcle capas transitorias de share o búsqueda con el playback actual.
+- `SnapMusicNavHost` dejó de disparar restores y aperturas manuales por rutas distintas y ahora reutiliza helpers dedicados de shell.
+- El fullscreen del watch quedó encapsulado en `FeaturedVideoFullscreenShell`, separado del resto del shell del player.
+- Se eliminó estado sobrante del watch superior para evitar recomposiciones que ya no aportaban a la UX.

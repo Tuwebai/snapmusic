@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:minHeight="72dp"
+    android:orientation="horizontal"
+    android:paddingStart="4dp"
+    android:paddingTop="4dp"
+    android:paddingEnd="4dp"
+    android:paddingBottom="4dp">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingEnd="12dp">
+
+        <TextView
+            android:id="@+id/notification_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:text="Descarga completa"
+            android:textColor="#F7F7F7"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/notification_message"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:text="Título"
+            android:textColor="#F1F1F1"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/notification_detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Detalle"
+            android:textColor="#B9B9C2"
+            android:textSize="11sp" />
+
+        <ProgressBar
+            android:id="@+id/notification_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="8dp"
+            android:indeterminate="false"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#EF4444" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/notification_artwork"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:adjustViewBounds="true"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop" />
+
+</LinearLayout>

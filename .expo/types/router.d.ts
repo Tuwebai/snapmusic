@@ -1,0 +1,14 @@
+/* eslint-disable */
+import * as Router from 'expo-router';
+
+export * from 'expo-router';
+
+declare module 'expo-router' {
+  export namespace ExpoRouter {
+    export interface __routes<T extends string | object = string> {
+      hrefInputParams: { pathname: Router.RelativePathString, params?: Router.UnknownInputParams } | { pathname: Router.ExternalPathString, params?: Router.UnknownInputParams } | { pathname: `/preview`; params?: Router.UnknownInputParams; } | { pathname: `/_sitemap`; params?: Router.UnknownInputParams; } | { pathname: `${'/(tabs)'}/downloads` | `/downloads`; params?: Router.UnknownInputParams; } | { pathname: `${'/(tabs)'}` | `/`; params?: Router.UnknownInputParams; } | { pathname: `${'/(tabs)'}/url` | `/url`; params?: Router.UnknownInputParams; } | { pathname: `/dev/theme-lab`; params?: Router.UnknownInputParams; } | { pathname: `/oauth/callback`; params?: Router.UnknownInputParams; };
+      hrefOutputParams: { pathname: Router.RelativePathString, params?: Router.UnknownOutputParams } | { pathname: Router.ExternalPathString, params?: Router.UnknownOutputParams } | { pathname: `/preview`; params?: Router.UnknownOutputParams; } | { pathname: `/_sitemap`; params?: Router.UnknownOutputParams; } | { pathname: `${'/(tabs)'}/downloads` | `/downloads`; params?: Router.UnknownOutputParams; } | { pathname: `${'/(tabs)'}` | `/`; params?: Router.UnknownOutputParams; } | { pathname: `${'/(tabs)'}/url` | `/url`; params?: Router.UnknownOutputParams; } | { pathname: `/dev/theme-lab`; params?: Router.UnknownOutputParams; } | { pathname: `/oauth/callback`; params?: Router.UnknownOutputParams; };
+      href: Router.RelativePathString | Router.ExternalPathString | `/preview${`?${string}` | `#${string}` | ''}` | `/_sitemap${`?${string}` | `#${string}` | ''}` | `${'/(tabs)'}/downloads${`?${string}` | `#${string}` | ''}` | `/downloads${`?${string}` | `#${string}` | ''}` | `${'/(tabs)'}${`?${string}` | `#${string}` | ''}` | `/${`?${string}` | `#${string}` | ''}` | `${'/(tabs)'}/url${`?${string}` | `#${string}` | ''}` | `/url${`?${string}` | `#${string}` | ''}` | `/dev/theme-lab${`?${string}` | `#${string}` | ''}` | `/oauth/callback${`?${string}` | `#${string}` | ''}` | { pathname: Router.RelativePathString, params?: Router.UnknownInputParams } | { pathname: Router.ExternalPathString, params?: Router.UnknownInputParams } | { pathname: `/preview`; params?: Router.UnknownInputParams; } | { pathname: `/_sitemap`; params?: Router.UnknownInputParams; } | { pathname: `${'/(tabs)'}/downloads` | `/downloads`; params?: Router.UnknownInputParams; } | { pathname: `${'/(tabs)'}` | `/`; params?: Router.UnknownInputParams; } | { pathname: `${'/(tabs)'}/url` | `/url`; params?: Router.UnknownInputParams; } | { pathname: `/dev/theme-lab`; params?: Router.UnknownInputParams; } | { pathname: `/oauth/callback`; params?: Router.UnknownInputParams; };
+    }
+  }
+}
