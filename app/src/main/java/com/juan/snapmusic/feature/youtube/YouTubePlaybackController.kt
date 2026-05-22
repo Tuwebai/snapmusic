@@ -18,6 +18,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.juan.snapmusic.core.model.YouTubePlaybackRenderState
@@ -66,6 +67,17 @@ private fun MediaItem.sameArtworkAs(other: MediaItem): Boolean {
     }
 }
 
+private fun androidx.media3.common.PlaybackException.isExpiredStream403(): Boolean {
+    var cursor: Throwable? = this
+    var has403Cause = false
+    while (cursor != null && !has403Cause) {
+        has403Cause = cursor is HttpDataSource.InvalidResponseCodeException && cursor.responseCode == 403
+        cursor = cursor.cause
+    }
+    return has403Cause ||
+        message?.contains("403", ignoreCase = true) == true
+}
+
 private fun MediaController.syncQueuedNext(nextItem: MediaItem?) {
     when {
         nextItem == null -> {
@@ -93,7 +105,7 @@ private fun MediaController.syncQueuedNext(nextItem: MediaItem?) {
 fun rememberYouTubePlayer(
     state: YouTubePlaybackRenderState,
     onPlaybackEnded: () -> Unit,
-    onPlaybackError: (String?) -> Unit,
+    onPlaybackError: (String?, Boolean) -> Unit,
     onPlaybackProgress: (Long, Boolean, Boolean) -> Unit,
     onMediaTransition: (String, Long, Boolean) -> Unit,
     onPlaybackQualityChanged: (List<Int>, Int?) -> Unit,
@@ -183,15 +195,11 @@ fun rememberYouTubePlayer(
 
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     if (mediaController.currentMediaItem?.mediaId != currentFeaturedSourceUrl) return
-                    onPlaybackError(error.message)
+                    onPlaybackError(error.message, error.isExpiredStream403())
                 }
 
                 override fun onTracksChanged(tracks: Tracks) {
                     if (mediaController.currentMediaItem?.mediaId != currentFeaturedSourceUrl) return
-                    applyYouTubePlaybackQuality(
-                        mediaController = mediaController,
-                        featured = currentFeatured,
-                    )
                     onPlaybackQualityChanged(
                         resolveAvailableVideoHeights(tracks),
                         resolveActualVideoHeight(tracks),
@@ -209,13 +217,11 @@ fun rememberYouTubePlayer(
         controller,
         state.featured.sourceUrl,
         state.featured.playbackUrl,
-        state.featured.selectedVideoQualityId,
         state.shouldAutoPlayCurrent,
-        artworkData,
     ) {
         val mediaController = controller ?: return@LaunchedEffect
         val playbackUrl = state.featured.playbackUrl ?: return@LaunchedEffect
-        val currentItem = state.featured.copy(playbackUrl = playbackUrl).toMediaItem(artworkData = artworkData)
+        val currentItem = state.featured.copy(playbackUrl = playbackUrl).toMediaItem(artworkData = null)
         val sameCurrentItem =
             mediaController.mediaItemCount > 0 &&
                 mediaController.getMediaItemAt(0).samePlaybackAs(currentItem)
@@ -247,8 +253,6 @@ fun rememberYouTubePlayer(
                 mediaController.playWhenReady = shouldResumePlaying
                 mediaController.prepare()
             }
-        } else if (!mediaController.getMediaItemAt(0).sameArtworkAs(currentItem)) {
-            mediaController.replaceMediaItem(0, currentItem)
         } else if (abs(mediaController.currentPosition - state.currentPositionMs) > 1_200L) {
             mediaController.seekTo(state.currentPositionMs.coerceAtLeast(0L))
         }
@@ -277,6 +281,24 @@ fun rememberYouTubePlayer(
         }
     }
 
+    LaunchedEffect(controller, state.featured.sourceUrl, artworkData) {
+        val mediaController = controller ?: return@LaunchedEffect
+        val artwork = artworkData ?: return@LaunchedEffect
+        if (mediaController.mediaItemCount == 0) return@LaunchedEffect
+        val current = mediaController.getMediaItemAt(0)
+        if (current.mediaId != state.featured.sourceUrl) return@LaunchedEffect
+        val withArtwork = current.buildUpon()
+            .setMediaMetadata(
+                current.mediaMetadata.buildUpon()
+                    .setArtworkData(artwork, MediaMetadata.PICTURE_TYPE_FRONT_COVER.toInt())
+                    .build(),
+            )
+            .build()
+        if (!current.sameArtworkAs(withArtwork)) {
+            mediaController.replaceMediaItem(0, withArtwork)
+        }
+    }
+
     LaunchedEffect(
         controller,
         state.featured.sourceUrl,
@@ -292,6 +314,15 @@ fun rememberYouTubePlayer(
             ?.toMediaItem()
             ?.takeIf { it != MediaItem.EMPTY }
         mediaController.syncQueuedNext(nextQueuedItem)
+    }
+
+    LaunchedEffect(controller, state.featured.selectedVideoQualityId, state.featured.playbackUrl) {
+        val mediaController = controller ?: return@LaunchedEffect
+        if (mediaController.playbackState == Player.STATE_IDLE) return@LaunchedEffect
+        applyYouTubePlaybackQuality(
+            mediaController = mediaController,
+            featured = state.featured,
+        )
     }
 
     LaunchedEffect(controller, state.featured.sourceUrl) {
@@ -310,7 +341,7 @@ fun rememberYouTubePlayer(
                     lastReportedPlayWhenReady != playWhenReady ||
                         lastReportedBuffering != buffering ||
                         lastReportedPosition < 0L ||
-                        kotlin.math.abs(currentPosition - lastReportedPosition) >= 3_500L
+                        kotlin.math.abs(currentPosition - lastReportedPosition) >= 10_000L
                 if (shouldReport) {
                     lastReportedPosition = currentPosition
                     lastReportedPlayWhenReady = playWhenReady
@@ -328,9 +359,9 @@ fun rememberYouTubePlayer(
             }
             delay(
                 when {
-                    activelyPlaying -> 4_000L
-                    syncingCurrentItem -> 6_000L
-                    else -> 12_000L
+                    activelyPlaying -> 10_000L
+                    syncingCurrentItem -> 12_000L
+                    else -> 20_000L
                 },
             )
         }
@@ -340,7 +371,13 @@ fun rememberYouTubePlayer(
 }
 
 private fun isAdaptivePlaybackUrl(url: String): Boolean {
-    return url.isNotBlank()
+    if (url.isBlank()) return false
+    val lower = url.lowercase()
+    return lower.contains(".mpd") ||
+        lower.contains("manifest.googlevideo.com") ||
+        lower.contains(".m3u8") ||
+        lower.contains("/manifest/") ||
+        lower.startsWith("https://manifest")
 }
 
 private fun applyYouTubePlaybackQuality(

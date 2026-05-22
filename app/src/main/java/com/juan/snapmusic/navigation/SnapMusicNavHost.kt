@@ -495,7 +495,9 @@ private fun rememberManagedYouTubePlayer(
     return rememberYouTubePlayer(
         state = state,
         onPlaybackEnded = viewModel::onYouTubePlaybackEnded,
-        onPlaybackError = viewModel::onYouTubePlaybackError,
+        onPlaybackError = { rawMessage, shouldRetryExpiredStream ->
+            viewModel.onYouTubePlaybackError(rawMessage, shouldRetryExpiredStream)
+        },
         onPlaybackProgress = viewModel::syncYouTubePlaybackProgress,
         onMediaTransition = viewModel::syncYouTubeMediaTransition,
         onPlaybackQualityChanged = viewModel::syncYouTubePlaybackTracks,

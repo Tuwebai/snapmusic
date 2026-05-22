@@ -349,9 +349,14 @@ class SnapMusicViewModel(
     private val _youtubeDownloadSheet = MutableStateFlow(YouTubeDownloadSheetState())
     private val _youtubeSearchSuggestions = MutableStateFlow<List<String>>(emptyList())
     private val _youtubeSearchSuggestionsLoading = MutableStateFlow(false)
-    private val youTubeResolveCache = LinkedHashMap<String, YouTubeFeaturedVideo>()
+    private val youTubeResolveCache = object : LinkedHashMap<String, YouTubeFeaturedVideo>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, YouTubeFeaturedVideo>?): Boolean {
+            return size > 50
+        }
+    }
     private val youTubePlaybackMilestones = linkedMapOf<String, MutableSet<MusicSignalType>>()
     private var lastFailureFallbackSourceUrl: String? = null
+    private var lastExpiredStreamRetrySourceUrl: String? = null
     private var cachedYouTubeHomeFeed: List<YouTubeFeedItem> = emptyList()
 
     val queueFeedback: StateFlow<String?> = _queueFeedback.asStateFlow()
@@ -1482,6 +1487,7 @@ class SnapMusicViewModel(
 
     fun dismissYouTubePlayer() {
         watchNextEnrichmentJob?.cancel()
+        lastExpiredStreamRetrySourceUrl = null
         val current = _youtubeState.value
         _youtubeState.value = current.copy(
             showPlayer = false,
@@ -1986,6 +1992,7 @@ class SnapMusicViewModel(
             runCatching { resolveFeaturedVideo(target) }
                 .onSuccess { featured ->
                     lastFailureFallbackSourceUrl = null
+                    lastExpiredStreamRetrySourceUrl = null
                     val latest = _youtubeState.value
                     youTubePlaybackMilestones[target.url] = mutableSetOf()
                     _youtubeState.value = latest.copy(
@@ -2215,6 +2222,7 @@ class SnapMusicViewModel(
             runCatching { resolveFeaturedVideo(currentItem) }
                 .onSuccess { featured ->
                     lastFailureFallbackSourceUrl = null
+                    lastExpiredStreamRetrySourceUrl = null
                     _youtubeState.value = _youtubeState.value.copy(
                         query = snapshot.query,
                         items = snapshot.queue,
@@ -2260,6 +2268,14 @@ class SnapMusicViewModel(
     }
 
     fun onYouTubePlaybackError(rawMessage: String?) {
+        onYouTubePlaybackError(rawMessage, shouldRetryExpiredStream = false)
+    }
+
+    fun onYouTubePlaybackError(
+        rawMessage: String?,
+        shouldRetryExpiredStream: Boolean,
+    ) {
+        if (shouldRetryExpiredStream && retryExpiredYouTubeStream()) return
         handleYouTubePlaybackFailure(
             currentIndex = resolveCurrentQueueIndex(_youtubeState.value),
             rawMessage = rawMessage,
@@ -2272,6 +2288,9 @@ class SnapMusicViewModel(
         playWhenReady: Boolean,
     ) {
         val current = _youtubeState.value
+        if (mediaId != current.featured.sourceUrl) {
+            lastExpiredStreamRetrySourceUrl = null
+        }
         val queueItems = current.playbackQueue.ifEmpty { current.items }
         val nextIndex = queueItems.indexOfFirst { it.url == mediaId }
         if (nextIndex == -1) {
@@ -2316,6 +2335,49 @@ class SnapMusicViewModel(
         if (queueItems.isEmpty()) return emptyList()
         val normalizedIndex = currentIndex.coerceIn(0, queueItems.lastIndex)
         return queueItems.drop((normalizedIndex + 1).coerceAtMost(queueItems.size))
+    }
+
+    private fun retryExpiredYouTubeStream(): Boolean {
+        val current = _youtubeState.value
+        val sourceUrl = current.featured.sourceUrl
+        if (sourceUrl.isBlank() || lastExpiredStreamRetrySourceUrl == sourceUrl) return false
+        val queueItems = current.playbackQueue.ifEmpty { current.items }
+        val currentIndex = resolveCurrentQueueIndex(current, queueItems)
+        val currentItem = queueItems.getOrNull(currentIndex) ?: return false
+        lastExpiredStreamRetrySourceUrl = sourceUrl
+        _youtubeState.value = current.copy(
+            isRefreshingVideo = true,
+            pendingTransition = false,
+            errorMessage = null,
+        )
+        viewModelScope.launch {
+            youTubeResolveCache.remove(currentItem.url)
+            runCatching { resolveFeaturedVideo(currentItem, forceRefresh = true) }
+                .onSuccess { featured ->
+                    val latest = _youtubeState.value
+                    if (latest.featured.sourceUrl != currentItem.url) return@onSuccess
+                    _youtubeState.value = latest.copy(
+                        featured = featured,
+                        isRefreshingVideo = false,
+                        pendingTransition = false,
+                        shouldAutoPlayCurrent = true,
+                        errorMessage = null,
+                        preloadedNextFeatured = nextQueueItem(queueItems, currentIndex, latest.continuationMode)?.let { youTubeResolveCache[it.url] },
+                    )
+                    persistCurrentYouTubeSnapshot()
+                    preResolveNextQueueItem(queueItems, currentIndex, latest.continuationMode)
+                }
+                .onFailure {
+                    if (_youtubeState.value.featured.sourceUrl == currentItem.url) {
+                        lastExpiredStreamRetrySourceUrl = null
+                        handleYouTubePlaybackFailure(
+                            currentIndex = currentIndex,
+                            rawMessage = it.message,
+                        )
+                    }
+                }
+        }
+        return true
     }
 
     private fun handleYouTubePlaybackFailure(
@@ -2535,8 +2597,14 @@ class SnapMusicViewModel(
         }
     }
 
-    private suspend fun resolveFeaturedVideo(item: YouTubeFeedItem): YouTubeFeaturedVideo {
-        return youTubeResolveCache[item.url] ?: item.toFeaturedVideo().also { featured ->
+    private suspend fun resolveFeaturedVideo(
+        item: YouTubeFeedItem,
+        forceRefresh: Boolean = false,
+    ): YouTubeFeaturedVideo {
+        if (!forceRefresh) {
+            youTubeResolveCache[item.url]?.let { return it }
+        }
+        return item.toFeaturedVideo().also { featured ->
             if (featured.isReady) {
                 youTubeResolveCache[item.url] = featured
             }
@@ -2992,11 +3060,13 @@ class SnapMusicViewModel(
         request: ConversionRequest,
         allowDuplicate: Boolean = false,
     ): Boolean {
-        val queuedId = graph.downloadCoordinator.enqueue(request, allowDuplicate = allowDuplicate)
-        if (queuedId == null) {
-            _queueFeedback.value = "Ese formato ya existe en la cola o ya se descargó en esa carpeta."
+        viewModelScope.launch {
+            val queuedId = graph.downloadCoordinator.enqueue(request, allowDuplicate = allowDuplicate)
+            if (queuedId == null) {
+                _queueFeedback.value = "Ese formato ya existe en la cola o ya se descargó en esa carpeta."
+            }
         }
-        return queuedId != null
+        return true
     }
 
     private suspend fun YouTubeFeedItem.toFeaturedVideo(): YouTubeFeaturedVideo {
@@ -3033,7 +3103,13 @@ class SnapMusicViewModel(
     }
 
     private fun isAdaptivePlaybackUrl(url: String): Boolean {
-        return url.isNotBlank()
+        if (url.isBlank()) return false
+        val lower = url.lowercase()
+        return lower.contains(".mpd") ||
+            lower.contains("manifest.googlevideo.com") ||
+            lower.contains(".m3u8") ||
+            lower.contains("/manifest/") ||
+            lower.startsWith("https://manifest")
     }
 
     private fun fallbackAutomaticPlaybackUrl(resolved: com.juan.snapmusic.core.model.ResolvedMedia): String? {
@@ -3151,7 +3227,11 @@ class SnapMusicViewModel(
         requestedHeight: Int?,
     ): com.juan.snapmusic.core.model.MediaVariant? {
         if (candidates.isEmpty()) return null
-        val sorted = candidates.sortedByDescending { it.resolution?.substringBefore('p')?.toIntOrNull() ?: 0 }
+        val sorted = candidates.sortedWith(
+            compareByDescending<com.juan.snapmusic.core.model.MediaVariant> {
+                it.resolution?.substringBefore('p')?.toIntOrNull() ?: 0
+            }.thenBy { it.requiresMux },
+        )
         if (requestedHeight == null) return sorted.firstOrNull()
         return sorted.firstOrNull { (it.resolution?.substringBefore('p')?.toIntOrNull() ?: 0) <= requestedHeight }
             ?: sorted.minByOrNull { kotlin.math.abs((it.resolution?.substringBefore('p')?.toIntOrNull() ?: requestedHeight) - requestedHeight) }
