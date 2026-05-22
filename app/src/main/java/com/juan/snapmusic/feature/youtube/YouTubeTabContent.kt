@@ -170,11 +170,7 @@ private fun YouTubeSuggestionsList(
     onItemDownload: (YouTubeFeedItem) -> Unit,
     onRefresh: () -> Unit,
 ) {
-    PullToRefreshBox(
-        modifier = modifier,
-        isRefreshing = suggestionsState.isRefreshing,
-        onRefresh = onRefresh,
-    ) {
+    val listContent: @Composable () -> Unit = {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = listState,
@@ -219,6 +215,19 @@ private fun YouTubeSuggestionsList(
                     }
                 }
             }
+        }
+    }
+    if (suggestionsState.isPlayerVisible) {
+        Box(modifier = modifier) {
+            listContent()
+        }
+    } else {
+        PullToRefreshBox(
+            modifier = modifier,
+            isRefreshing = suggestionsState.isRefreshing,
+            onRefresh = onRefresh,
+        ) {
+            listContent()
         }
     }
 }
