@@ -1,5 +1,25 @@
 # Findings — SnapMusic Android
 
+## Remediación nueva de playback 60fps — 2026-05-21
+- El cuello principal confirmado en reproducción era estructural y no solo visual:
+  - YouTube creaba polling de progreso/buffer duplicado entre overlay inline y fullscreen.
+  - varios `AndroidView(PlayerView)` seguían embebidos dentro de shells que recomponían por estado de reproducción.
+- La corrección elegida para cortar jank por recomposición fue:
+  - introducir un estado compartido `PlaybackOverlayState`
+  - mover la producción de progreso/buffer a un único helper reusable
+  - aislar `PlayerView` en un leaf común `PlayerSurface`
+  - reutilizar bindings comunes para slider/seek en vez de repetir lógica local
+- Preview ya tenía una base mejor que YouTube porque compartía `rememberPreviewPlaybackState`, así que la remediación ahí se enfocó en:
+  - unificar surfaces Media3
+  - evitar duplicación de wiring entre inline, PiP, hero y fullscreen
+  - reutilizar bindings de seek para los dos paneles locales
+- Se agregó además un escenario macrobenchmark nuevo para medir:
+  - watch
+  - fullscreen
+  - salida
+  - minimizado
+  - retorno al player
+
 ## ConvertIO actual
 - La app desktop actual usa `yt-dlp` + `ffmpeg` y una UI Tkinter.
 - La lógica importante a portar es:

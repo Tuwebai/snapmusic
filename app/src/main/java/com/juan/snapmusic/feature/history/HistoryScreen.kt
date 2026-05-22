@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,8 +36,10 @@ fun HistoryScreen(
         item {
             AppHeader("Historial", "Últimos resultados guardados por SnapMusic en este dispositivo.")
         }
-        items(items.size) { index ->
-            val item = items[index]
+        items(
+            items = items,
+            key = { item -> item.id },
+        ) { item ->
             Column(
                 modifier = Modifier
                     .padding(horizontal = 20.dp)

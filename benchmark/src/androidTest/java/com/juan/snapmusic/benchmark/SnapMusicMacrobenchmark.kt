@@ -37,6 +37,25 @@ class SnapMusicMacrobenchmark {
         }
     }
 
+    private fun MacrobenchmarkScope.tapWatchPlayerCenter() {
+        device.click(
+            device.displayWidth / 2,
+            (device.displayHeight * 0.26f).toInt(),
+        )
+        device.waitForIdle()
+    }
+
+    private fun MacrobenchmarkScope.minimizeWatchPlayer() {
+        device.swipe(
+            device.displayWidth / 2,
+            (device.displayHeight * 0.38f).toInt(),
+            device.displayWidth / 2,
+            (device.displayHeight * 0.78f).toInt(),
+            18,
+        )
+        device.waitForIdle()
+    }
+
     @Test
     fun startupCold() = benchmarkRule.measureRepeated(
         packageName = packageName,
@@ -129,6 +148,38 @@ class SnapMusicMacrobenchmark {
             display.first / 2,
             (display.second * 0.78f).toInt(),
             16,
+        )
+        device.waitForIdle()
+    }
+
+    @Test
+    fun youtubeFullscreenToggleAndReturn() = benchmarkRule.measureRepeated(
+        packageName = packageName,
+        metrics = listOf(FrameTimingMetric()),
+        iterations = 3,
+        startupMode = StartupMode.WARM,
+        compilationMode = CompilationMode.Partial(),
+        setupBlock = {
+            launchHomeAndWait()
+        },
+    ) {
+        device.findObject(By.text("YouTube"))?.click()
+        device.waitForIdle()
+        device.findObject(By.clazz("android.widget.ImageView"))?.click()
+        device.waitForIdle()
+
+        tapWatchPlayerCenter()
+        device.findObject(By.desc("Cambiar ajuste del video"))?.click()
+        device.waitForIdle()
+
+        tapWatchPlayerCenter()
+        device.findObject(By.desc("Volver"))?.click()
+        device.waitForIdle()
+
+        minimizeWatchPlayer()
+        device.click(
+            device.displayWidth / 2,
+            (device.displayHeight * 0.86f).toInt(),
         )
         device.waitForIdle()
     }

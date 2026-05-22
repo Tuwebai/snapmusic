@@ -1,6 +1,20 @@
 # Progreso de implementación — SnapMusic Android
 
 ## 2026-05-21
+- Se implementó la remediación estructural nueva del playback para atacar el jank de 60fps desde la raíz.
+- Cambios principales aplicados:
+  - estado compartido `PlaybackOverlayState` para progreso/duración/buffer/play-pause
+  - helper común `PlayerSurface` para encapsular `PlayerView` y cortar recomposición inútil alrededor de `AndroidView`
+  - bindings comunes de slider/seek reutilizados entre overlay de video y paneles de preview
+  - watch player de YouTube refactorizado para usar un solo productor de overlay compartido entre inline y fullscreen
+  - preview local refactorizado para reutilizar surfaces Media3 comunes y eliminar wiring repetido
+  - `HistoryScreen` corregido con `key` estable en `LazyColumn`
+  - macrobenchmark extendido con `youtubeFullscreenToggleAndReturn`
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat :app:compileDebugKotlin`
+  - `.\gradlew.bat :benchmark:assembleAndroidTest`
+  - `.\gradlew.bat :benchmark:assembleBenchmark :app:testDebugUnitTest`
+  - `.\gradlew.bat :benchmark:connectedBenchmarkAndroidTest`
 - Se ejecutó una auditoría integral de flujos completos de la app apoyada en:
   - proceso vivo en el teléfono
   - `adb shell am start -W`

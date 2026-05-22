@@ -41,7 +41,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -55,7 +54,6 @@ import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.view.WindowInsetsCompat
@@ -63,21 +61,10 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
 import com.juan.snapmusic.core.designsystem.AccentRed
 import com.juan.snapmusic.core.designsystem.TextPrimary
 import com.juan.snapmusic.core.designsystem.TextSecondary
 import kotlinx.coroutines.delay
-
-internal data class VideoOverlayUiState(
-    val showControls: Boolean,
-    val isPlaying: Boolean,
-    val currentPositionMs: Long,
-    val bufferedPositionMs: Long = 0L,
-    val durationMs: Long,
-    val canGoPrevious: Boolean,
-    val canGoNext: Boolean,
-)
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
@@ -87,7 +74,9 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 
 @Composable
 internal fun VideoFullscreenOverlay(
-    state: VideoOverlayUiState,
+    playbackState: PlaybackOverlayState,
+    canGoPrevious: Boolean,
+    canGoNext: Boolean,
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onPlayPause: () -> Unit,
@@ -97,23 +86,14 @@ internal fun VideoFullscreenOverlay(
     onSeekTo: (Long) -> Unit,
     onToggleResize: () -> Unit,
 ) {
-    if (!state.showControls) return
+    if (!playbackState.showControls) return
 
-    var sliderValue by remember {
-        mutableLongStateOf(0L)
-    }
-    var isDragging by remember { mutableStateOf(false) }
-
-    LaunchedEffect(state.currentPositionMs, state.durationMs, isDragging) {
-        if (!isDragging) {
-            sliderValue = state.currentPositionMs.coerceIn(0L, state.durationMs.takeIf { it > 0 } ?: 0L)
-        }
-    }
-    val durationMs = state.durationMs.takeIf { it > 0 } ?: 1L
-    val playedFraction = ((if (isDragging) sliderValue else state.currentPositionMs).coerceAtLeast(0L).toFloat() / durationMs.toFloat())
-        .coerceIn(0f, 1f)
-    val bufferedFraction = (state.bufferedPositionMs.coerceAtLeast(0L).toFloat() / durationMs.toFloat())
-        .coerceIn(playedFraction, 1f)
+    val sliderBindings = rememberPlaybackSliderBindings(
+        currentPositionMs = playbackState.currentPositionMs,
+        durationMs = playbackState.durationMs,
+        bufferedPositionMs = playbackState.bufferedPositionMs,
+        onSeekTo = onSeekTo,
+    )
 
     Box(
         modifier = modifier
@@ -160,12 +140,12 @@ internal fun VideoFullscreenOverlay(
         ) {
             OverlayGlyphButton(
                 onClick = onPrevious,
-                enabled = state.canGoPrevious,
+                enabled = canGoPrevious,
                 icon = {
                     Icon(
                         imageVector = Icons.Outlined.SkipPrevious,
                         contentDescription = "Anterior",
-                        tint = if (state.canGoPrevious) TextPrimary else TextSecondary.copy(alpha = 0.35f),
+                        tint = if (canGoPrevious) TextPrimary else TextSecondary.copy(alpha = 0.35f),
                         modifier = Modifier.size(26.dp),
                     )
                 },
@@ -174,8 +154,8 @@ internal fun VideoFullscreenOverlay(
                 onClick = onPlayPause,
                 icon = {
                     Icon(
-                        imageVector = if (state.isPlaying) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
-                        contentDescription = if (state.isPlaying) "Pausar" else "Reproducir",
+                        imageVector = if (playbackState.isPlaying) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+                        contentDescription = if (playbackState.isPlaying) "Pausar" else "Reproducir",
                         tint = TextPrimary,
                         modifier = Modifier.size(30.dp),
                     )
@@ -183,12 +163,12 @@ internal fun VideoFullscreenOverlay(
             )
             OverlayGlyphButton(
                 onClick = onNext,
-                enabled = state.canGoNext,
+                enabled = canGoNext,
                 icon = {
                     Icon(
                         imageVector = Icons.Outlined.SkipNext,
                         contentDescription = "Siguiente",
-                        tint = if (state.canGoNext) TextPrimary else TextSecondary.copy(alpha = 0.35f),
+                        tint = if (canGoNext) TextPrimary else TextSecondary.copy(alpha = 0.35f),
                         modifier = Modifier.size(26.dp),
                     )
                 },
@@ -215,20 +195,20 @@ internal fun VideoFullscreenOverlay(
                         .clip(RoundedCornerShape(percent = 50))
                         .background(Color.White.copy(alpha = 0.22f)),
                 )
-                if (bufferedFraction > playedFraction) {
+                if (sliderBindings.bufferedFraction > sliderBindings.playedFraction) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(bufferedFraction)
+                            .fillMaxWidth(sliderBindings.bufferedFraction)
                             .height(3.dp)
                             .align(Alignment.CenterStart)
                             .clip(RoundedCornerShape(percent = 50))
                             .background(AccentRed.copy(alpha = 0.34f)),
                     )
                 }
-                if (playedFraction > 0f) {
+                if (sliderBindings.playedFraction > 0f) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(playedFraction)
+                            .fillMaxWidth(sliderBindings.playedFraction)
                             .height(3.dp)
                             .align(Alignment.CenterStart)
                             .clip(RoundedCornerShape(percent = 50))
@@ -236,16 +216,10 @@ internal fun VideoFullscreenOverlay(
                     )
                 }
                 Slider(
-                    value = sliderValue.toFloat(),
-                    onValueChange = {
-                        isDragging = true
-                        sliderValue = it.toLong()
-                    },
-                    onValueChangeFinished = {
-                        isDragging = false
-                        onSeekTo(sliderValue)
-                    },
-                    valueRange = 0f..durationMs.toFloat(),
+                    value = sliderBindings.sliderValue,
+                    onValueChange = sliderBindings.onValueChange,
+                    onValueChangeFinished = sliderBindings.onValueChangeFinished,
+                    valueRange = 0f..sliderBindings.durationMs.toFloat(),
                     modifier = Modifier.fillMaxWidth(),
                     colors = SliderDefaults.colors(
                         thumbColor = AccentRed,
@@ -260,7 +234,7 @@ internal fun VideoFullscreenOverlay(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = formatOverlayMillis(if (isDragging) sliderValue else state.currentPositionMs),
+                    text = formatOverlayMillis(sliderBindings.displayedPositionMs),
                     style = MaterialTheme.typography.labelSmall,
                     color = TextPrimary,
                     maxLines = 1,
@@ -270,7 +244,7 @@ internal fun VideoFullscreenOverlay(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = formatOverlayMillis(state.durationMs),
+                        text = formatOverlayMillis(playbackState.durationMs),
                         style = MaterialTheme.typography.labelSmall,
                         color = TextPrimary,
                         maxLines = 1,
@@ -299,7 +273,9 @@ internal fun VideoFullscreenOverlay(
 internal fun LandscapeFullscreenVideoDialog(
     visible: Boolean,
     player: Player?,
-    overlayState: VideoOverlayUiState,
+    overlayState: PlaybackOverlayState,
+    canGoPrevious: Boolean,
+    canGoNext: Boolean,
     thumbnailVisible: Boolean,
     isBuffering: Boolean = false,
     thumbnail: @Composable (() -> Unit)?,
@@ -316,7 +292,6 @@ internal fun LandscapeFullscreenVideoDialog(
     val mediaKey = player.currentMediaItem?.mediaId ?: "fullscreen"
     var showControls by rememberSaveable(mediaKey) { mutableStateOf(true) }
     var hasInteracted by rememberSaveable(mediaKey) { mutableStateOf(false) }
-    var hasRenderedFirstFrame by remember(player, mediaKey) { mutableStateOf(player.videoSize.width > 0) }
 
     DisposableEffect(activity, visible) {
         val initialOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -328,17 +303,6 @@ internal fun LandscapeFullscreenVideoDialog(
             controller?.show(WindowInsetsCompat.Type.systemBars())
             activity?.requestedOrientation = initialOrientation
         }
-    }
-
-    DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onRenderedFirstFrame() {
-                hasRenderedFirstFrame = true
-            }
-        }
-        hasRenderedFirstFrame = player.videoSize.width > 0
-        player.addListener(listener)
-        onDispose { player.removeListener(listener) }
     }
 
     LaunchedEffect(visible, mediaKey) {
@@ -384,26 +348,16 @@ internal fun LandscapeFullscreenVideoDialog(
                 if (thumbnailVisible) {
                     thumbnail?.invoke()
                 }
-                AndroidView(
+                PlayerSurface(
+                    player = player,
                     modifier = Modifier.fillMaxSize(),
-                    factory = { context ->
-                        PlayerView(context).apply {
-                            useController = false
-                            controllerAutoShow = false
-                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            setShutterBackgroundColor(android.graphics.Color.BLACK)
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                            )
-                            this.player = player
-                            keepScreenOn = player?.playWhenReady == true
-                        }
-                    },
-                    update = {
-                        it.player = player
-                        it.keepScreenOn = player?.playWhenReady == true
-                    },
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                    shutterColor = android.graphics.Color.BLACK,
+                    keepScreenOn = player.playWhenReady,
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    ),
                 )
                 if (isBuffering) {
                     Box(
@@ -421,7 +375,9 @@ internal fun LandscapeFullscreenVideoDialog(
                     }
                 }
                 VideoFullscreenOverlay(
-                    state = overlayState.copy(showControls = showControls),
+                    playbackState = overlayState.copy(showControls = showControls),
+                    canGoPrevious = canGoPrevious,
+                    canGoNext = canGoNext,
                     onBack = {
                         hasInteracted = true
                         showControls = false

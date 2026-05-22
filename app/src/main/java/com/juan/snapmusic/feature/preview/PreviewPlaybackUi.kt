@@ -49,7 +49,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -67,11 +66,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.juan.snapmusic.R
@@ -86,8 +83,10 @@ import com.juan.snapmusic.core.model.PreviewState
 import com.juan.snapmusic.core.platform.PlaybackArtworkBadgeHelper
 import com.juan.snapmusic.feature.player.VideoFullscreenOverlay
 import com.juan.snapmusic.feature.player.LandscapeFullscreenVideoDialog
+import com.juan.snapmusic.feature.player.PlaybackOverlayState
+import com.juan.snapmusic.feature.player.PlayerSurface
+import com.juan.snapmusic.feature.player.rememberPlaybackSliderBindings
 import com.juan.snapmusic.feature.player.VideoMiniOverlay
-import com.juan.snapmusic.feature.player.VideoOverlayUiState
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -141,16 +140,11 @@ internal fun PreviewPlaybackCard(
         )
         return
     }
-    var sliderValue by remember {
-        mutableLongStateOf(0L)
-    }
-    var isDragging by remember { mutableStateOf(false) }
-
-    LaunchedEffect(playback.positionMs, playback.durationMs, isDragging) {
-        if (!isDragging) {
-            sliderValue = playback.positionMs.coerceIn(0L, playback.durationMs.takeIf { it > 0 } ?: 0L)
-        }
-    }
+    val sliderBindings = rememberPlaybackSliderBindings(
+        currentPositionMs = playback.positionMs,
+        durationMs = playback.durationMs,
+        onSeekTo = player::seekTo,
+    )
 
     Column(
         modifier = Modifier
@@ -195,16 +189,10 @@ internal fun PreviewPlaybackCard(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Slider(
-                value = sliderValue.toFloat(),
-                onValueChange = {
-                    isDragging = true
-                    sliderValue = it.toLong()
-                },
-                onValueChangeFinished = {
-                    isDragging = false
-                    player.seekTo(sliderValue)
-                },
-                valueRange = 0f..(playback.durationMs.takeIf { it > 0 }?.toFloat() ?: 1f),
+                value = sliderBindings.sliderValue,
+                onValueChange = sliderBindings.onValueChange,
+                onValueChangeFinished = sliderBindings.onValueChangeFinished,
+                valueRange = 0f..sliderBindings.durationMs.toFloat(),
                 colors = SliderDefaults.colors(
                     thumbColor = AccentRed,
                     activeTrackColor = AccentRed,
@@ -216,7 +204,7 @@ internal fun PreviewPlaybackCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    formatMillis(if (isDragging) sliderValue else playback.positionMs),
+                    formatMillis(sliderBindings.displayedPositionMs),
                     color = TextSecondary,
                     style = MaterialTheme.typography.labelSmall,
                 )
@@ -283,6 +271,14 @@ private fun PreviewVideoPlaybackCard(
 ) {
     var showControls by rememberSaveable(preview.fileUri) { mutableStateOf(false) }
     var isFullscreen by rememberSaveable(preview.fileUri) { mutableStateOf(false) }
+    val overlayState = remember(showControls, playback) {
+        PlaybackOverlayState(
+            showControls = showControls,
+            isPlaying = playback.isPlaying,
+            currentPositionMs = playback.positionMs,
+            durationMs = playback.durationMs,
+        )
+    }
     var hasRenderedFirstFrame by remember(preview.fileUri, player) {
         mutableStateOf(player.videoSize.width > 0)
     }
@@ -345,22 +341,12 @@ private fun PreviewVideoPlaybackCard(
             }
             if (!isFullscreen) {
                 key(preview.fileUri, player) {
-                    AndroidView(
+                    PlayerSurface(
+                        player = player,
                         modifier = Modifier.fillMaxSize(),
-                        factory = { context ->
-                            PlayerView(context).apply {
-                                useController = false
-                                controllerAutoShow = false
-                                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                setShutterBackgroundColor(android.graphics.Color.BLACK)
-                                this.player = player
-                                keepScreenOn = player?.playWhenReady == true
-                            }
-                        },
-                        update = {
-                            it.player = player
-                            it.keepScreenOn = player?.playWhenReady == true
-                        },
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                        shutterColor = android.graphics.Color.BLACK,
+                        keepScreenOn = player.playWhenReady,
                     )
                 }
             }
@@ -378,14 +364,9 @@ private fun PreviewVideoPlaybackCard(
                     ) { showControls = !showControls },
             ) {
                 VideoFullscreenOverlay(
-                    state = VideoOverlayUiState(
-                        showControls = showControls,
-                        isPlaying = playback.isPlaying,
-                        currentPositionMs = playback.positionMs,
-                        durationMs = playback.durationMs,
-                        canGoPrevious = canGoPrevious,
-                        canGoNext = canGoNext,
-                    ),
+                    playbackState = overlayState,
+                    canGoPrevious = canGoPrevious,
+                    canGoNext = canGoNext,
                     onBack = onBack,
                     onPlayPause = { player.togglePlayPause() },
                     onPrevious = onPrevious,
@@ -402,14 +383,9 @@ private fun PreviewVideoPlaybackCard(
         LandscapeFullscreenVideoDialog(
             visible = isFullscreen,
             player = player,
-            overlayState = VideoOverlayUiState(
-                showControls = true,
-                isPlaying = playback.isPlaying,
-                currentPositionMs = playback.positionMs,
-                durationMs = playback.durationMs,
-                canGoPrevious = canGoPrevious,
-                canGoNext = canGoNext,
-            ),
+            overlayState = overlayState,
+            canGoPrevious = canGoPrevious,
+            canGoNext = canGoNext,
             thumbnailVisible = !hasRenderedFirstFrame && preview.thumbnailUrl.isNotBlank(),
             thumbnail = {
                 AsyncImage(
@@ -478,22 +454,12 @@ internal fun PreviewPictureInPictureSurface(
     ) {
         if (player != null && preview.fileUri != null && preview.fileUri.isPreviewVideoMedia()) {
             key(preview.fileUri, player) {
-                AndroidView(
+                PlayerSurface(
+                    player = player,
                     modifier = Modifier.fillMaxSize(),
-                    factory = { context ->
-                        PlayerView(context).apply {
-                            useController = false
-                            controllerAutoShow = false
-                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            setShutterBackgroundColor(android.graphics.Color.BLACK)
-                            this.player = player
-                            keepScreenOn = player?.playWhenReady == true
-                        }
-                    },
-                    update = {
-                        it.player = player
-                        it.keepScreenOn = player?.playWhenReady == true
-                    },
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                    shutterColor = android.graphics.Color.BLACK,
+                    keepScreenOn = player.playWhenReady,
                 )
             }
         } else {
@@ -643,22 +609,12 @@ private fun VideoHeroSurface(
             .background(Color.Black),
     ) {
         key(preview.fileUri, player) {
-            AndroidView(
+            PlayerSurface(
+                player = player,
                 modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    PlayerView(context).apply {
-                        useController = false
-                        controllerAutoShow = false
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        setShutterBackgroundColor(android.graphics.Color.BLACK)
-                        this.player = player
-                        keepScreenOn = player?.playWhenReady == true
-                    }
-                },
-                update = {
-                    it.player = player
-                    it.keepScreenOn = player?.playWhenReady == true
-                },
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                shutterColor = android.graphics.Color.BLACK,
+                keepScreenOn = player.playWhenReady,
             )
         }
         Box(
@@ -788,16 +744,11 @@ private fun ControlsPanel(
             .size(100, 100)
             .build()
     }
-    var sliderValue by remember {
-        mutableLongStateOf(0L)
-    }
-    var isDragging by remember { mutableStateOf(false) }
-
-    LaunchedEffect(playback.positionMs, playback.durationMs, isDragging) {
-        if (!isDragging) {
-            sliderValue = playback.positionMs.coerceIn(0L, playback.durationMs.takeIf { it > 0 } ?: 0L)
-        }
-    }
+    val sliderBindings = rememberPlaybackSliderBindings(
+        currentPositionMs = playback.positionMs,
+        durationMs = playback.durationMs,
+        onSeekTo = onSeek,
+    )
 
     Box(
         modifier = Modifier
@@ -859,16 +810,10 @@ private fun ControlsPanel(
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Slider(
-                    value = sliderValue.toFloat(),
-                    onValueChange = {
-                        isDragging = true
-                        sliderValue = it.toLong()
-                    },
-                    onValueChangeFinished = {
-                        isDragging = false
-                        onSeek(sliderValue)
-                    },
-                    valueRange = 0f..(playback.durationMs.takeIf { it > 0 }?.toFloat() ?: 1f),
+                    value = sliderBindings.sliderValue,
+                    onValueChange = sliderBindings.onValueChange,
+                    onValueChangeFinished = sliderBindings.onValueChangeFinished,
+                    valueRange = 0f..sliderBindings.durationMs.toFloat(),
                     colors = SliderDefaults.colors(
                         thumbColor = WarningAmber,
                         activeTrackColor = WarningAmber,
@@ -879,7 +824,7 @@ private fun ControlsPanel(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text(formatMillis(if (isDragging) sliderValue else playback.positionMs), color = TextSecondary, style = MaterialTheme.typography.labelMedium)
+                    Text(formatMillis(sliderBindings.displayedPositionMs), color = TextSecondary, style = MaterialTheme.typography.labelMedium)
                     Text(formatMillis(playback.durationMs), color = TextSecondary, style = MaterialTheme.typography.labelMedium)
                 }
             }
@@ -980,22 +925,12 @@ private fun PreviewPlaybackVisual(
 ) {
     if (isVideo) {
         key(preview.fileUri, player) {
-            AndroidView(
+            PlayerSurface(
+                player = player,
                 modifier = modifier.background(Color.Black),
-                factory = { context ->
-                    PlayerView(context).apply {
-                        useController = false
-                        controllerAutoShow = false
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                        setShutterBackgroundColor(android.graphics.Color.BLACK)
-                        this.player = player
-                        keepScreenOn = player?.playWhenReady == true
-                    }
-                },
-                update = {
-                    it.player = player
-                    it.keepScreenOn = player?.playWhenReady == true
-                },
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                shutterColor = android.graphics.Color.BLACK,
+                keepScreenOn = player.playWhenReady,
             )
         }
         return

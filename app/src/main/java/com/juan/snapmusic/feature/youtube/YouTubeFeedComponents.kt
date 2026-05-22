@@ -52,7 +52,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,12 +68,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.size.Precision
@@ -91,11 +88,12 @@ import com.juan.snapmusic.core.model.YouTubeFeedItem
 import com.juan.snapmusic.core.platform.formatDuration
 import com.juan.snapmusic.feature.player.VideoFullscreenOverlay
 import com.juan.snapmusic.feature.player.LandscapeFullscreenVideoDialog
-import com.juan.snapmusic.feature.player.VideoOverlayUiState
+import com.juan.snapmusic.feature.player.PlaybackOverlayState
+import com.juan.snapmusic.feature.player.PlayerSurface
+import com.juan.snapmusic.feature.player.rememberPlaybackOverlayState
 import androidx.compose.ui.text.style.TextOverflow
 import java.text.DecimalFormat
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import androidx.compose.foundation.interaction.MutableInteractionSource
 
 private val WatchPlayerHeight = 304.dp
@@ -319,16 +317,13 @@ private fun FeaturedVideoPlayerShell(
     onOpenWatchSheet: () -> Unit,
 ) {
     var showOverlayControls by rememberSaveable(featured.sourceUrl) { mutableStateOf(false) }
+    val overlayState = rememberPlaybackOverlayState(
+        player = player,
+        mediaId = featured.sourceUrl,
+        showControls = showOverlayControls,
+    )
     var hasRenderedFirstFrame by remember(featured.sourceUrl, player) {
         mutableStateOf(player?.videoSize?.width?.let { it > 0 } == true)
-    }
-    var isPlaying by remember(featured.sourceUrl, player) {
-        mutableStateOf(
-            player?.let { currentPlayer ->
-                currentPlayer.isPlaying ||
-                    (currentPlayer.playWhenReady && currentPlayer.playbackState != Player.STATE_ENDED)
-            } == true,
-        )
     }
     var isBuffering by remember(featured.sourceUrl, player) {
         mutableStateOf(
@@ -359,17 +354,7 @@ private fun FeaturedVideoPlayerShell(
             onDispose { }
         } else {
             val listener = object : Player.Listener {
-                override fun onIsPlayingChanged(playing: Boolean) {
-                    isPlaying =
-                        playing ||
-                            (currentPlayer.playWhenReady &&
-                                currentPlayer.playbackState != Player.STATE_ENDED)
-                }
-
                 override fun onPlaybackStateChanged(playbackState: Int) {
-                    isPlaying =
-                        (currentPlayer.isPlaying || currentPlayer.playWhenReady) &&
-                            playbackState != Player.STATE_ENDED
                     isBuffering =
                         currentPlayer.currentMediaItem?.mediaId == featured.sourceUrl &&
                             currentPlayer.playWhenReady &&
@@ -383,9 +368,6 @@ private fun FeaturedVideoPlayerShell(
             hasRenderedFirstFrame =
                 currentPlayer.currentMediaItem?.mediaId == featured.sourceUrl &&
                     currentPlayer.videoSize.width > 0
-            isPlaying =
-                currentPlayer.isPlaying ||
-                    (currentPlayer.playWhenReady && currentPlayer.playbackState != Player.STATE_ENDED)
             isBuffering =
                 currentPlayer.currentMediaItem?.mediaId == featured.sourceUrl &&
                     currentPlayer.playWhenReady &&
@@ -419,28 +401,15 @@ private fun FeaturedVideoPlayerShell(
         }
         if (!isFullscreen && player != null && featured.playbackUrl != null) {
             key(featured.sourceUrl, player) {
-                AndroidView(
+                PlayerSurface(
+                    player = player,
                     modifier = Modifier
                         .fillMaxSize()
                         .alpha(if (hasRenderedFirstFrame) 1f else 0f),
-                    factory = { context ->
-                        PlayerView(context).apply {
-                            useController = false
-                            controllerAutoShow = false
-                            controllerHideOnTouch = true
-                            controllerShowTimeoutMs = 2500
-                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                            setKeepContentOnPlayerReset(true)
-                            setShutterBackgroundColor(Color.TRANSPARENT)
-                            this.player = player
-                            keepScreenOn = player?.playWhenReady == true
-                            hideController()
-                        }
-                    },
-                    update = {
-                        it.player = player
-                        it.keepScreenOn = player?.playWhenReady == true
-                    },
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                    keepContentOnPlayerReset = true,
+                    shutterColor = Color.TRANSPARENT,
+                    keepScreenOn = player.playWhenReady,
                 )
             }
         }
@@ -474,10 +443,7 @@ private fun FeaturedVideoPlayerShell(
                 ) { showOverlayControls = !showOverlayControls }
         ) {
             FeaturedVideoOverlayHost(
-                player = player,
-                mediaId = featured.sourceUrl,
-                showControls = showOverlayControls,
-                isPlaying = isPlaying,
+                overlayState = overlayState,
                 onBack = {
                     showOverlayControls = false
                     onMinimizeVideo()
@@ -487,11 +453,9 @@ private fun FeaturedVideoPlayerShell(
                         if (currentPlayer.isPlaying) {
                             currentPlayer.pause()
                             currentPlayer.playWhenReady = false
-                            isPlaying = false
                         } else {
                             currentPlayer.playWhenReady = true
                             currentPlayer.play()
-                            isPlaying = true
                         }
                     }
                 },
@@ -517,8 +481,7 @@ private fun FeaturedVideoPlayerShell(
         visible = isFullscreen,
         featured = featured,
         player = player,
-        mediaId = featured.sourceUrl,
-        isPlaying = isPlaying,
+        overlayState = overlayState,
         featuredThumbnailModel = featuredThumbnailModel,
         thumbnailVisible = !hasRenderedFirstFrame,
         isBuffering = isBuffering,
@@ -528,11 +491,9 @@ private fun FeaturedVideoPlayerShell(
                 if (currentPlayer.isPlaying) {
                     currentPlayer.pause()
                     currentPlayer.playWhenReady = false
-                    isPlaying = false
                 } else {
                     currentPlayer.playWhenReady = true
                     currentPlayer.play()
-                    isPlaying = true
                 }
             }
         },
@@ -544,53 +505,8 @@ private fun FeaturedVideoPlayerShell(
 }
 
 @Composable
-private fun rememberVideoOverlayUiState(
-    player: Player?,
-    mediaId: String,
-    showControls: Boolean,
-    isPlaying: Boolean,
-): VideoOverlayUiState {
-    val playbackPosition by produceState(initialValue = 0L, player, mediaId) {
-        while (isActive) {
-            value = player?.currentPosition?.coerceAtLeast(0L) ?: 0L
-            delay(if (player?.isPlaying == true) 500 else 1_200)
-        }
-    }
-    val playbackDuration by produceState(initialValue = 0L, player, mediaId) {
-        while (isActive) {
-            value = player?.duration?.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0L
-            delay(2_000)
-        }
-    }
-    val bufferedPosition by produceState(initialValue = 0L, player, mediaId) {
-        while (isActive) {
-            val currentPlayer = player
-            value = currentPlayer?.let {
-                val buffered = it.contentBufferedPosition.takeIf { position -> position != C.TIME_UNSET && position > 0 }
-                    ?: it.bufferedPosition.takeIf { position -> position != C.TIME_UNSET && position > 0 }
-                    ?: 0L
-                buffered.coerceAtLeast(0L)
-            } ?: 0L
-            delay(if (currentPlayer?.playWhenReady == true) 700 else 1_200)
-        }
-    }
-    return VideoOverlayUiState(
-        showControls = showControls,
-        isPlaying = isPlaying,
-        currentPositionMs = playbackPosition,
-        bufferedPositionMs = bufferedPosition,
-        durationMs = playbackDuration,
-        canGoPrevious = true,
-        canGoNext = true,
-    )
-}
-
-@Composable
 private fun FeaturedVideoOverlayHost(
-    player: Player?,
-    mediaId: String,
-    showControls: Boolean,
-    isPlaying: Boolean,
+    overlayState: PlaybackOverlayState,
     onBack: () -> Unit,
     onPlayPause: () -> Unit,
     onPrevious: () -> Unit,
@@ -599,14 +515,10 @@ private fun FeaturedVideoOverlayHost(
     onSeekTo: (Long) -> Unit,
     onToggleResize: () -> Unit,
 ) {
-    val overlayState = rememberVideoOverlayUiState(
-        player = player,
-        mediaId = mediaId,
-        showControls = showControls,
-        isPlaying = isPlaying,
-    )
     VideoFullscreenOverlay(
-        state = overlayState,
+        playbackState = overlayState,
+        canGoPrevious = true,
+        canGoNext = true,
         onBack = onBack,
         onPlayPause = onPlayPause,
         onPrevious = onPrevious,
@@ -622,8 +534,7 @@ private fun FeaturedVideoFullscreenShell(
     visible: Boolean,
     featured: YouTubeFeaturedVideo,
     player: Player?,
-    mediaId: String,
-    isPlaying: Boolean,
+    overlayState: PlaybackOverlayState,
     featuredThumbnailModel: ImageRequest,
     thumbnailVisible: Boolean,
     isBuffering: Boolean,
@@ -634,16 +545,12 @@ private fun FeaturedVideoFullscreenShell(
     onMore: () -> Unit,
     onSeekTo: (Long) -> Unit,
 ) {
-    val overlayState = rememberVideoOverlayUiState(
-        player = player,
-        mediaId = mediaId,
-        showControls = true,
-        isPlaying = isPlaying,
-    )
     LandscapeFullscreenVideoDialog(
         visible = visible,
         player = player,
         overlayState = overlayState,
+        canGoPrevious = true,
+        canGoNext = true,
         thumbnailVisible = thumbnailVisible,
         isBuffering = isBuffering,
         thumbnail = {
@@ -776,22 +683,13 @@ fun PictureInPicturePlayerSurface(
     ) {
         if (player != null && featured.playbackUrl != null) {
             key(featured.sourceUrl, player) {
-                AndroidView(
+                PlayerSurface(
+                    player = player,
                     modifier = Modifier.fillMaxSize(),
-                    factory = { context ->
-                        PlayerView(context).apply {
-                            useController = false
-                            controllerAutoShow = false
-                            setKeepContentOnPlayerReset(true)
-                            setShutterBackgroundColor(Color.TRANSPARENT)
-                            this.player = player
-                            keepScreenOn = player?.playWhenReady == true
-                        }
-                    },
-                    update = {
-                        it.player = player
-                        it.keepScreenOn = player?.playWhenReady == true
-                    },
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                    keepContentOnPlayerReset = true,
+                    shutterColor = Color.TRANSPARENT,
+                    keepScreenOn = player.playWhenReady,
                 )
             }
         } else {
