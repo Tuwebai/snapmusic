@@ -250,7 +250,7 @@ class DownloadWorker(
         contentLength: Long,
         onProgress: suspend (Int) -> Unit,
     ) {
-        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        val buffer = ByteArray(512 * 1024)
         var copied = 0L
         var lastProgress = -1
         var read = input.read(buffer)

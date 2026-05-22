@@ -14,7 +14,9 @@ import com.juan.snapmusic.data.storage.PreferencesRepository
 import com.juan.snapmusic.data.storage.StorageRepository
 import com.juan.snapmusic.data.transcode.FfmpegKitTranscodeEngine
 import kotlinx.coroutines.flow.first
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 class SnapMusicGraph(
     context: Context,
@@ -22,7 +24,20 @@ class SnapMusicGraph(
     private val appContext = context.applicationContext
 
     val okHttpClient: OkHttpClient by lazy {
-        OkHttpClient.Builder().build()
+        OkHttpClient.Builder()
+            .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private val extractorOkHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectionPool(ConnectionPool(5, 2, TimeUnit.MINUTES))
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .build()
     }
 
     private val database: SnapMusicDatabase by lazy {
@@ -48,7 +63,7 @@ class SnapMusicGraph(
     }
 
     val resolverRepository by lazy {
-        NewPipeStreamResolverRepository(OkHttpNewPipeDownloader(okHttpClient))
+        NewPipeStreamResolverRepository(OkHttpNewPipeDownloader(extractorOkHttpClient))
     }
 
     val musicRecommendationEngine by lazy {
@@ -69,7 +84,7 @@ class SnapMusicGraph(
     }
 
     val downloadCoordinator by lazy {
-        DownloadCoordinator(appContext, queueRepository)
+        DownloadCoordinator(appContext, queueRepository, preferencesRepository)
     }
 
     suspend fun currentPreferences() = preferencesRepository.preferences.first()
