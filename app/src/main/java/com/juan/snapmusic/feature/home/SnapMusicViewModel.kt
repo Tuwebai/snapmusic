@@ -1861,32 +1861,17 @@ class SnapMusicViewModel(
 
     fun prepareYouTubeDownload(item: YouTubeFeedItem) {
         val current = _youtubeState.value
-        if (current.featured.sourceUrl == item.url && current.featured.resolvedMedia != null) {
+        if (current.featured.sourceUrl == item.url && hasDownloadVariants(current.featured.resolvedMedia)) {
             _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
                 media = current.featured.resolvedMedia,
                 visible = true,
             )
             return
         }
-        _youtubeDownloadSheet.value = YouTubeDownloadSheetState(isPreparing = true)
-        viewModelScope.launch {
-            runCatching { resolveFeaturedVideo(item) }
-                .onSuccess { featured ->
-                    if (featured.resolvedMedia != null) {
-                        _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
-                            media = featured.resolvedMedia,
-                            visible = true,
-                        )
-                    } else {
-                        _youtubeDownloadSheet.value = YouTubeDownloadSheetState()
-                        _queueFeedback.value = "No encontramos formatos para descargar ese video."
-                    }
-                }
-                .onFailure { error ->
-                    _youtubeDownloadSheet.value = YouTubeDownloadSheetState()
-                    _queueFeedback.value = userFacingError(error.message, UiFailureKind.EXTRACTION)
-                }
-        }
+        resolveYouTubeDownloadSheet(
+            item = item,
+            forceRefresh = current.featured.sourceUrl == item.url,
+        )
     }
 
     fun setYouTubeQueue(
@@ -2175,10 +2160,18 @@ class SnapMusicViewModel(
 
     fun requestYouTubeDownloadSheet() {
         val current = _youtubeState.value
-        if (current.featured.resolvedMedia == null) return
-        _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
-            media = current.featured.resolvedMedia,
-            visible = true,
+        val currentItem = currentYouTubeQueueItem(current)
+        if (hasDownloadVariants(current.featured.resolvedMedia)) {
+            _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
+                media = current.featured.resolvedMedia,
+                visible = true,
+            )
+            return
+        }
+        currentItem ?: return
+        resolveYouTubeDownloadSheet(
+            item = currentItem,
+            forceRefresh = true,
         )
     }
 
@@ -2563,6 +2556,35 @@ class SnapMusicViewModel(
     ): YouTubeFeedItem? {
         val queueItems = state.playbackQueue.ifEmpty { state.items }
         return queueItems.getOrNull(resolveCurrentQueueIndex(state, queueItems))
+    }
+
+    private fun hasDownloadVariants(media: ResolvedMedia?): Boolean {
+        return media != null && (media.audioVariants.isNotEmpty() || media.videoVariants.isNotEmpty())
+    }
+
+    private fun resolveYouTubeDownloadSheet(
+        item: YouTubeFeedItem,
+        forceRefresh: Boolean,
+    ) {
+        _youtubeDownloadSheet.value = YouTubeDownloadSheetState(isPreparing = true)
+        viewModelScope.launch {
+            runCatching { resolveFeaturedVideo(item, forceRefresh = forceRefresh) }
+                .onSuccess { featured ->
+                    if (hasDownloadVariants(featured.resolvedMedia)) {
+                        _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
+                            media = featured.resolvedMedia,
+                            visible = true,
+                        )
+                    } else {
+                        _youtubeDownloadSheet.value = YouTubeDownloadSheetState()
+                        _queueFeedback.value = "No encontramos formatos para descargar ese video."
+                    }
+                }
+                .onFailure { error ->
+                    _youtubeDownloadSheet.value = YouTubeDownloadSheetState()
+                    _queueFeedback.value = userFacingError(error.message, UiFailureKind.EXTRACTION)
+                }
+        }
     }
 
     private fun recordPlaybackSignal(
