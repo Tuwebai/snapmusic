@@ -8,9 +8,9 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.LruCache
 import com.juan.snapmusic.R
+import com.juan.snapmusic.SnapMusicApplication
+import okhttp3.Request
 import java.io.ByteArrayOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -68,22 +68,17 @@ object PlaybackArtworkBadgeHelper {
                     }
                 }
                 "http", "https" -> {
-                    val connection = (URL(artworkSource).openConnection() as HttpURLConnection).apply {
-                        connectTimeout = 5_000
-                        readTimeout = 5_000
-                        doInput = true
-                    }
-                    try {
-                        connection.connect()
-                        connection.inputStream.use { stream ->
+                    val application = context.applicationContext as? SnapMusicApplication ?: return@runCatching null
+                    val request = Request.Builder().url(artworkSource).build()
+                    application.appGraph.okHttpClient.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) return@use null
+                        response.body?.byteStream()?.use { stream ->
                             BitmapFactory.decodeStream(
                                 stream,
                                 null,
                                 BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 },
                             )?.fit()
                         }
-                    } finally {
-                        connection.disconnect()
                     }
                 }
                 else -> null

@@ -3115,11 +3115,16 @@ class SnapMusicViewModel(
     private fun fallbackAutomaticPlaybackUrl(resolved: com.juan.snapmusic.core.model.ResolvedMedia): String? {
         resolved.adaptivePlaybackUrl?.takeIf(::isAdaptivePlaybackUrl)?.let { return it }
         val automaticHeight = preferredAutomaticPlaybackHeight(resolved)
+        val playbackCandidates = resolved.videoVariants.filter { !it.directUrl.isNullOrBlank() }
         val fallbackVariant = resolveNearestPlaybackVariant(
-            candidates = resolved.videoVariants.filter { !it.directUrl.isNullOrBlank() },
+            candidates = playbackCandidates.filter { !it.requiresMux },
+            requestedHeight = automaticHeight,
+        ) ?: resolveNearestPlaybackVariant(
+            candidates = playbackCandidates,
             requestedHeight = automaticHeight,
         ) ?: return resolved.playbackUrl
-            ?: resolved.videoVariants.firstOrNull { !it.requiresMux && !it.directUrl.isNullOrBlank() }?.directUrl
+            ?: playbackCandidates.firstOrNull { !it.requiresMux }?.directUrl
+            ?: playbackCandidates.firstOrNull()?.directUrl
         return fallbackPlaybackUrl(fallbackVariant)
     }
 
