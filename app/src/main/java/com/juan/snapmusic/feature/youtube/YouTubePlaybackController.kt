@@ -100,6 +100,15 @@ private fun MediaController.syncQueuedNext(nextItem: MediaItem?) {
     }
 }
 
+private fun MediaController.canAttachQueuedNext(currentMediaId: String): Boolean {
+    if (currentMediaItem?.mediaId != currentMediaId) return false
+    if (playbackState == Player.STATE_IDLE) return false
+    val bufferedAheadMs = (bufferedPosition - currentPosition).coerceAtLeast(0L)
+    return playbackState == Player.STATE_ENDED ||
+        bufferedAheadMs >= 15_000L ||
+        bufferedPercentage >= 35
+}
+
 @androidx.media3.common.util.UnstableApi
 @Composable
 fun rememberYouTubePlayer(
@@ -257,12 +266,6 @@ fun rememberYouTubePlayer(
             mediaController.seekTo(state.currentPositionMs.coerceAtLeast(0L))
         }
 
-        val nextQueuedItem = state.preloadedNextFeatured
-            ?.takeIf { it.sourceUrl != state.featured.sourceUrl && !it.playbackUrl.isNullOrBlank() }
-            ?.toMediaItem()
-            ?.takeIf { it != MediaItem.EMPTY }
-        mediaController.syncQueuedNext(nextQueuedItem)
-
         applyYouTubePlaybackQuality(
             mediaController = mediaController,
             featured = state.featured,
@@ -294,7 +297,11 @@ fun rememberYouTubePlayer(
                     .build(),
             )
             .build()
-        if (!current.sameArtworkAs(withArtwork)) {
+        val canUpdateWithoutRestarting =
+            mediaController.currentPosition <= 750L ||
+                mediaController.playbackState == Player.STATE_IDLE ||
+                mediaController.playbackState == Player.STATE_ENDED
+        if (canUpdateWithoutRestarting && !current.sameArtworkAs(withArtwork)) {
             mediaController.replaceMediaItem(0, withArtwork)
         }
     }
@@ -313,7 +320,17 @@ fun rememberYouTubePlayer(
             ?.takeIf { it.sourceUrl != state.featured.sourceUrl && !it.playbackUrl.isNullOrBlank() }
             ?.toMediaItem()
             ?.takeIf { it != MediaItem.EMPTY }
-        mediaController.syncQueuedNext(nextQueuedItem)
+        if (nextQueuedItem == null) {
+            mediaController.syncQueuedNext(null)
+            return@LaunchedEffect
+        }
+        while (isActive && mediaController.currentMediaItem?.mediaId == state.featured.sourceUrl) {
+            if (mediaController.canAttachQueuedNext(state.featured.sourceUrl)) {
+                mediaController.syncQueuedNext(nextQueuedItem)
+                return@LaunchedEffect
+            }
+            delay(1_000)
+        }
     }
 
     LaunchedEffect(controller, state.featured.selectedVideoQualityId, state.featured.playbackUrl) {
