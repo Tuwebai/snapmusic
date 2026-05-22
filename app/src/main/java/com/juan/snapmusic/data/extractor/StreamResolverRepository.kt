@@ -1,11 +1,14 @@
 package com.juan.snapmusic.data.extractor
 
+import com.juan.snapmusic.core.model.DownloadExecutionPlan
+import com.juan.snapmusic.core.model.DownloadSelection
 import com.juan.snapmusic.core.model.ResolvedMedia
 import com.juan.snapmusic.core.model.YouTubeFeedPage
 import com.juan.snapmusic.core.model.YouTubeFeedItem
 
 interface StreamResolverRepository {
     suspend fun resolve(url: String): ResolvedMedia
+    suspend fun resolveDownloadPlan(url: String, selection: DownloadSelection): DownloadExecutionPlan
     suspend fun loadTrendingPage(limit: Int = 48, cursor: String? = null): YouTubeFeedPage
     suspend fun loadTrending(limit: Int = 48): List<YouTubeFeedItem>
     suspend fun searchVideosPage(query: String, limit: Int = 36, cursor: String? = null): YouTubeFeedPage

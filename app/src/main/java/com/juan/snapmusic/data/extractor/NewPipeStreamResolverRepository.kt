@@ -2,9 +2,13 @@ package com.juan.snapmusic.data.extractor
 
 import android.net.Uri
 import com.juan.snapmusic.core.model.ContainerFormat
+import com.juan.snapmusic.core.model.DownloadExecutionPlan
+import com.juan.snapmusic.core.model.DownloadSelection
+import com.juan.snapmusic.core.model.DownloadStrategy
 import com.juan.snapmusic.core.model.MediaKind
 import com.juan.snapmusic.core.model.MediaVariant
 import com.juan.snapmusic.core.model.ResolvedMedia
+import com.juan.snapmusic.core.model.TransferSource
 import com.juan.snapmusic.core.model.YouTubeFeedPage
 import com.juan.snapmusic.core.model.YouTubeFeedItem
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +61,36 @@ class NewPipeStreamResolverRepository(
                 audioStreams = info.audioStreams,
             ),
         )
+    }
+
+    override suspend fun resolveDownloadPlan(url: String, selection: DownloadSelection): DownloadExecutionPlan = withContext(Dispatchers.IO) {
+        val info = StreamInfo.getInfo(url)
+        when (selection.strategy) {
+            DownloadStrategy.DIRECT -> {
+                when (selection.kind) {
+                    MediaKind.AUDIO -> {
+                        val source = selectDirectAudio(info.audioStreams, selection)
+                        DownloadExecutionPlan.Direct(selection, source)
+                    }
+
+                    MediaKind.VIDEO -> {
+                        val source = selectDirectVideo(info.videoStreams, selection)
+                        DownloadExecutionPlan.Direct(selection, source)
+                    }
+                }
+            }
+
+            DownloadStrategy.TRANSCODE_AUDIO -> {
+                val source = selectBestAudioForTranscode(info.audioStreams)
+                DownloadExecutionPlan.AudioTranscode(selection, source)
+            }
+
+            DownloadStrategy.MUX_VIDEO_AUDIO -> {
+                val videoSource = selectMuxVideo(info.videoOnlyStreams, selection)
+                val audioSource = selectBestAudioForTranscode(info.audioStreams)
+                DownloadExecutionPlan.MuxVideoAudio(selection, videoSource, audioSource)
+            }
+        }
     }
 
     override suspend fun loadTrendingPage(limit: Int, cursor: String?): YouTubeFeedPage = withContext(Dispatchers.IO) {
@@ -144,7 +178,7 @@ class NewPipeStreamResolverRepository(
     private fun buildAudioVariants(streams: List<AudioStream>): List<MediaVariant> {
         val directAudio = streams
             .filter { !it.url.isNullOrBlank() }
-            .filter { stream -> stream.format == MediaFormat.M4A || stream.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
+            .filter { stream -> stream.format == MediaFormat.M4A }
             .sortedByDescending { it.averageBitrate }
             .take(3)
             .map { stream ->
@@ -166,7 +200,7 @@ class NewPipeStreamResolverRepository(
                 kind = MediaKind.AUDIO,
                 container = ContainerFormat.MP3,
                 bitrateKbps = kbps,
-                directUrl = bestSource.directUrl,
+                directUrl = "",
                 requiresTranscode = true,
             )
         }
@@ -228,6 +262,71 @@ class NewPipeStreamResolverRepository(
 
         return (progressiveVariants + muxVariants)
             .sortedByDescending { it.resolution?.substringBefore('p')?.toIntOrNull() ?: 0 }
+    }
+
+    private fun selectDirectAudio(
+        streams: List<AudioStream>,
+        selection: DownloadSelection,
+    ): TransferSource {
+        require(selection.targetContainer == ContainerFormat.M4A) {
+            "Solo podemos descargar audio directo en M4A."
+        }
+        val bitrate = selection.targetBitrateKbps ?: error("Falta el bitrate objetivo del audio.")
+        val stream = streams
+            .filter { !it.url.isNullOrBlank() }
+            .filter { it.format == MediaFormat.M4A }
+            .sortedByDescending { it.averageBitrate }
+            .firstOrNull { it.averageBitrate == bitrate }
+            ?: error("La fuente M4A ${bitrate}kbps ya no está disponible.")
+        return TransferSource(stream.url.orEmpty())
+    }
+
+    private fun selectBestAudioForTranscode(
+        streams: List<AudioStream>,
+    ): TransferSource {
+        val preferredM4a = streams
+            .filter { !it.url.isNullOrBlank() }
+            .filter { it.format == MediaFormat.M4A }
+            .sortedByDescending { it.averageBitrate }
+            .firstOrNull()
+        if (preferredM4a != null) return TransferSource(preferredM4a.url.orEmpty())
+
+        val fallback = streams
+            .filter { !it.url.isNullOrBlank() }
+            .sortedByDescending { it.averageBitrate }
+            .firstOrNull()
+            ?: error("No encontramos una pista de audio compatible para generar el archivo final.")
+        return TransferSource(fallback.url.orEmpty())
+    }
+
+    private fun selectDirectVideo(
+        streams: List<VideoStream>,
+        selection: DownloadSelection,
+    ): TransferSource {
+        val resolution = selection.targetResolution ?: error("Falta la resolución objetivo del video.")
+        val stream = streams
+            .filter { !it.isVideoOnly && !it.url.isNullOrBlank() }
+            .filter { it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
+            .filter { it.format == MediaFormat.MPEG_4 }
+            .sortedByDescending { it.height }
+            .firstOrNull { it.resolution == resolution }
+            ?: error("La variante MP4 $resolution ya no está disponible para descarga directa.")
+        return TransferSource(stream.url.orEmpty())
+    }
+
+    private fun selectMuxVideo(
+        streams: List<VideoStream>,
+        selection: DownloadSelection,
+    ): TransferSource {
+        val resolution = selection.targetResolution ?: error("Falta la resolución objetivo del video.")
+        val stream = streams
+            .filter { !it.url.isNullOrBlank() }
+            .filter { it.height > 0 }
+            .filter { it.format == MediaFormat.MPEG_4 }
+            .sortedByDescending { it.height }
+            .firstOrNull { it.resolution == resolution }
+            ?: error("La variante MP4 $resolution ya no está disponible para armar el mux final.")
+        return TransferSource(stream.url.orEmpty())
     }
 
     private fun StreamInfoItem.toFeedItem(): YouTubeFeedItem? {

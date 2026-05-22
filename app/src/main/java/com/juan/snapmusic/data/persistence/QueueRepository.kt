@@ -15,7 +15,7 @@ class QueueRepository(
 
     fun observeQueue(): Flow<List<QueueEntry>> = dao.observeQueue().map { list -> list.map { it.toModel() } }
 
-    suspend fun insertIfAbsent(request: ConversionRequest): Boolean {
+    suspend fun insertIfAbsent(request: ConversionRequest, parallelSlots: Int): Boolean {
         return enqueueMutex.withLock {
             val duplicate = dao.findQueueCandidates(
                 sourceUrl = request.sourceUrl.trim(),
@@ -23,23 +23,24 @@ class QueueRepository(
                 destinationLabel = request.destinationLabel.trim(),
                 destinationTreeUri = request.destinationTreeUri?.trim().takeUnless { it.isNullOrEmpty() },
             ).firstOrNull { candidate ->
-                candidate.status == QueueStatus.PENDING ||
+                    candidate.status == QueueStatus.PENDING ||
                     candidate.status == QueueStatus.RUNNING ||
                     candidate.status == QueueStatus.SUCCESS
             }?.takeIf { it.matches(request) }
             if (duplicate != null) return@withLock false
-            insertDirectLocked(request)
+            insertDirectLocked(request, parallelSlots)
             true
         }
     }
 
-    suspend fun insertDirect(request: ConversionRequest) {
+    suspend fun insertDirect(request: ConversionRequest, parallelSlots: Int) {
         enqueueMutex.withLock {
-            insertDirectLocked(request)
+            insertDirectLocked(request, parallelSlots)
         }
     }
 
-    private suspend fun insertDirectLocked(request: ConversionRequest) {
+    private suspend fun insertDirectLocked(request: ConversionRequest, parallelSlots: Int) {
+        val laneIndex = selectLaneIndex(parallelSlots)
         dao.upsertQueue(
             QueueEntity(
                 id = request.id.toString(),
@@ -60,6 +61,12 @@ class QueueRepository(
                 errorMessage = null,
                 requiresTranscode = request.selectedVariant.requiresTranscode,
                 requiresMux = request.selectedVariant.requiresMux,
+                selectionKind = request.downloadSelection.kind,
+                selectionTargetContainer = request.downloadSelection.targetContainer,
+                selectionTargetBitrateKbps = request.downloadSelection.targetBitrateKbps,
+                selectionTargetResolution = request.downloadSelection.targetResolution,
+                selectionStrategy = request.downloadSelection.strategy,
+                laneIndex = laneIndex,
             ),
         )
     }
@@ -95,14 +102,26 @@ class QueueRepository(
         dao.deleteQueue(id)
     }
 
+    private suspend fun selectLaneIndex(parallelSlots: Int): Int {
+        if (parallelSlots <= 1) return 0
+        val loads = dao.activeLaneLoads().associate { it.laneIndex to it.total }
+        return (0 until parallelSlots).minWithOrNull(
+            compareBy<Int> { loads[it] ?: 0 }.thenBy { it },
+        ) ?: 0
+    }
+
     private fun QueueEntity.matches(request: ConversionRequest): Boolean {
         if (sourceUrl.trim() != request.sourceUrl.trim()) return false
         if (container != request.selectedVariant.container) return false
         if (destinationLabel.trim() != request.destinationLabel.trim()) return false
         if (destinationTreeUri.normalizedTreeUri() != request.destinationTreeUri.normalizedTreeUri()) return false
+        if (selectionKind != request.downloadSelection.kind) return false
+        if (selectionTargetContainer != request.downloadSelection.targetContainer) return false
+        if (selectionTargetBitrateKbps != request.downloadSelection.targetBitrateKbps) return false
+        if (selectionTargetResolution != request.downloadSelection.targetResolution) return false
+        if (selectionStrategy != request.downloadSelection.strategy) return false
         if (requiresMux != request.selectedVariant.requiresMux) return false
         if (requiresTranscode != request.selectedVariant.requiresTranscode) return false
-        if (directUrl == request.selectedVariant.directUrl && secondaryUrl == request.selectedVariant.secondaryUrl) return true
         if (variantLabel.normalizedVariantLabel() == request.selectedVariant.label.normalizedVariantLabel()) return true
         return variantLabel.variantSignature() == request.selectedVariant.label.variantSignature()
     }

@@ -4,11 +4,17 @@ import android.content.Context
 import android.net.Uri
 import androidx.core.net.toFile
 import com.arthenica.ffmpegkit.FFmpegKit
+import com.arthenica.ffmpegkit.FFmpegKitConfig
+import com.arthenica.ffmpegkit.FFmpegSession
 import com.arthenica.ffmpegkit.ReturnCode
 import com.juan.snapmusic.core.model.ContainerFormat
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class FfmpegKitTranscodeEngine(
     context: Context,
@@ -50,15 +56,34 @@ class FfmpegKitTranscodeEngine(
         Uri.fromFile(outputFile)
     }
 
-    private fun executeOrThrow(command: String) {
-        val session = FFmpegKit.execute(command)
-        val returnCode = session.returnCode
-        if (ReturnCode.isSuccess(returnCode)) return
-        if (ReturnCode.isCancel(returnCode)) {
-            error("La transcodificación fue cancelada.")
+    private suspend fun executeOrThrow(command: String) = suspendCancellableCoroutine { cont ->
+        lateinit var session: FFmpegSession
+        session = FFmpegKit.executeAsync(
+            command,
+            { completedSession ->
+                val returnCode = completedSession.returnCode
+                when {
+                    ReturnCode.isSuccess(returnCode) -> cont.resume(Unit)
+                    ReturnCode.isCancel(returnCode) -> cont.resumeWithException(
+                        CancellationException("La transcodificación fue cancelada."),
+                    )
+
+                    else -> cont.resumeWithException(
+                        IllegalStateException(
+                            completedSession.failStackTrace?.takeIf { it.isNotBlank() }
+                                ?: completedSession.output.takeIf { it.isNotBlank() }
+                                ?: "FFmpegKit no pudo completar el proceso.",
+                        ),
+                    )
+                }
+            },
+            null,
+            null,
+        )
+        cont.invokeOnCancellation {
+            FFmpegKit.cancel(session.sessionId)
+            FFmpegKitConfig.clearSessions()
         }
-        error(session.failStackTrace?.takeIf { it.isNotBlank() } ?: session.output.takeIf { it.isNotBlank() }
-            ?: "FFmpegKit no pudo completar el proceso.")
     }
 
     private fun ffmpegPath(path: String): String = "\"${path.replace("\"", "\\\"")}\""

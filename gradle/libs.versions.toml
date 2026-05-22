@@ -46,6 +46,7 @@ androidx-media3-exoplayer-hls = { group = "androidx.media3", name = "media3-exop
 androidx-media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 google-material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 newpipe-extractor = { module = "com.github.TeamNewPipe:NewPipeExtractor", version = "v0.26.1" }
 junit4 = { group = "junit", name = "junit", version.ref = "junit4" }

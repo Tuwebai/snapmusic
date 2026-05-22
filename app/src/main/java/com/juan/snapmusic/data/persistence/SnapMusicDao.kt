@@ -43,6 +43,16 @@ interface SnapMusicDao {
         destinationTreeUri: String?,
     ): List<QueueEntity>
 
+    @Query(
+        """
+        SELECT laneIndex, COUNT(*) AS total
+        FROM queue_entries
+        WHERE status IN ('PENDING', 'RUNNING')
+        GROUP BY laneIndex
+        """,
+    )
+    suspend fun activeLaneLoads(): List<LaneLoad>
+
     @Query("UPDATE queue_entries SET status = :pendingStatus WHERE status = :runningStatus")
     suspend fun requeueInterrupted(runningStatus: com.juan.snapmusic.core.model.QueueStatus, pendingStatus: com.juan.snapmusic.core.model.QueueStatus)
 

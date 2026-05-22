@@ -3,6 +3,9 @@ package com.juan.snapmusic.data.persistence
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.juan.snapmusic.core.model.ContainerFormat
+import com.juan.snapmusic.core.model.DownloadSelection
+import com.juan.snapmusic.core.model.DownloadStrategy
+import com.juan.snapmusic.core.model.MediaKind
 import com.juan.snapmusic.core.model.QueueEntry
 import com.juan.snapmusic.core.model.QueueStatus
 
@@ -26,6 +29,12 @@ data class QueueEntity(
     val errorMessage: String?,
     val requiresTranscode: Boolean,
     val requiresMux: Boolean,
+    val selectionKind: MediaKind,
+    val selectionTargetContainer: ContainerFormat,
+    val selectionTargetBitrateKbps: Int?,
+    val selectionTargetResolution: String?,
+    val selectionStrategy: DownloadStrategy,
+    val laneIndex: Int,
 )
 
 fun QueueEntity.toModel() = QueueEntry(
@@ -41,4 +50,12 @@ fun QueueEntity.toModel() = QueueEntry(
     outputUri = outputUri,
     createdAt = createdAt,
     errorMessage = errorMessage,
+)
+
+fun QueueEntity.toDownloadSelection() = DownloadSelection(
+    kind = selectionKind,
+    targetContainer = selectionTargetContainer,
+    targetBitrateKbps = selectionTargetBitrateKbps,
+    targetResolution = selectionTargetResolution,
+    strategy = selectionStrategy,
 )

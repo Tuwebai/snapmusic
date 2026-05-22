@@ -1,8 +1,6 @@
 package com.juan.snapmusic.data.download
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -19,7 +17,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.absoluteValue
 import java.util.UUID
 
 class DownloadCoordinator(
@@ -28,20 +25,23 @@ class DownloadCoordinator(
     private val preferencesRepository: PreferencesRepository,
 ) {
     private val notifications = NotificationHelper(context)
+    private val networkPolicy = DownloadNetworkPolicy(context)
 
     suspend fun enqueue(request: ConversionRequest, allowDuplicate: Boolean = false): UUID? {
         val id = request.id
+        val parallelSlots = resolveParallelSlots()
         val inserted = if (allowDuplicate) {
             withContext(Dispatchers.IO) {
-                queueRepository.insertDirect(request)
+                queueRepository.insertDirect(request, parallelSlots)
             }
             true
         } else {
             withContext(Dispatchers.IO) {
-                queueRepository.insertIfAbsent(request)
+                queueRepository.insertIfAbsent(request, parallelSlots)
             }
         }
         if (!inserted) return null
+        val queueEntry = withContext(Dispatchers.IO) { queueRepository.get(id.toString()) } ?: return null
         notifications.showQueued(
             queueId = id.toString(),
             title = request.title,
@@ -58,10 +58,8 @@ class DownloadCoordinator(
                     .build(),
             )
             .build()
-        val parallelSlots = resolveParallelSlots()
-        val lane = id.hashCode().absoluteValue % parallelSlots
         WorkManager.getInstance(context).enqueueUniqueWork(
-            "snapmusic_queue_$lane",
+            "snapmusic_queue_${queueEntry.laneIndex}",
             ExistingWorkPolicy.APPEND_OR_REPLACE,
             workRequest,
         )
@@ -81,18 +79,11 @@ class DownloadCoordinator(
 
     private suspend fun resolveParallelSlots(): Int {
         val prefs = preferencesRepository.preferences.first()
-        val preferred = if (isUnmeteredConnection()) {
+        val preferred = if (networkPolicy.isUnmeteredConnection()) {
             prefs.downloadTasksWifi
         } else {
             prefs.downloadTasksMobile
         }
         return preferred.coerceIn(1, 4)
-    }
-
-    private fun isUnmeteredConnection(): Boolean {
-        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
-        val network = connectivityManager.activeNetwork ?: return true
-        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return true
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
     }
 }

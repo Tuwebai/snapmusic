@@ -32,6 +32,7 @@ import com.juan.snapmusic.core.model.YouTubeUiState
 import com.juan.snapmusic.core.platform.MergedPlaybackUri
 import com.juan.snapmusic.core.platform.validateYouTubeUrl
 import com.juan.snapmusic.data.persistence.QueueEntity
+import com.juan.snapmusic.data.persistence.toDownloadSelection
 import com.juan.snapmusic.feature.youtube.nextQueueIndex
 import com.juan.snapmusic.feature.youtube.nextQueueItem
 import com.juan.snapmusic.feature.youtube.previousQueueIndex
@@ -3375,6 +3376,7 @@ private fun PreviewState.toPreviewPlaybackQueueItem(): PreviewPlaybackQueueItem?
 }
 
 private fun QueueEntity.toRetryRequest(): ConversionRequest {
+    val selection = toDownloadSelection()
     return ConversionRequest(
         sourceUrl = sourceUrl,
         title = title,
@@ -3383,13 +3385,16 @@ private fun QueueEntity.toRetryRequest(): ConversionRequest {
         selectedVariant = MediaVariant(
             id = java.util.UUID.randomUUID().toString(),
             label = variantLabel,
-            kind = if (container == com.juan.snapmusic.core.model.ContainerFormat.MP4) MediaKind.VIDEO else MediaKind.AUDIO,
-            container = container,
+            kind = selection.kind,
+            container = selection.targetContainer,
+            bitrateKbps = selection.targetBitrateKbps,
+            resolution = selection.targetResolution,
             directUrl = directUrl,
             secondaryUrl = secondaryUrl,
             requiresTranscode = requiresTranscode,
             requiresMux = requiresMux,
         ),
+        downloadSelection = selection,
         destinationLabel = destinationLabel,
         destinationTreeUri = destinationTreeUri,
     )

@@ -266,11 +266,10 @@ fun rememberYouTubePlayer(
                     .build(),
             )
             .build()
-        val canUpdateWithoutRestarting =
-            mediaController.currentPosition <= 750L ||
-                mediaController.playbackState == Player.STATE_IDLE ||
-                mediaController.playbackState == Player.STATE_ENDED
-        if (canUpdateWithoutRestarting && !current.sameArtworkAs(withArtwork)) {
+        val currentUri = current.localConfiguration?.uri
+        val artworkUri = withArtwork.localConfiguration?.uri
+        val sameStreamUri = currentUri == artworkUri
+        if (sameStreamUri && !current.sameArtworkAs(withArtwork)) {
             mediaController.replaceMediaItem(0, withArtwork)
         }
     }
@@ -382,9 +381,9 @@ private fun resolvePreferredAutomaticHeight(
         .sortedDescending()
     return when {
         720 in heights -> 720
+        1080 in heights -> 1080
         480 in heights -> 480
         360 in heights -> 360
-        1080 in heights -> 1080
         else -> heights.firstOrNull()
     }
 }

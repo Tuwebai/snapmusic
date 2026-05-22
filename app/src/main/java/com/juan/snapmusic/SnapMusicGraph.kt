@@ -3,6 +3,9 @@ package com.juan.snapmusic
 import android.content.Context
 import androidx.room.Room
 import com.juan.snapmusic.data.download.DownloadCoordinator
+import com.juan.snapmusic.data.download.DownloadNetworkPolicy
+import com.juan.snapmusic.data.download.DownloadOutputValidator
+import com.juan.snapmusic.data.download.HttpTransferEngine
 import com.juan.snapmusic.data.extractor.NewPipeStreamResolverRepository
 import com.juan.snapmusic.data.extractor.OkHttpNewPipeDownloader
 import com.juan.snapmusic.data.persistence.HistoryRepository
@@ -15,6 +18,7 @@ import com.juan.snapmusic.data.storage.StorageRepository
 import com.juan.snapmusic.data.transcode.FfmpegKitTranscodeEngine
 import kotlinx.coroutines.flow.first
 import okhttp3.ConnectionPool
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -24,7 +28,12 @@ class SnapMusicGraph(
     private val appContext = context.applicationContext
 
     val okHttpClient: OkHttpClient by lazy {
+        val dispatcher = Dispatcher().apply {
+            maxRequests = 48
+            maxRequestsPerHost = 16
+        }
         OkHttpClient.Builder()
+            .dispatcher(dispatcher)
             .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
@@ -42,7 +51,7 @@ class SnapMusicGraph(
 
     private val database: SnapMusicDatabase by lazy {
         Room.databaseBuilder(appContext, SnapMusicDatabase::class.java, "snapmusic.db")
-            .fallbackToDestructiveMigration()
+            .addMigrations(SnapMusicDatabase.MIGRATION_2_3)
             .build()
     }
 
@@ -81,6 +90,18 @@ class SnapMusicGraph(
 
     val transcodeEngine by lazy {
         FfmpegKitTranscodeEngine(appContext)
+    }
+
+    val downloadNetworkPolicy by lazy {
+        DownloadNetworkPolicy(appContext)
+    }
+
+    val httpTransferEngine by lazy {
+        HttpTransferEngine(appContext, okHttpClient)
+    }
+
+    val downloadOutputValidator by lazy {
+        DownloadOutputValidator(appContext)
     }
 
     val downloadCoordinator by lazy {

@@ -58,6 +58,7 @@ data class ConversionRequest(
     val author: String,
     val thumbnailUrl: String,
     val selectedVariant: MediaVariant,
+    val downloadSelection: DownloadSelection = selectedVariant.toDownloadSelection(),
     val destinationLabel: String,
     val destinationTreeUri: String? = null,
 )
@@ -272,6 +273,7 @@ data class PreviewPlaybackSnapshot(
     val showMiniPlayer: Boolean = true,
 )
 
+@Immutable
 data class YouTubeUiState(
     val query: String = "",
     val isLoading: Boolean = false,
