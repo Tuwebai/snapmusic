@@ -26,6 +26,7 @@ import com.juan.snapmusic.core.model.IncomingShareSourceAction
 import com.juan.snapmusic.core.model.UserPreferences
 import com.juan.snapmusic.core.platform.PlaybackCommandReceiver
 import com.juan.snapmusic.core.platform.validateYouTubeUrl
+import kotlinx.coroutines.flow.map
 
 class MainActivity : ComponentActivity() {
     private var isYouTubePopupEligible = false
@@ -85,8 +86,10 @@ class MainActivity : ComponentActivity() {
         requestRuntimePermissionsIfNeeded()
         val app = application as SnapMusicApplication
         setContent {
-            val preferences by app.appGraph.preferencesRepository.preferences.collectAsState(initial = UserPreferences())
-            SnapMusicTheme(themeMode = preferences.themeMode) {
+            val themeMode by app.appGraph.preferencesRepository.preferences
+                .map { preferences -> preferences.themeMode }
+                .collectAsState(initial = UserPreferences().themeMode)
+            SnapMusicTheme(themeMode = themeMode) {
                 SnapMusicApp(
                     graph = app.appGraph,
                     notificationRoute = routeOverride.value,

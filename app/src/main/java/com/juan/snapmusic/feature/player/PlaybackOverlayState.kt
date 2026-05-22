@@ -6,6 +6,7 @@ import androidx.compose.runtime.produceState
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.isActive
 
 @Immutable
@@ -24,13 +25,15 @@ internal fun rememberPlaybackOverlayState(
     mediaId: String? = null,
     playingPollIntervalMs: Long = 500L,
     idlePollIntervalMs: Long = 1_200L,
+    trackProgress: Boolean = true,
 ): PlaybackOverlayState {
     val targetMediaId = mediaId?.takeIf { it.isNotBlank() }
     return produceState(
         initialValue = PlaybackOverlayState(showControls = showControls),
-        key1 = player,
-        key2 = targetMediaId,
-        key3 = showControls,
+        player,
+        targetMediaId,
+        showControls,
+        trackProgress,
     ) {
         val currentPlayer = player
         if (currentPlayer == null) {
@@ -84,15 +87,19 @@ internal fun rememberPlaybackOverlayState(
         currentPlayer.addListener(listener)
         try {
             publishSnapshot()
-            while (isActive) {
-                publishSnapshot()
-                delay(
-                    if (value.isPlaying) {
-                        playingPollIntervalMs
-                    } else {
-                        idlePollIntervalMs
-                    },
-                )
+            if (!trackProgress) {
+                awaitCancellation()
+            } else {
+                while (isActive) {
+                    publishSnapshot()
+                    delay(
+                        if (value.isPlaying) {
+                            playingPollIntervalMs
+                        } else {
+                            idlePollIntervalMs
+                        },
+                    )
+                }
             }
         } finally {
             currentPlayer.removeListener(listener)

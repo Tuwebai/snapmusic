@@ -255,6 +255,7 @@ enum class YouTubeAdvanceReason {
     ERROR_FALLBACK,
 }
 
+@Immutable
 data class YouTubePlaybackSnapshot(
     val queue: List<YouTubeFeedItem> = emptyList(),
     val currentQueueIndex: Int = 0,
@@ -266,6 +267,7 @@ data class YouTubePlaybackSnapshot(
     val showMiniPlayer: Boolean = true,
 )
 
+@Immutable
 data class PreviewPlaybackSnapshot(
     val queue: List<PreviewPlaybackQueueItem> = emptyList(),
     val currentQueueIndex: Int = 0,
@@ -302,6 +304,7 @@ data class YouTubeUiState(
     val errorMessage: String? = null,
 )
 
+@Immutable
 data class YouTubePlaybackRenderState(
     val featured: YouTubeFeaturedVideo = YouTubeFeaturedVideo(),
     val preloadedNextFeatured: YouTubeFeaturedVideo? = null,
@@ -309,6 +312,7 @@ data class YouTubePlaybackRenderState(
     val shouldAutoPlayCurrent: Boolean = false,
 )
 
+@Immutable
 data class PreviewPlaybackRenderState(
     val preview: PreviewState = PreviewState(),
     val autoPlayRequestId: Long = 0L,
@@ -324,6 +328,7 @@ data class PreviewPlaybackQueueItem(
     val fileUri: String = "",
 )
 
+@Immutable
 data class DownloadBadgeState(
     val activeCount: Int = 0,
 )

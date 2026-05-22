@@ -137,8 +137,6 @@ private fun PreviewDetailHost(
         viewModel.closePreviewDetail()
     }
 
-    val playback = player?.let { rememberPreviewPlaybackState(it) } ?: PreviewPlaybackState()
-
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -151,7 +149,6 @@ private fun PreviewDetailHost(
                 PreviewPlaybackCard(
                     preview = detailState.preview,
                     player = player,
-                    playback = playback,
                     canGoPrevious = detailState.canGoPrevious,
                     canGoNext = detailState.canGoNext,
                     onBack = viewModel::closePreviewDetail,

@@ -2,6 +2,9 @@ package com.juan.snapmusic.feature.home
 
 import com.juan.snapmusic.core.model.ResolvedMedia
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class HomeUiState(
     val url: String = "",
     val isAnalyzing: Boolean = false,

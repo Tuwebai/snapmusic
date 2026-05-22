@@ -46,6 +46,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -81,15 +82,15 @@ import com.juan.snapmusic.core.designsystem.TextSecondary
 import com.juan.snapmusic.core.designsystem.WarningAmber
 import com.juan.snapmusic.core.model.PreviewState
 import com.juan.snapmusic.core.platform.PlaybackArtworkBadgeHelper
-import com.juan.snapmusic.feature.player.VideoFullscreenOverlay
 import com.juan.snapmusic.feature.player.LandscapeFullscreenVideoDialog
 import com.juan.snapmusic.feature.player.PlaybackOverlayState
 import com.juan.snapmusic.feature.player.PlayerSurface
+import com.juan.snapmusic.feature.player.VideoFullscreenOverlay
+import com.juan.snapmusic.feature.player.rememberPlaybackOverlayState
 import com.juan.snapmusic.feature.player.rememberPlaybackSliderBindings
 import com.juan.snapmusic.feature.player.VideoMiniOverlay
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 
 private val PreviewPanelGradient = Brush.verticalGradient(
     colors = listOf(
@@ -106,6 +107,7 @@ private val PreviewArtworkBottomScrim = Brush.verticalGradient(
     colors = listOf(Color.Transparent, Color(0x66000000), Color(0xD009090A)),
 )
 
+@Immutable
 internal data class PreviewPlaybackState(
     val isPlaying: Boolean = false,
     val durationMs: Long = 0L,
@@ -117,7 +119,6 @@ internal data class PreviewPlaybackState(
 internal fun PreviewPlaybackCard(
     preview: PreviewState,
     player: Player,
-    playback: PreviewPlaybackState,
     canGoPrevious: Boolean,
     canGoNext: Boolean,
     onBack: () -> Unit,
@@ -130,7 +131,6 @@ internal fun PreviewPlaybackCard(
         PreviewVideoPlaybackCard(
             preview = preview,
             player = player,
-            playback = playback,
             canGoPrevious = canGoPrevious,
             canGoNext = canGoNext,
             onBack = onBack,
@@ -140,6 +140,13 @@ internal fun PreviewPlaybackCard(
         )
         return
     }
+    val playback = rememberPlaybackOverlayState(
+        player = player,
+        mediaId = preview.fileUri,
+        showControls = false,
+        playingPollIntervalMs = 900L,
+        idlePollIntervalMs = 2_500L,
+    ).toPreviewPlaybackState()
     val sliderBindings = rememberPlaybackSliderBindings(
         currentPositionMs = playback.positionMs,
         durationMs = playback.durationMs,
@@ -261,7 +268,6 @@ internal fun PreviewPlaybackCard(
 private fun PreviewVideoPlaybackCard(
     preview: PreviewState,
     player: Player,
-    playback: PreviewPlaybackState,
     canGoPrevious: Boolean,
     canGoNext: Boolean,
     onBack: () -> Unit,
@@ -271,14 +277,14 @@ private fun PreviewVideoPlaybackCard(
 ) {
     var showControls by rememberSaveable(preview.fileUri) { mutableStateOf(false) }
     var isFullscreen by rememberSaveable(preview.fileUri) { mutableStateOf(false) }
-    val overlayState = remember(showControls, playback) {
-        PlaybackOverlayState(
-            showControls = showControls,
-            isPlaying = playback.isPlaying,
-            currentPositionMs = playback.positionMs,
-            durationMs = playback.durationMs,
-        )
-    }
+    val overlayState = rememberPlaybackOverlayState(
+        player = player,
+        mediaId = preview.fileUri,
+        showControls = showControls,
+        playingPollIntervalMs = 900L,
+        idlePollIntervalMs = 2_500L,
+        trackProgress = showControls,
+    )
     var hasRenderedFirstFrame by remember(preview.fileUri, player) {
         mutableStateOf(player.videoSize.width > 0)
     }
@@ -860,42 +866,14 @@ private fun ControlsPanel(
     }
 }
 
-@Composable
-internal fun rememberPreviewPlaybackState(player: Player): PreviewPlaybackState {
-    return produceState(initialValue = player.toPlaybackState(), key1 = player) {
-        var lastReportedPosition = value.positionMs
-        val listener = object : Player.Listener {
-            override fun onEvents(player: Player, events: Player.Events) {
-                value = player.toPlaybackState()
-                lastReportedPosition = value.positionMs
-            }
-        }
-        player.addListener(listener)
-        try {
-            while (isActive) {
-                if (player.isPlaying) {
-                    val nextState = player.toPlaybackState()
-                    if (kotlin.math.abs(nextState.positionMs - lastReportedPosition) >= 900L) {
-                        value = nextState
-                        lastReportedPosition = nextState.positionMs
-                    }
-                    delay(1_000)
-                } else {
-                    delay(2_500)
-                }
-            }
-        } finally {
-            player.removeListener(listener)
-        }
-    }.value
-}
-
-private fun Player.toPlaybackState(): PreviewPlaybackState {
-    val safeDuration = duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0L
+private fun PlaybackOverlayState.toPreviewPlaybackState(): PreviewPlaybackState {
+    val safeDuration = durationMs.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0L
     return PreviewPlaybackState(
         isPlaying = isPlaying,
         durationMs = safeDuration,
-        positionMs = currentPosition.coerceAtLeast(0L).coerceAtMost(safeDuration.takeIf { it > 0 } ?: currentPosition.coerceAtLeast(0L)),
+        positionMs = currentPositionMs.coerceAtLeast(0L).coerceAtMost(
+            safeDuration.takeIf { it > 0 } ?: currentPositionMs.coerceAtLeast(0L),
+        ),
     )
 }
 
