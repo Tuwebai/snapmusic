@@ -317,6 +317,7 @@ class SnapMusicViewModel(
         const val YOUTUBE_HOME_FEED_PAGE_SIZE = 24
         const val YOUTUBE_WATCH_NEXT_PAGE_SIZE = 18
         const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 2_500L
+        const val YOUTUBE_NEXT_PRE_RESOLVE_DELAY_MS = 3_000L
         const val PRESET_MP3_320 = "preset_mp3_320"
         const val PRESET_M4A = "preset_m4a"
         const val PRESET_MP4_720 = "preset_mp4_720"
@@ -339,6 +340,7 @@ class SnapMusicViewModel(
     private var youTubeFeedSessionSeed = System.currentTimeMillis()
     private var youtubeSuggestionJob: Job? = null
     private var watchNextEnrichmentJob: Job? = null
+    private var nextQueuePreResolveJob: Job? = null
     private var downloadSearchSuggestionJob: Job? = null
     private val _previewAutoPlayRequestId = MutableStateFlow(0L)
     private val _previewCurrentPositionMs = MutableStateFlow(0L)
@@ -1487,6 +1489,7 @@ class SnapMusicViewModel(
 
     fun dismissYouTubePlayer() {
         watchNextEnrichmentJob?.cancel()
+        nextQueuePreResolveJob?.cancel()
         lastExpiredStreamRetrySourceUrl = null
         val current = _youtubeState.value
         _youtubeState.value = current.copy(
@@ -2560,6 +2563,7 @@ class SnapMusicViewModel(
         currentIndex: Int,
         continuationMode: PlaybackContinuationMode,
     ) {
+        nextQueuePreResolveJob?.cancel()
         val nextItem = nextQueueItem(queueItems, currentIndex, continuationMode) ?: return
         youTubeResolveCache[nextItem.url]?.let { cached ->
             val current = _youtubeState.value
@@ -2568,7 +2572,10 @@ class SnapMusicViewModel(
             }
             return
         }
-        viewModelScope.launch {
+        nextQueuePreResolveJob = viewModelScope.launch {
+            delay(YOUTUBE_NEXT_PRE_RESOLVE_DELAY_MS)
+            val latest = _youtubeState.value
+            if (latest.nextUpItem?.url != nextItem.url) return@launch
             runCatching { resolveFeaturedVideo(nextItem) }
                 .onSuccess { featured ->
                     val current = _youtubeState.value
