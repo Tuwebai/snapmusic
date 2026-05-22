@@ -35,6 +35,13 @@ data class MediaVariant(
     val secondaryUrl: String? = null,
     val requiresTranscode: Boolean = false,
     val requiresMux: Boolean = false,
+    val isSyntheticOutput: Boolean = false,
+    val sourceId: String? = null,
+    val sourceContainerHint: String? = null,
+    val sourceBitrateKbps: Int? = null,
+    val sourceHeight: Int? = null,
+    val allowMuxFallback: Boolean = false,
+    val allowTranscodeFallback: Boolean = false,
 )
 
 @Immutable

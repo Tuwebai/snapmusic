@@ -22,21 +22,39 @@ class FfmpegKitTranscodeEngine(
     private val workDir = File(context.cacheDir, "ffmpeg").apply { mkdirs() }
 
     override suspend fun extractAudio(input: Uri, format: ContainerFormat, quality: String): Uri = withContext(Dispatchers.IO) {
-        if (format == ContainerFormat.M4A) return@withContext input
-        require(format == ContainerFormat.MP3) { "Solo podemos extraer audio real en MP3 o M4A." }
+        when (format) {
+            ContainerFormat.MP3 -> {
+                val outputFile = File.createTempFile("snapmusic-audio-", ".mp3", workDir)
+                executeOrThrow(
+                    buildString {
+                        append("-y -i ")
+                        append(ffmpegPath(input.toFile().absolutePath))
+                        append(" -map 0:a:0 -vn -c:a libmp3lame -b:a ")
+                        append("${normalizeBitrate(quality)}k")
+                        append(" -id3v2_version 3 ")
+                        append(ffmpegPath(outputFile.absolutePath))
+                    },
+                )
+                Uri.fromFile(outputFile)
+            }
 
-        val outputFile = File.createTempFile("snapmusic-audio-", ".mp3", workDir)
-        executeOrThrow(
-            buildString {
-                append("-y -i ")
-                append(ffmpegPath(input.toFile().absolutePath))
-                append(" -map 0:a:0 -vn -c:a libmp3lame -b:a ")
-                append("${normalizeBitrate(quality)}k")
-                append(" -id3v2_version 3 ")
-                append(ffmpegPath(outputFile.absolutePath))
-            },
-        )
-        Uri.fromFile(outputFile)
+            ContainerFormat.M4A -> {
+                val outputFile = File.createTempFile("snapmusic-audio-", ".m4a", workDir)
+                executeOrThrow(
+                    buildString {
+                        append("-y -i ")
+                        append(ffmpegPath(input.toFile().absolutePath))
+                        append(" -map 0:a:0 -vn -c:a aac -b:a ")
+                        append("${normalizeBitrate(quality)}k")
+                        append(" -movflags +faststart ")
+                        append(ffmpegPath(outputFile.absolutePath))
+                    },
+                )
+                Uri.fromFile(outputFile)
+            }
+
+            else -> error("Solo podemos extraer audio real en MP3 o M4A.")
+        }
     }
 
     override suspend fun muxVideo(videoInput: Uri, audioInput: Uri, targetProfile: String): Uri = withContext(Dispatchers.IO) {

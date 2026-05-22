@@ -66,6 +66,12 @@ class QueueRepository(
                 selectionTargetBitrateKbps = request.downloadSelection.targetBitrateKbps,
                 selectionTargetResolution = request.downloadSelection.targetResolution,
                 selectionStrategy = request.downloadSelection.strategy,
+                preferredSourceId = request.downloadSelection.preferredSourceId,
+                sourceContainerHint = request.downloadSelection.sourceContainerHint,
+                sourceBitrateKbps = request.downloadSelection.sourceBitrateKbps,
+                sourceHeight = request.downloadSelection.sourceHeight,
+                allowMuxFallback = request.downloadSelection.allowMuxFallback,
+                allowTranscodeFallback = request.downloadSelection.allowTranscodeFallback,
                 laneIndex = laneIndex,
             ),
         )
@@ -86,6 +92,7 @@ class QueueRepository(
         progress: Int,
         outputUri: String? = null,
         errorMessage: String? = null,
+        variantLabel: String? = null,
     ) {
         val current = dao.getQueueById(id) ?: return
         dao.upsertQueue(
@@ -94,6 +101,7 @@ class QueueRepository(
                 progress = progress,
                 outputUri = outputUri ?: current.outputUri,
                 errorMessage = errorMessage,
+                variantLabel = variantLabel ?: current.variantLabel,
             ),
         )
     }
@@ -119,9 +127,6 @@ class QueueRepository(
         if (selectionTargetContainer != request.downloadSelection.targetContainer) return false
         if (selectionTargetBitrateKbps != request.downloadSelection.targetBitrateKbps) return false
         if (selectionTargetResolution != request.downloadSelection.targetResolution) return false
-        if (selectionStrategy != request.downloadSelection.strategy) return false
-        if (requiresMux != request.selectedVariant.requiresMux) return false
-        if (requiresTranscode != request.selectedVariant.requiresTranscode) return false
         if (variantLabel.normalizedVariantLabel() == request.selectedVariant.label.normalizedVariantLabel()) return true
         return variantLabel.variantSignature() == request.selectedVariant.label.variantSignature()
     }

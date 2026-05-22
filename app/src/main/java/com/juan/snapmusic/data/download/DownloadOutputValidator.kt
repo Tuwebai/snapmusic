@@ -17,18 +17,20 @@ class DownloadOutputValidator(
                 error("El archivo final quedó inválido después de procesarlo.")
             }
             val mimeType = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE).orEmpty()
+            val hasAudio = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)
             when (container) {
-                ContainerFormat.MP3 -> if (!mimeType.contains("audio", ignoreCase = true)) {
+                ContainerFormat.MP3 -> if (!mimeType.contains("audio", ignoreCase = true) || hasAudio == "no") {
                     error("El MP3 final no se pudo reproducir correctamente.")
                 }
 
-                ContainerFormat.M4A -> if (!mimeType.contains("audio", ignoreCase = true)) {
+                ContainerFormat.M4A -> if (!mimeType.contains("audio", ignoreCase = true) || hasAudio == "no") {
                     error("El M4A final no se pudo reproducir correctamente.")
                 }
 
                 ContainerFormat.MP4 -> {
                     val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO)
                     if (hasVideo != "yes") error("El MP4 final no contiene video reproducible.")
+                    if (hasAudio != "yes") error("El MP4 final no contiene audio reproducible.")
                 }
             }
         } finally {

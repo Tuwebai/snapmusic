@@ -34,6 +34,12 @@ data class QueueEntity(
     val selectionTargetBitrateKbps: Int?,
     val selectionTargetResolution: String?,
     val selectionStrategy: DownloadStrategy,
+    val preferredSourceId: String?,
+    val sourceContainerHint: String?,
+    val sourceBitrateKbps: Int?,
+    val sourceHeight: Int?,
+    val allowMuxFallback: Boolean,
+    val allowTranscodeFallback: Boolean,
     val laneIndex: Int,
 )
 
@@ -58,4 +64,10 @@ fun QueueEntity.toDownloadSelection() = DownloadSelection(
     targetBitrateKbps = selectionTargetBitrateKbps,
     targetResolution = selectionTargetResolution,
     strategy = selectionStrategy,
+    preferredSourceId = preferredSourceId,
+    sourceContainerHint = sourceContainerHint,
+    sourceBitrateKbps = sourceBitrateKbps,
+    sourceHeight = sourceHeight,
+    allowMuxFallback = allowMuxFallback,
+    allowTranscodeFallback = allowTranscodeFallback,
 )

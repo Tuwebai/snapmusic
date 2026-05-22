@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [QueueEntity::class, HistoryEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(DatabaseConverters::class)
@@ -72,6 +72,45 @@ abstract class SnapMusicDatabase : RoomDatabase() {
                             WHEN requiresMux = 1 THEN 'MUX_VIDEO_AUDIO'
                             WHEN requiresTranscode = 1 THEN 'TRANSCODE_AUDIO'
                             ELSE 'DIRECT'
+                        END
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE queue_entries ADD COLUMN preferredSourceId TEXT")
+                db.execSQL("ALTER TABLE queue_entries ADD COLUMN sourceContainerHint TEXT")
+                db.execSQL("ALTER TABLE queue_entries ADD COLUMN sourceBitrateKbps INTEGER")
+                db.execSQL("ALTER TABLE queue_entries ADD COLUMN sourceHeight INTEGER")
+                db.execSQL("ALTER TABLE queue_entries ADD COLUMN allowMuxFallback INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE queue_entries ADD COLUMN allowTranscodeFallback INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    """
+                    UPDATE queue_entries
+                    SET sourceContainerHint = CASE
+                            WHEN selectionTargetContainer = 'M4A' THEN 'M4A'
+                            WHEN selectionTargetContainer = 'MP4' THEN 'MPEG_4'
+                            ELSE NULL
+                        END,
+                        sourceBitrateKbps = selectionTargetBitrateKbps,
+                        sourceHeight = CASE
+                            WHEN selectionTargetResolution IS NOT NULL AND instr(lower(selectionTargetResolution), 'p') > 0 THEN CAST(
+                                NULLIF(
+                                    trim(substr(lower(selectionTargetResolution), 1, instr(lower(selectionTargetResolution), 'p') - 1)),
+                                    ''
+                                ) AS INTEGER
+                            )
+                            ELSE NULL
+                        END,
+                        allowMuxFallback = CASE
+                            WHEN selectionKind = 'VIDEO' AND selectionTargetContainer = 'MP4' THEN 1
+                            ELSE 0
+                        END,
+                        allowTranscodeFallback = CASE
+                            WHEN selectionKind = 'AUDIO' THEN 1
+                            ELSE 0
                         END
                     """.trimIndent(),
                 )

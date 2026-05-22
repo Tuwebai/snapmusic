@@ -260,9 +260,14 @@ private fun modalPriority(variant: MediaVariant): Int = when (variant.container.
 }
 
 private fun variantQuality(variant: MediaVariant): String {
-    return when (variant.kind) {
+    val quality = when (variant.kind) {
         MediaKind.AUDIO -> variant.bitrateKbps?.let { "${it}kbps" } ?: "Directo"
         MediaKind.VIDEO -> variant.resolution ?: "Directo"
+    }
+    return if (variant.isSyntheticOutput && variant.kind == MediaKind.AUDIO) {
+        "$quality · convertido"
+    } else {
+        quality
     }
 }
 

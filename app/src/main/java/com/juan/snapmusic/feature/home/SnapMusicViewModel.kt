@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.juan.snapmusic.core.model.QueueEntry
 import com.juan.snapmusic.SnapMusicGraph
 import com.juan.snapmusic.core.model.AppThemeMode
+import com.juan.snapmusic.core.model.ContainerFormat
 import com.juan.snapmusic.core.model.ConversionRequest
 import com.juan.snapmusic.core.model.DownloadBadgeState
 import com.juan.snapmusic.core.model.IncomingShareItem
@@ -3073,18 +3074,20 @@ class SnapMusicViewModel(
     private fun enqueueHomePreset(preset: String): Boolean {
         val media = _homeState.value.resolvedMedia ?: return false
         val variant = when (preset) {
-            PRESET_MP3_320 -> media.audioVariants.firstOrNull {
-                it.container == com.juan.snapmusic.core.model.ContainerFormat.MP3 && it.bitrateKbps == 320
-            }
+            PRESET_MP3_320 -> media.audioVariants.closestAudioVariant(
+                container = com.juan.snapmusic.core.model.ContainerFormat.MP3,
+                targetBitrate = 320,
+            )
 
-            PRESET_M4A -> media.audioVariants.firstOrNull {
-                it.container == com.juan.snapmusic.core.model.ContainerFormat.M4A
-            }
+            PRESET_M4A -> media.audioVariants.closestAudioVariant(
+                container = com.juan.snapmusic.core.model.ContainerFormat.M4A,
+                targetBitrate = media.audioVariants
+                    .filter { it.container == com.juan.snapmusic.core.model.ContainerFormat.M4A }
+                    .maxOfOrNull { it.bitrateKbps ?: 0 }
+                    ?.takeIf { it > 0 },
+            )
 
-            PRESET_MP4_720 -> media.videoVariants.firstOrNull {
-                it.container == com.juan.snapmusic.core.model.ContainerFormat.MP4 &&
-                    (it.resolution?.contains("720", ignoreCase = true) == true)
-            } ?: media.videoVariants.firstOrNull()
+            PRESET_MP4_720 -> media.videoVariants.closestVideoVariant(720)
 
             else -> null
         } ?: run {
@@ -3418,11 +3421,49 @@ private fun QueueEntity.toRetryRequest(): ConversionRequest {
             secondaryUrl = secondaryUrl,
             requiresTranscode = requiresTranscode,
             requiresMux = requiresMux,
+            isSyntheticOutput = requiresTranscode || requiresMux,
+            sourceId = selection.preferredSourceId,
+            sourceContainerHint = selection.sourceContainerHint,
+            sourceBitrateKbps = selection.sourceBitrateKbps,
+            sourceHeight = selection.sourceHeight,
+            allowMuxFallback = selection.allowMuxFallback,
+            allowTranscodeFallback = selection.allowTranscodeFallback,
         ),
         downloadSelection = selection,
         destinationLabel = destinationLabel,
         destinationTreeUri = destinationTreeUri,
     )
+}
+
+private fun List<MediaVariant>.closestAudioVariant(
+    container: ContainerFormat,
+    targetBitrate: Int?,
+): MediaVariant? {
+    return filter { it.container == container }
+        .minWithOrNull(
+            compareBy<MediaVariant> {
+                kotlin.math.abs((it.bitrateKbps ?: targetBitrate ?: 0) - (targetBitrate ?: it.bitrateKbps ?: 0))
+            }.thenBy {
+                if (it.isSyntheticOutput) 1 else 0
+            }.thenByDescending {
+                it.bitrateKbps ?: 0
+            },
+        )
+}
+
+private fun List<MediaVariant>.closestVideoVariant(
+    targetHeight: Int,
+): MediaVariant? {
+    return filter { it.container == ContainerFormat.MP4 }
+        .minWithOrNull(
+            compareBy<MediaVariant> {
+                kotlin.math.abs(((it.sourceHeight ?: it.resolution?.substringBefore('p')?.toIntOrNull()) ?: targetHeight) - targetHeight)
+            }.thenBy {
+                if (it.requiresMux) 1 else 0
+            }.thenByDescending {
+                it.sourceHeight ?: it.resolution?.substringBefore('p')?.toIntOrNull() ?: 0
+            },
+        )
 }
 
 class SnapMusicViewModelFactory(

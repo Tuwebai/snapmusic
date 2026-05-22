@@ -1,14 +1,9 @@
 package com.juan.snapmusic.data.extractor
 
 import android.net.Uri
-import com.juan.snapmusic.core.model.ContainerFormat
 import com.juan.snapmusic.core.model.DownloadExecutionPlan
 import com.juan.snapmusic.core.model.DownloadSelection
-import com.juan.snapmusic.core.model.DownloadStrategy
-import com.juan.snapmusic.core.model.MediaKind
-import com.juan.snapmusic.core.model.MediaVariant
 import com.juan.snapmusic.core.model.ResolvedMedia
-import com.juan.snapmusic.core.model.TransferSource
 import com.juan.snapmusic.core.model.YouTubeFeedPage
 import com.juan.snapmusic.core.model.YouTubeFeedItem
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +34,13 @@ class NewPipeStreamResolverRepository(
 ) : StreamResolverRepository {
     private val pageCursorStore = linkedMapOf<String, Page>()
     private var pageCursorCounter = 0L
+    private val transferHeaders = mapOf(
+        "User-Agent" to "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+        "Referer" to "https://www.youtube.com/",
+        "Origin" to "https://www.youtube.com",
+        "Accept" to "*/*",
+        "Accept-Language" to "es-AR,es;q=0.9,en;q=0.8",
+    )
 
     init {
         NewPipe.init(downloader, Localization("es", "AR"), ContentCountry("AR"))
@@ -46,6 +48,9 @@ class NewPipeStreamResolverRepository(
 
     override suspend fun resolve(url: String): ResolvedMedia = withContext(Dispatchers.IO) {
         val info = StreamInfo.getInfo(url)
+        val audioCandidates = info.audioStreams.map(::toAudioCandidate)
+        val progressiveCandidates = info.videoStreams.map(::toVideoCandidate)
+        val muxCandidates = info.videoOnlyStreams.map(::toVideoCandidate)
         ResolvedMedia(
             sourceUrl = url,
             title = info.name,
@@ -54,43 +59,23 @@ class NewPipeStreamResolverRepository(
             thumbnailUrl = info.thumbnails.lastOrNull()?.url.orEmpty(),
             playbackUrl = buildPlaybackUrl(info.videoStreams),
             adaptivePlaybackUrl = info.dashMpdUrl ?: info.hlsUrl,
-            audioVariants = buildAudioVariants(info.audioStreams),
-            videoVariants = buildVideoVariants(
-                progressiveStreams = info.videoStreams,
-                videoOnlyStreams = info.videoOnlyStreams,
-                audioStreams = info.audioStreams,
+            audioVariants = DownloadSourcePlanner.buildAudioVariants(audioCandidates),
+            videoVariants = DownloadSourcePlanner.buildVideoVariants(
+                progressiveCandidates = progressiveCandidates,
+                muxCandidates = muxCandidates,
+                audioCandidates = audioCandidates,
             ),
         )
     }
 
     override suspend fun resolveDownloadPlan(url: String, selection: DownloadSelection): DownloadExecutionPlan = withContext(Dispatchers.IO) {
         val info = StreamInfo.getInfo(url)
-        when (selection.strategy) {
-            DownloadStrategy.DIRECT -> {
-                when (selection.kind) {
-                    MediaKind.AUDIO -> {
-                        val source = selectDirectAudio(info.audioStreams, selection)
-                        DownloadExecutionPlan.Direct(selection, source)
-                    }
-
-                    MediaKind.VIDEO -> {
-                        val source = selectDirectVideo(info.videoStreams, selection)
-                        DownloadExecutionPlan.Direct(selection, source)
-                    }
-                }
-            }
-
-            DownloadStrategy.TRANSCODE_AUDIO -> {
-                val source = selectBestAudioForTranscode(info.audioStreams)
-                DownloadExecutionPlan.AudioTranscode(selection, source)
-            }
-
-            DownloadStrategy.MUX_VIDEO_AUDIO -> {
-                val videoSource = selectMuxVideo(info.videoOnlyStreams, selection)
-                val audioSource = selectBestAudioForTranscode(info.audioStreams)
-                DownloadExecutionPlan.MuxVideoAudio(selection, videoSource, audioSource)
-            }
-        }
+        DownloadSourcePlanner.resolveDownloadPlan(
+            selection = selection,
+            audioCandidates = info.audioStreams.map(::toAudioCandidate),
+            progressiveCandidates = info.videoStreams.map(::toVideoCandidate),
+            muxCandidates = info.videoOnlyStreams.map(::toVideoCandidate),
+        )
     }
 
     override suspend fun loadTrendingPage(limit: Int, cursor: String?): YouTubeFeedPage = withContext(Dispatchers.IO) {
@@ -175,159 +160,27 @@ class NewPipeStreamResolverRepository(
             .take(limit)
     }
 
-    private fun buildAudioVariants(streams: List<AudioStream>): List<MediaVariant> {
-        val directAudio = streams
-            .filter { !it.url.isNullOrBlank() }
-            .filter { stream -> stream.format == MediaFormat.M4A }
-            .sortedByDescending { it.averageBitrate }
-            .take(3)
-            .map { stream ->
-                MediaVariant(
-                    id = "audio-${stream.id}",
-                    label = if (stream.averageBitrate > 0) "M4A ${stream.averageBitrate}kbps" else "M4A directo",
-                    kind = MediaKind.AUDIO,
-                    container = ContainerFormat.M4A,
-                    bitrateKbps = stream.averageBitrate.takeIf { it > 0 },
-                    directUrl = stream.url.orEmpty(),
-                )
-            }
+    private fun toAudioCandidate(stream: AudioStream): AudioSourceCandidate = AudioSourceCandidate(
+        id = stream.id.toString(),
+        url = stream.url.orEmpty(),
+        bitrateKbps = stream.averageBitrate.takeIf { it > 0 },
+        sourceContainerHint = stream.format?.name ?: "UNKNOWN",
+        isDirectM4a = stream.format == MediaFormat.M4A,
+        headers = transferHeaders,
+    )
 
-        val bestSource = directAudio.firstOrNull() ?: return emptyList()
-        val syntheticMp3 = listOf(128, 192, 256, 320).map { kbps ->
-            MediaVariant(
-                id = "mp3-$kbps",
-                label = "MP3 ${kbps}kbps",
-                kind = MediaKind.AUDIO,
-                container = ContainerFormat.MP3,
-                bitrateKbps = kbps,
-                directUrl = "",
-                requiresTranscode = true,
-            )
-        }
-        return directAudio + syntheticMp3
-    }
-
-    private fun buildVideoVariants(
-        progressiveStreams: List<VideoStream>,
-        videoOnlyStreams: List<VideoStream>,
-        audioStreams: List<AudioStream>,
-    ): List<MediaVariant> {
-        val compatibleStreams = progressiveStreams
-            .filter { !it.isVideoOnly && !it.url.isNullOrBlank() }
-            .filter { stream -> stream.format == MediaFormat.MPEG_4 && stream.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
-            .sortedByDescending { it.height }
-            .distinctBy { it.resolution }
-        val fallbackStreams = progressiveStreams
-            .filter { !it.isVideoOnly && !it.url.isNullOrBlank() }
-            .sortedByDescending { it.height }
-            .distinctBy { it.resolution }
-        val progressiveVariants = (compatibleStreams.ifEmpty { fallbackStreams }).map { stream ->
-            MediaVariant(
-                id = "video-${stream.id}",
-                label = "MP4 ${stream.resolution.orEmpty()}",
-                kind = MediaKind.VIDEO,
-                container = ContainerFormat.MP4,
-                resolution = stream.resolution,
-                directUrl = stream.url.orEmpty(),
-            )
-        }
-
-        val bestMuxAudio = audioStreams
-            .filter { !it.url.isNullOrBlank() }
-            .sortedByDescending { it.averageBitrate }
-            .firstOrNull()
-            ?.url
-
-        if (bestMuxAudio.isNullOrBlank()) return progressiveVariants
-
-        val progressiveResolutions = progressiveVariants.mapNotNull { it.resolution }.toSet()
-        val muxVariants = videoOnlyStreams
-            .filter { !it.url.isNullOrBlank() }
-            .filter { it.height > 0 }
-            .sortedByDescending { it.height }
-            .distinctBy { it.resolution }
-            .filterNot { it.resolution in progressiveResolutions }
-            .map { stream ->
-                MediaVariant(
-                    id = "video-mux-${stream.id}",
-                    label = "MP4 ${stream.resolution.orEmpty()}",
-                    kind = MediaKind.VIDEO,
-                    container = ContainerFormat.MP4,
-                    resolution = stream.resolution,
-                    directUrl = stream.url.orEmpty(),
-                    secondaryUrl = bestMuxAudio,
-                    requiresMux = true,
-                )
-            }
-
-        return (progressiveVariants + muxVariants)
-            .sortedByDescending { it.resolution?.substringBefore('p')?.toIntOrNull() ?: 0 }
-    }
-
-    private fun selectDirectAudio(
-        streams: List<AudioStream>,
-        selection: DownloadSelection,
-    ): TransferSource {
-        require(selection.targetContainer == ContainerFormat.M4A) {
-            "Solo podemos descargar audio directo en M4A."
-        }
-        val bitrate = selection.targetBitrateKbps ?: error("Falta el bitrate objetivo del audio.")
-        val stream = streams
-            .filter { !it.url.isNullOrBlank() }
-            .filter { it.format == MediaFormat.M4A }
-            .sortedByDescending { it.averageBitrate }
-            .firstOrNull { it.averageBitrate == bitrate }
-            ?: error("La fuente M4A ${bitrate}kbps ya no está disponible.")
-        return TransferSource(stream.url.orEmpty())
-    }
-
-    private fun selectBestAudioForTranscode(
-        streams: List<AudioStream>,
-    ): TransferSource {
-        val preferredM4a = streams
-            .filter { !it.url.isNullOrBlank() }
-            .filter { it.format == MediaFormat.M4A }
-            .sortedByDescending { it.averageBitrate }
-            .firstOrNull()
-        if (preferredM4a != null) return TransferSource(preferredM4a.url.orEmpty())
-
-        val fallback = streams
-            .filter { !it.url.isNullOrBlank() }
-            .sortedByDescending { it.averageBitrate }
-            .firstOrNull()
-            ?: error("No encontramos una pista de audio compatible para generar el archivo final.")
-        return TransferSource(fallback.url.orEmpty())
-    }
-
-    private fun selectDirectVideo(
-        streams: List<VideoStream>,
-        selection: DownloadSelection,
-    ): TransferSource {
-        val resolution = selection.targetResolution ?: error("Falta la resolución objetivo del video.")
-        val stream = streams
-            .filter { !it.isVideoOnly && !it.url.isNullOrBlank() }
-            .filter { it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
-            .filter { it.format == MediaFormat.MPEG_4 }
-            .sortedByDescending { it.height }
-            .firstOrNull { it.resolution == resolution }
-            ?: error("La variante MP4 $resolution ya no está disponible para descarga directa.")
-        return TransferSource(stream.url.orEmpty())
-    }
-
-    private fun selectMuxVideo(
-        streams: List<VideoStream>,
-        selection: DownloadSelection,
-    ): TransferSource {
-        val resolution = selection.targetResolution ?: error("Falta la resolución objetivo del video.")
-        val stream = streams
-            .filter { !it.url.isNullOrBlank() }
-            .filter { it.height > 0 }
-            .filter { it.format == MediaFormat.MPEG_4 }
-            .sortedByDescending { it.height }
-            .firstOrNull { it.resolution == resolution }
-            ?: error("La variante MP4 $resolution ya no está disponible para armar el mux final.")
-        return TransferSource(stream.url.orEmpty())
-    }
+    private fun toVideoCandidate(stream: VideoStream): VideoSourceCandidate = VideoSourceCandidate(
+        id = stream.id.toString(),
+        url = stream.url.orEmpty(),
+        resolution = stream.resolution,
+        height = stream.height.takeIf { it > 0 },
+        sourceContainerHint = stream.format?.name ?: "UNKNOWN",
+        isProgressiveMp4 = !stream.isVideoOnly &&
+            stream.format == MediaFormat.MPEG_4 &&
+            stream.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP,
+        isMuxableMp4 = stream.format == MediaFormat.MPEG_4,
+        headers = transferHeaders,
+    )
 
     private fun StreamInfoItem.toFeedItem(): YouTubeFeedItem? {
         if (streamType == StreamType.AUDIO_STREAM) return null

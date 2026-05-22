@@ -52,6 +52,7 @@ class SnapMusicGraph(
     private val database: SnapMusicDatabase by lazy {
         Room.databaseBuilder(appContext, SnapMusicDatabase::class.java, "snapmusic.db")
             .addMigrations(SnapMusicDatabase.MIGRATION_2_3)
+            .addMigrations(SnapMusicDatabase.MIGRATION_3_4)
             .build()
     }
 

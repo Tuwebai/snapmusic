@@ -71,11 +71,17 @@ class DownloadWorker(
             )
             targetUri = reservedTargetUri
 
-            executeDownloadWithFreshSources(queueId, entry, reservedTargetUri)
+            val resolvedVariantLabel = executeDownloadWithFreshSources(queueId, entry, reservedTargetUri)
             graph.storageRepository.publishOutput(reservedTargetUri)
             val localThumbnailUrl = downloadThumbnailForHistory(entry.sourceUrl, entry.thumbnailUrl)
 
-            graph.queueRepository.updateStatus(queueId, QueueStatus.SUCCESS, 100, outputUri = reservedTargetUri.toString())
+            graph.queueRepository.updateStatus(
+                queueId,
+                QueueStatus.SUCCESS,
+                100,
+                outputUri = reservedTargetUri.toString(),
+                variantLabel = resolvedVariantLabel,
+            )
             graph.historyRepository.append(
                 id = queueId,
                 title = entry.title,
@@ -84,9 +90,9 @@ class DownloadWorker(
                 thumbnailUrl = localThumbnailUrl,
                 outputUri = reservedTargetUri.toString(),
                 format = entry.container,
-                qualityLabel = entry.variantLabel,
+                qualityLabel = resolvedVariantLabel,
             )
-            notifications.showSuccess(queueId, entry.title, entry.variantLabel, localThumbnailUrl)
+            notifications.showSuccess(queueId, entry.title, resolvedVariantLabel, localThumbnailUrl)
             Result.success()
         } catch (cancelled: Throwable) {
             targetUri?.let { graph.storageRepository.deleteOutput(it.toString()) }
@@ -107,8 +113,8 @@ class DownloadWorker(
         queueId: String,
         entry: QueueEntity,
         targetUri: Uri,
-    ) {
-        runCatching {
+    ): String {
+        return runCatching {
             executeResolvedDownload(queueId, entry, targetUri)
         }.recoverCatching { error ->
             if (!shouldRetryWithFreshSources(error)) throw error
@@ -120,16 +126,18 @@ class DownloadWorker(
         queueId: String,
         entry: QueueEntity,
         targetUri: Uri,
-    ) {
+    ): String {
         val selection = entry.toDownloadSelection()
         val plan = graph.resolverRepository.resolveDownloadPlan(entry.sourceUrl, selection)
+        val resolvedVariantLabel = plan.displayLabel
         when (plan) {
-            is DownloadExecutionPlan.Direct -> processDirectDownload(queueId, entry, targetUri, plan)
-            is DownloadExecutionPlan.AudioTranscode -> processAudioTranscode(queueId, entry, targetUri, plan)
-            is DownloadExecutionPlan.MuxVideoAudio -> processMuxDownload(queueId, entry, targetUri, plan)
+            is DownloadExecutionPlan.Direct -> processDirectDownload(queueId, entry, targetUri, plan, resolvedVariantLabel)
+            is DownloadExecutionPlan.AudioTranscode -> processAudioTranscode(queueId, entry, targetUri, plan, resolvedVariantLabel)
+            is DownloadExecutionPlan.MuxVideoAudio -> processMuxDownload(queueId, entry, targetUri, plan, resolvedVariantLabel)
         }
-        publishStage(queueId, entry, DownloadStage.VALIDATING)
+        publishStage(queueId, entry, resolvedVariantLabel, DownloadStage.VALIDATING, plan.selection.strategy)
         graph.downloadOutputValidator.validate(targetUri, entry.container)
+        return resolvedVariantLabel
     }
 
     private suspend fun processDirectDownload(
@@ -137,6 +145,7 @@ class DownloadWorker(
         entry: QueueEntity,
         targetUri: Uri,
         plan: DownloadExecutionPlan.Direct,
+        variantLabel: String,
     ) {
         val tempFile = graph.httpTransferEngine.download(
             source = plan.source,
@@ -146,15 +155,15 @@ class DownloadWorker(
             updateQueueProgress(
                 queueId = queueId,
                 title = entry.title,
-                variantLabel = entry.variantLabel,
+                variantLabel = variantLabel,
                 thumbnailUrl = entry.thumbnailUrl,
                 status = QueueStatus.RUNNING,
-                progress = progressFor(entry.toDownloadSelection().strategy, snapshot),
+                progress = progressFor(plan.selection.strategy, snapshot),
                 snapshot = snapshot,
             )
         }
         try {
-            copyInto(Uri.fromFile(tempFile), targetUri, DownloadStrategy.DIRECT, queueId, entry)
+            copyInto(Uri.fromFile(tempFile), targetUri, plan.selection.strategy, queueId, entry, variantLabel)
         } finally {
             tempFile.delete()
         }
@@ -165,6 +174,7 @@ class DownloadWorker(
         entry: QueueEntity,
         targetUri: Uri,
         plan: DownloadExecutionPlan.AudioTranscode,
+        variantLabel: String,
     ) {
         val sourceFile = graph.httpTransferEngine.download(
             source = plan.source,
@@ -174,19 +184,19 @@ class DownloadWorker(
             updateQueueProgress(
                 queueId = queueId,
                 title = entry.title,
-                variantLabel = entry.variantLabel,
+                variantLabel = variantLabel,
                 thumbnailUrl = entry.thumbnailUrl,
                 status = QueueStatus.RUNNING,
-                progress = progressFor(entry.toDownloadSelection().strategy, snapshot),
+                progress = progressFor(plan.selection.strategy, snapshot),
                 snapshot = snapshot,
             )
         }
         var transcodedUri: Uri? = null
         try {
-            publishStage(queueId, entry, DownloadStage.TRANSCODING)
-            transcodedUri = graph.transcodeEngine.extractAudio(Uri.fromFile(sourceFile), entry.container, entry.variantLabel)
+            publishStage(queueId, entry, variantLabel, DownloadStage.TRANSCODING, plan.selection.strategy)
+            transcodedUri = graph.transcodeEngine.extractAudio(Uri.fromFile(sourceFile), entry.container, variantLabel)
             graph.downloadOutputValidator.validate(transcodedUri, entry.container)
-            copyInto(transcodedUri, targetUri, DownloadStrategy.TRANSCODE_AUDIO, queueId, entry)
+            copyInto(transcodedUri, targetUri, plan.selection.strategy, queueId, entry, variantLabel)
         } finally {
             sourceFile.delete()
             transcodedUri?.takeIf { it.scheme == "file" }?.toFile()?.delete()
@@ -198,6 +208,7 @@ class DownloadWorker(
         entry: QueueEntity,
         targetUri: Uri,
         plan: DownloadExecutionPlan.MuxVideoAudio,
+        variantLabel: String,
     ) = coroutineScope {
         val progressTracker = CombinedTransferProgress()
         val muxParallelism = graph.downloadNetworkPolicy.muxSourceParallelism()
@@ -211,10 +222,10 @@ class DownloadWorker(
                 updateQueueProgress(
                     queueId = queueId,
                     title = entry.title,
-                    variantLabel = entry.variantLabel,
+                    variantLabel = variantLabel,
                     thumbnailUrl = entry.thumbnailUrl,
                     status = QueueStatus.RUNNING,
-                    progress = progressFor(entry.toDownloadSelection().strategy, combined),
+                    progress = progressFor(plan.selection.strategy, combined),
                     snapshot = combined,
                 )
             }
@@ -229,10 +240,10 @@ class DownloadWorker(
                 updateQueueProgress(
                     queueId = queueId,
                     title = entry.title,
-                    variantLabel = entry.variantLabel,
+                    variantLabel = variantLabel,
                     thumbnailUrl = entry.thumbnailUrl,
                     status = QueueStatus.RUNNING,
-                    progress = progressFor(entry.toDownloadSelection().strategy, combined),
+                    progress = progressFor(plan.selection.strategy, combined),
                     snapshot = combined,
                 )
             }
@@ -241,10 +252,10 @@ class DownloadWorker(
         val audioFile = audioDeferred.await()
         var muxedUri: Uri? = null
         try {
-            publishStage(queueId, entry, DownloadStage.MUXING)
-            muxedUri = graph.transcodeEngine.muxVideo(Uri.fromFile(videoFile), Uri.fromFile(audioFile), entry.variantLabel)
+            publishStage(queueId, entry, variantLabel, DownloadStage.MUXING, plan.selection.strategy)
+            muxedUri = graph.transcodeEngine.muxVideo(Uri.fromFile(videoFile), Uri.fromFile(audioFile), variantLabel)
             graph.downloadOutputValidator.validate(muxedUri, entry.container)
-            copyInto(muxedUri, targetUri, DownloadStrategy.MUX_VIDEO_AUDIO, queueId, entry)
+            copyInto(muxedUri, targetUri, plan.selection.strategy, queueId, entry, variantLabel)
         } finally {
             videoFile.delete()
             audioFile.delete()
@@ -255,7 +266,9 @@ class DownloadWorker(
     private suspend fun publishStage(
         queueId: String,
         entry: QueueEntity,
+        variantLabel: String,
         stage: DownloadStage,
+        strategy: DownloadStrategy,
     ) {
         val snapshot = DownloadProgressSnapshot(
             bytesDownloaded = 0L,
@@ -266,10 +279,10 @@ class DownloadWorker(
         updateQueueProgress(
             queueId = queueId,
             title = entry.title,
-            variantLabel = entry.variantLabel,
+            variantLabel = variantLabel,
             thumbnailUrl = entry.thumbnailUrl,
             status = QueueStatus.RUNNING,
-            progress = progressFor(entry.toDownloadSelection().strategy, snapshot),
+            progress = progressFor(strategy, snapshot),
             snapshot = snapshot,
         )
     }
@@ -294,7 +307,7 @@ class DownloadWorker(
         if (!shouldPublish && status == QueueStatus.RUNNING) return
         lastPublishedProgress = safeProgress
         lastPublishedAtMs = now
-        graph.queueRepository.updateStatus(queueId, status, safeProgress)
+        graph.queueRepository.updateStatus(queueId, status, safeProgress, variantLabel = variantLabel)
         setProgress(
             workDataOf(
                 "progress" to safeProgress,
@@ -358,6 +371,7 @@ class DownloadWorker(
         strategy: DownloadStrategy,
         queueId: String,
         entry: QueueEntity,
+        variantLabel: String,
     ) {
         openInput(sourceUri).use { input ->
             val size = sourceUri.takeIf { it.scheme == "file" }?.toFile()?.length()?.coerceAtLeast(1L) ?: 1L
@@ -366,7 +380,7 @@ class DownloadWorker(
                     updateQueueProgress(
                         queueId = queueId,
                         title = entry.title,
-                        variantLabel = entry.variantLabel,
+                        variantLabel = variantLabel,
                         thumbnailUrl = entry.thumbnailUrl,
                         status = QueueStatus.RUNNING,
                         progress = progressFor(strategy, snapshot),
@@ -509,6 +523,10 @@ class DownloadWorker(
 
             "stream remoto" in message || "stream seleccionado" in message -> {
                 "La fuente de descarga venció o ya no está disponible. Probá de nuevo."
+            }
+
+            "compatible" in message || "mp4 final" in message || "m4a final" in message || "mp3 final" in message -> {
+                "No encontramos una fuente compatible para generar ese formato final."
             }
 
             "inválid" in message || "invalid" in message || "reproduc" in message -> {

@@ -24,6 +24,12 @@ data class DownloadSelection(
     val targetBitrateKbps: Int? = null,
     val targetResolution: String? = null,
     val strategy: DownloadStrategy,
+    val preferredSourceId: String? = null,
+    val sourceContainerHint: String? = null,
+    val sourceBitrateKbps: Int? = null,
+    val sourceHeight: Int? = null,
+    val allowMuxFallback: Boolean = false,
+    val allowTranscodeFallback: Boolean = false,
 )
 
 @Immutable
@@ -51,21 +57,25 @@ data class DownloadProgressSnapshot(
 
 sealed interface DownloadExecutionPlan {
     val selection: DownloadSelection
+    val displayLabel: String
 
     data class Direct(
         override val selection: DownloadSelection,
         val source: TransferSource,
+        override val displayLabel: String,
     ) : DownloadExecutionPlan
 
     data class AudioTranscode(
         override val selection: DownloadSelection,
         val source: TransferSource,
+        override val displayLabel: String,
     ) : DownloadExecutionPlan
 
     data class MuxVideoAudio(
         override val selection: DownloadSelection,
         val videoSource: TransferSource,
         val audioSource: TransferSource,
+        override val displayLabel: String,
     ) : DownloadExecutionPlan
 }
 
@@ -81,5 +91,11 @@ fun MediaVariant.toDownloadSelection(): DownloadSelection {
         targetBitrateKbps = bitrateKbps,
         targetResolution = resolution,
         strategy = strategy,
+        preferredSourceId = sourceId,
+        sourceContainerHint = sourceContainerHint,
+        sourceBitrateKbps = sourceBitrateKbps ?: bitrateKbps,
+        sourceHeight = sourceHeight ?: resolution?.substringBefore('p')?.filter(Char::isDigit)?.toIntOrNull(),
+        allowMuxFallback = allowMuxFallback,
+        allowTranscodeFallback = allowTranscodeFallback,
     )
 }
