@@ -2425,8 +2425,10 @@ class SnapMusicViewModel(
         val current = _youtubeState.value
         val queueItems = current.playbackQueue.ifEmpty { current.items }
         val nextIndex = nextQueueIndex(queueItems.size, currentIndex, current.continuationMode)
+        val startedPlaybackForCurrentItem = current.currentPositionMs >= 1_500L
         if (
             current.autoplayEnabled &&
+            startedPlaybackForCurrentItem &&
             nextIndex != null &&
             current.featured.sourceUrl.isNotBlank() &&
             lastFailureFallbackSourceUrl != current.featured.sourceUrl
@@ -3196,15 +3198,9 @@ class SnapMusicViewModel(
     }
 
     private fun fallbackAutomaticPlaybackUrl(resolved: com.juan.snapmusic.core.model.ResolvedMedia): String? {
-        val automaticHeight = preferredAutomaticPlaybackHeight(resolved)
         val playbackCandidates = resolved.videoVariants.filter { !it.directUrl.isNullOrBlank() }
-        val fallbackVariant = resolveNearestPlaybackVariant(
-            candidates = playbackCandidates.filter { !it.requiresMux },
-            requestedHeight = automaticHeight,
-        ) ?: resolveNearestPlaybackVariant(
-            candidates = playbackCandidates,
-            requestedHeight = automaticHeight,
-        ) ?: return resolved.playbackUrl
+        val fallbackVariant = resolveAutomaticPlaybackVariant(playbackCandidates)
+            ?: return resolved.playbackUrl
             ?: playbackCandidates.firstOrNull { !it.requiresMux }?.directUrl
             ?: playbackCandidates.firstOrNull()?.directUrl
         return fallbackPlaybackUrl(fallbackVariant)
@@ -3309,6 +3305,31 @@ class SnapMusicViewModel(
         if (requestedHeight == null) return sorted.firstOrNull()
         return sorted.firstOrNull { (it.resolution?.substringBefore('p')?.toIntOrNull() ?: 0) <= requestedHeight }
             ?: sorted.minByOrNull { kotlin.math.abs((it.resolution?.substringBefore('p')?.toIntOrNull() ?: requestedHeight) - requestedHeight) }
+    }
+
+    private fun resolveAutomaticPlaybackVariant(
+        candidates: List<com.juan.snapmusic.core.model.MediaVariant>,
+    ): com.juan.snapmusic.core.model.MediaVariant? {
+        if (candidates.isEmpty()) return null
+        val candidatesByHeight = candidates
+            .mapNotNull { variant ->
+                val height = variant.resolution?.substringBefore('p')?.toIntOrNull() ?: return@mapNotNull null
+                height to variant
+            }
+            .groupBy({ it.first }, { it.second })
+        listOf(720, 1080, 480, 360, 240, 144).forEach { preferredHeight ->
+            candidatesByHeight[preferredHeight]
+                ?.sortedBy { it.requiresMux }
+                ?.firstOrNull()
+                ?.let { return it }
+        }
+        return candidates.maxWithOrNull(
+            compareBy<com.juan.snapmusic.core.model.MediaVariant> {
+                it.resolution?.substringBefore('p')?.toIntOrNull() ?: 0
+            }.thenBy {
+                !it.requiresMux
+            },
+        )
     }
 
     private fun watchPlaybackQualityLabel(height: Int): String = when {

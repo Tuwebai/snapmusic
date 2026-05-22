@@ -203,6 +203,7 @@ fun rememberYouTubePlayer(
 
                 override fun onTracksChanged(tracks: Tracks) {
                     if (mediaController.currentMediaItem?.mediaId != currentFeaturedSourceUrl) return
+                    maybeApplyPreferredAudioTrackSelection(mediaController, tracks)
                     onPlaybackQualityChanged(
                         resolveAvailableVideoHeights(tracks),
                         resolveActualVideoHeight(tracks),
@@ -375,11 +376,11 @@ private fun applyYouTubePlaybackQuality(
     val builder = mediaController.trackSelectionParameters
         .buildUpon()
         .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+        .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
         .setForceHighestSupportedBitrate(false)
         .setMinVideoSize(0, 0)
         .clearViewportSizeConstraints()
         .clearVideoSizeConstraints()
-    resolveSelectedOrPreferredAudioTrackOverride(mediaController.currentTracks)?.let(builder::setOverrideForType)
 
     if (adaptivePlayback && featured.selectedVideoQualityId == "auto") {
         val override = resolveVideoTrackOverride(
@@ -462,34 +463,63 @@ private fun resolveVideoTrackOverride(
     return TrackSelectionOverride(selected.group.mediaTrackGroup, listOf(selected.index))
 }
 
-private fun resolveSelectedOrPreferredAudioTrackOverride(
+private data class AudioTrackCandidate(
+    val group: Tracks.Group,
+    val index: Int,
+    val priority: Int,
+    val bitrate: Int,
+)
+
+private fun maybeApplyPreferredAudioTrackSelection(
+    mediaController: MediaController,
     tracks: Tracks,
-): TrackSelectionOverride? {
+) {
+    val preferred = resolvePreferredAudioTrackCandidate(tracks) ?: return
+    val current = resolveCurrentAudioTrackCandidate(tracks)
+    if (
+        current != null &&
+        current.group.mediaTrackGroup == preferred.group.mediaTrackGroup &&
+        current.index == preferred.index
+    ) {
+        return
+    }
+    mediaController.trackSelectionParameters = mediaController.trackSelectionParameters
+        .buildUpon()
+        .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+        .setOverrideForType(TrackSelectionOverride(preferred.group.mediaTrackGroup, listOf(preferred.index)))
+        .build()
+}
+
+private fun resolveCurrentAudioTrackCandidate(
+    tracks: Tracks,
+): AudioTrackCandidate? {
+    return tracks.groups
+        .asSequence()
+        .filter { group -> group.type == C.TRACK_TYPE_AUDIO && group.length > 0 && group.isSupported }
+        .flatMap { group ->
+            (0 until group.length).asSequence().mapNotNull { index ->
+                if (!group.isTrackSupported(index) || !group.isTrackSelected(index)) return@mapNotNull null
+                val format = group.getTrackFormat(index)
+                AudioTrackCandidate(
+                    group = group,
+                    index = index,
+                    priority = preferredAudioTrackPriority(format),
+                    bitrate = format.bitrate.takeIf { it > 0 } ?: 0,
+                )
+            }
+        }
+        .firstOrNull()
+}
+
+private fun resolvePreferredAudioTrackCandidate(
+    tracks: Tracks,
+): AudioTrackCandidate? {
     data class Candidate(
         val group: Tracks.Group,
         val index: Int,
         val priority: Int,
         val bitrate: Int,
     )
-
-    val selected = tracks.groups
-        .asSequence()
-        .filter { group -> group.type == C.TRACK_TYPE_AUDIO && group.length > 0 && group.isSupported }
-        .flatMap { group ->
-            (0 until group.length).asSequence().mapNotNull { index ->
-                if (!group.isTrackSupported(index) || !group.isTrackSelected(index)) return@mapNotNull null
-                Candidate(
-                    group = group,
-                    index = index,
-                    priority = preferredAudioTrackPriority(group.getTrackFormat(index)),
-                    bitrate = group.getTrackFormat(index).bitrate.takeIf { it > 0 } ?: 0,
-                )
-            }
-        }
-        .firstOrNull()
-    if (selected != null) {
-        return TrackSelectionOverride(selected.group.mediaTrackGroup, listOf(selected.index))
-    }
 
     val candidate = tracks.groups
         .asSequence()
@@ -509,7 +539,12 @@ private fun resolveSelectedOrPreferredAudioTrackOverride(
         .minWithOrNull(compareBy<Candidate>({ it.priority }, { -it.bitrate }, { it.index }))
         ?: return null
 
-    return TrackSelectionOverride(candidate.group.mediaTrackGroup, listOf(candidate.index))
+    return AudioTrackCandidate(
+        group = candidate.group,
+        index = candidate.index,
+        priority = candidate.priority,
+        bitrate = candidate.bitrate,
+    )
 }
 
 private fun preferredAudioTrackPriority(
