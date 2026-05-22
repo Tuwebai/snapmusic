@@ -94,7 +94,7 @@ class NotificationHelper(
     }
 
     fun showSuccess(
-        id: Int,
+        queueId: String,
         title: String,
         variantLabel: String,
         thumbnailUrl: String,
@@ -116,11 +116,11 @@ class NotificationHelper(
             .setAutoCancel(true)
             .setContentIntent(openDownloadsIntent)
             .build()
-        manager.notify(id, notification)
+        manager.notify(completionNotificationId(queueId), notification)
     }
 
     fun showError(
-        id: Int,
+        queueId: String,
         title: String,
         message: String,
         thumbnailUrl: String,
@@ -142,7 +142,7 @@ class NotificationHelper(
             .setAutoCancel(true)
             .setContentIntent(openDownloadsIntent)
             .build()
-        manager.notify(id, notification)
+        manager.notify(completionNotificationId(queueId), notification)
     }
 
     private fun buildDownloadRemoteView(
@@ -249,4 +249,6 @@ class NotificationHelper(
     }
 
     private fun progressNotificationId(queueId: String): Int = queueId.hashCode()
+
+    private fun completionNotificationId(queueId: String): Int = queueId.hashCode() xor 0x40000000
 }

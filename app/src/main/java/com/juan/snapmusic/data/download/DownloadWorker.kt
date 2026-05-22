@@ -86,7 +86,7 @@ class DownloadWorker(
                 format = entry.container,
                 qualityLabel = entry.variantLabel,
             )
-            notifications.showSuccess(queueId.hashCode(), entry.title, entry.variantLabel, localThumbnailUrl)
+            notifications.showSuccess(queueId, entry.title, entry.variantLabel, localThumbnailUrl)
             Result.success()
         } catch (cancelled: Throwable) {
             targetUri?.let { graph.storageRepository.deleteOutput(it.toString()) }
@@ -97,12 +97,7 @@ class DownloadWorker(
             } else {
                 val safeMessage = friendlyErrorMessage(cancelled.message)
                 graph.queueRepository.updateStatus(queueId, QueueStatus.ERROR, 0, errorMessage = safeMessage)
-                notifications.showError(
-                    queueId.hashCode(),
-                    entry.title,
-                    safeMessage,
-                    entry.thumbnailUrl,
-                )
+                notifications.showError(queueId, entry.title, safeMessage, entry.thumbnailUrl)
                 Result.failure()
             }
         }
