@@ -33,6 +33,8 @@ import com.juan.snapmusic.core.model.YouTubePlaybackSnapshot
 import com.juan.snapmusic.core.model.YouTubeQueueOrigin
 import com.juan.snapmusic.core.model.YouTubeUiState
 import com.juan.snapmusic.core.platform.MergedPlaybackUri
+import com.juan.snapmusic.core.platform.PlaybackNotificationRouteStore
+import com.juan.snapmusic.core.platform.PlaybackNotificationRouteTarget
 import com.juan.snapmusic.core.platform.validateYouTubeUrl
 import com.juan.snapmusic.data.persistence.QueueEntity
 import com.juan.snapmusic.data.persistence.toDownloadSelection
@@ -934,6 +936,7 @@ class SnapMusicViewModel(
         .map { state ->
             YouTubePlayerSessionState(
                 featured = state.featured,
+                preloadedNextFeatured = state.preloadedNextFeatured,
             )
         }
         .distinctUntilChanged()
@@ -2802,18 +2805,23 @@ class SnapMusicViewModel(
     }
 
     suspend fun resolvePlaybackNotificationTarget(): PlaybackNotificationTarget {
-        if (previewState.value.isReady && (_previewDetailVisible.value || _previewMiniPlayerVisible.value)) {
-            return PlaybackNotificationTarget.PREVIEW
-        }
-        if (graph.preferencesRepository.readPreviewPlaybackSnapshot() != null) {
-            return PlaybackNotificationTarget.PREVIEW
+        when (PlaybackNotificationRouteStore.currentTarget()) {
+            PlaybackNotificationRouteTarget.YOUTUBE -> return PlaybackNotificationTarget.YOUTUBE
+            PlaybackNotificationRouteTarget.PREVIEW -> return PlaybackNotificationTarget.PREVIEW
+            PlaybackNotificationRouteTarget.NONE -> Unit
         }
         val currentYouTube = _youtubeState.value
         if (currentYouTube.featured.isReady && (currentYouTube.showPlayer || currentYouTube.showMiniPlayer)) {
             return PlaybackNotificationTarget.YOUTUBE
         }
+        if (previewState.value.isReady && (_previewDetailVisible.value || _previewMiniPlayerVisible.value)) {
+            return PlaybackNotificationTarget.PREVIEW
+        }
         if (graph.preferencesRepository.readYouTubePlaybackSnapshot() != null) {
             return PlaybackNotificationTarget.YOUTUBE
+        }
+        if (graph.preferencesRepository.readPreviewPlaybackSnapshot() != null) {
+            return PlaybackNotificationTarget.PREVIEW
         }
         return PlaybackNotificationTarget.NONE
     }

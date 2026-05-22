@@ -68,6 +68,26 @@ private fun MediaItem.sameArtworkAs(other: MediaItem): Boolean {
     }
 }
 
+private fun buildYouTubeQueueMediaItems(
+    featured: YouTubeFeaturedVideo,
+    preloadedNextFeatured: YouTubeFeaturedVideo?,
+    artworkData: ByteArray?,
+): List<MediaItem> {
+    val currentItem = featured.toMediaItem(artworkData = artworkData).takeIf { it != MediaItem.EMPTY } ?: return emptyList()
+    val nextItem = preloadedNextFeatured
+        ?.takeIf { it.sourceUrl.isNotBlank() && it.playbackUrl != null && it.sourceUrl != featured.sourceUrl }
+        ?.toMediaItem()
+        ?.takeIf { it != MediaItem.EMPTY }
+    return listOfNotNull(currentItem, nextItem)
+}
+
+private fun MediaController.sameYouTubeQueueAs(queueItems: List<MediaItem>): Boolean {
+    if (mediaItemCount != queueItems.size) return false
+    return queueItems.indices.all { index ->
+        getMediaItemAt(index).samePlaybackAs(queueItems[index])
+    }
+}
+
 private fun androidx.media3.common.PlaybackException.isExpiredStream403(): Boolean {
     var cursor: Throwable? = this
     var has403Cause = false
@@ -93,6 +113,7 @@ fun rememberYouTubePlayer(
 ): Player? {
     val context = LocalContext.current
     val featured = sessionState.featured
+    val preloadedNextFeatured = sessionState.preloadedNextFeatured
     var artworkData by remember(featured.sourceUrl, featured.thumbnailUrl) { mutableStateOf<ByteArray?>(null) }
     val future = remember(context) {
         MediaController.Builder(
@@ -199,41 +220,31 @@ fun rememberYouTubePlayer(
         controller,
         featured.sourceUrl,
         featured.playbackUrl,
+        preloadedNextFeatured?.sourceUrl,
+        preloadedNextFeatured?.playbackUrl,
+        artworkData,
     ) {
         val mediaController = controller ?: return@LaunchedEffect
         val playbackUrl = featured.playbackUrl ?: return@LaunchedEffect
-        val currentItem = featured.copy(playbackUrl = playbackUrl).toMediaItem(artworkData = null)
-        val sameCurrentItem =
-            mediaController.mediaItemCount > 0 &&
-                mediaController.getMediaItemAt(0).samePlaybackAs(currentItem)
-        val sameSourceItem =
-            mediaController.mediaItemCount > 0 &&
-                mediaController.getMediaItemAt(0).mediaId == currentItem.mediaId
-
-        if (!sameCurrentItem) {
+        val queueItems = buildYouTubeQueueMediaItems(
+            featured = featured.copy(playbackUrl = playbackUrl),
+            preloadedNextFeatured = preloadedNextFeatured,
+            artworkData = artworkData,
+        )
+        if (queueItems.isEmpty()) return@LaunchedEffect
+        val sameQueue = mediaController.sameYouTubeQueueAs(queueItems)
+        if (!sameQueue) {
             val resumePositionMs =
                 if (mediaController.currentMediaItem?.mediaId == featured.sourceUrl) {
                     mediaController.currentPosition.coerceAtLeast(0L)
                 } else {
                     seekState.positionMs.coerceAtLeast(0L)
                 }
-            val shouldResumePlaying = shouldAutoPlayCurrent
-            if (sameSourceItem) {
-                mediaController.replaceMediaItem(0, currentItem)
-                mediaController.seekTo(0, resumePositionMs)
-                mediaController.playWhenReady = shouldResumePlaying
-                if (mediaController.playbackState == Player.STATE_IDLE) {
-                    mediaController.prepare()
-                }
-            } else {
-                mediaController.setMediaItems(
-                    listOf(currentItem),
-                    0,
-                    resumePositionMs,
-                )
-                mediaController.playWhenReady = shouldResumePlaying
-                mediaController.prepare()
-            }
+            mediaController.setMediaItems(queueItems, 0, resumePositionMs)
+            mediaController.playWhenReady = shouldAutoPlayCurrent
+            mediaController.prepare()
+        } else if (!mediaController.getMediaItemAt(0).sameArtworkAs(queueItems[0])) {
+            mediaController.replaceMediaItem(0, queueItems[0])
         }
 
         applyYouTubePlaybackQuality(

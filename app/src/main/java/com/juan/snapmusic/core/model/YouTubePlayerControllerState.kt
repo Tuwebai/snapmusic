@@ -5,6 +5,7 @@ import androidx.compose.runtime.Immutable
 @Immutable
 data class YouTubePlayerSessionState(
     val featured: YouTubeFeaturedVideo = YouTubeFeaturedVideo(),
+    val preloadedNextFeatured: YouTubeFeaturedVideo? = null,
 )
 
 @Immutable

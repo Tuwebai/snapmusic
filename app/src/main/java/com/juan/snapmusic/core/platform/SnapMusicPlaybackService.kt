@@ -1,6 +1,8 @@
 package com.juan.snapmusic.core.platform
 
 import android.os.Bundle
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
@@ -52,6 +54,27 @@ class SnapMusicPlaybackService : MediaSessionService() {
                 )
                 setHandleAudioBecomingNoisy(true)
             }
+        val playbackRouteListener = object : Player.Listener {
+            private fun publishCurrentTarget(currentItem: MediaItem?) {
+                PlaybackNotificationRouteStore.update(
+                    mediaId = currentItem?.mediaId,
+                    mediaUri = currentItem?.localConfiguration?.uri,
+                )
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                publishCurrentTarget(mediaItem)
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                publishCurrentTarget(player.currentMediaItem)
+            }
+        }
+        player.addListener(playbackRouteListener)
+        PlaybackNotificationRouteStore.update(
+            mediaId = player.currentMediaItem?.mediaId,
+            mediaUri = player.currentMediaItem?.localConfiguration?.uri,
+        )
 
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(MainActivity.buildOpenPlaybackPendingIntent(this))
@@ -83,6 +106,7 @@ class SnapMusicPlaybackService : MediaSessionService() {
             release()
         }
         mediaSession = null
+        PlaybackNotificationRouteStore.clear()
         super.onDestroy()
     }
 }
