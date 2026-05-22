@@ -491,9 +491,13 @@ private fun YouTubeMiniPlayerHost(
 private fun rememberManagedYouTubePlayer(
     viewModel: SnapMusicViewModel,
 ): Player? {
-    val state by viewModel.youtubePlaybackRenderState.collectAsStateWithLifecycle()
+    val sessionState by viewModel.youtubePlayerSessionState.collectAsStateWithLifecycle()
+    val seekState by viewModel.youtubePlayerSeekState.collectAsStateWithLifecycle()
+    val shouldAutoPlay by viewModel.youtubePlaybackAutoPlay.collectAsStateWithLifecycle()
     return rememberYouTubePlayer(
-        state = state,
+        sessionState = sessionState,
+        seekState = seekState,
+        shouldAutoPlayCurrent = shouldAutoPlay,
         onPlaybackEnded = viewModel::onYouTubePlaybackEnded,
         onPlaybackError = { rawMessage, shouldRetryExpiredStream ->
             viewModel.onYouTubePlaybackError(rawMessage, shouldRetryExpiredStream)

@@ -36,9 +36,20 @@ Agregar `@Immutable` a:
 - Observar solo `themeMode`.
 - Dejar de colectar `UserPreferences` completo en `setContent`.
 
+## Fix 6 — Controller de YouTube desacoplado del render state ancho
+**Archivos principales:**
+- `app/src/main/java/com/juan/snapmusic/feature/youtube/YouTubePlaybackController.kt`
+- `app/src/main/java/com/juan/snapmusic/feature/home/SnapMusicViewModel.kt`
+- `app/src/main/java/com/juan/snapmusic/core/model/YouTubePlayerControllerState.kt`
+
+- Separar sesión de player (`featured`) de los comandos de seek.
+- Emitir `seek` solo por `requestId` explícito, no por espejo continuo del progreso.
+- Hacer que play/pause ya no reinicialice media items ni reaplique setup completo.
+- Dejar el controller reaccionando a cambios de fuente, calidad, seek y autoplay en circuitos distintos.
+
 ## Checklist de cierre
-- [ ] `compileDebugKotlin`
-- [ ] `testDebugUnitTest`
-- [ ] `assembleBenchmark`
+- [x] `compileDebugKotlin`
+- [x] `testDebugUnitTest`
+- [x] `assembleBenchmark`
 - [ ] smoke manual Home / YouTube / Preview
 - [ ] reauditar benchmark y `gfxinfo`

@@ -21,6 +21,8 @@ import com.juan.snapmusic.core.model.PreviewPlaybackRenderState
 import com.juan.snapmusic.core.model.PreviewPlaybackSnapshot
 import com.juan.snapmusic.core.model.PreviewState
 import com.juan.snapmusic.core.model.ResolvedMedia
+import com.juan.snapmusic.core.model.YouTubePlayerSeekState
+import com.juan.snapmusic.core.model.YouTubePlayerSessionState
 import com.juan.snapmusic.core.model.YouTubeAdvanceReason
 import com.juan.snapmusic.core.model.UserPreferences
 import com.juan.snapmusic.core.model.YouTubeFeedItem
@@ -46,6 +48,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -926,20 +929,31 @@ class SnapMusicViewModel(
             initialValue = PreviewPictureInPictureState(),
         )
 
-    val youtubePlaybackRenderState = youtubeState
+    val youtubePlayerSessionState = youtubeState
         .map { state ->
-            YouTubePlaybackRenderState(
+            YouTubePlayerSessionState(
                 featured = state.featured,
-                preloadedNextFeatured = state.preloadedNextFeatured,
-                currentPositionMs = state.currentPositionMs,
-                shouldAutoPlayCurrent = state.shouldAutoPlayCurrent,
             )
         }
         .distinctUntilChanged()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = YouTubePlaybackRenderState(),
+            initialValue = YouTubePlayerSessionState(),
+        )
+
+    val youtubePlayerSeekState = youtubeState
+        .map { state ->
+            YouTubePlayerSeekState(
+                requestId = state.playbackSeekRequestId,
+                positionMs = state.currentPositionMs,
+            )
+        }
+        .distinctUntilChangedBy(YouTubePlayerSeekState::requestId)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = YouTubePlayerSeekState(),
         )
 
     val youtubePlaybackAutoPlay = youtubeState
@@ -1945,6 +1959,7 @@ class SnapMusicViewModel(
                 },
                 preloadedNextFeatured = nextQueueItem(queueItems, normalizedIndex, current.continuationMode)?.let { youTubeResolveCache[it.url] },
                 currentPositionMs = 0L,
+                playbackSeekRequestId = nextYouTubePlaybackSeekRequestId(current),
                 isRefreshingVideo = false,
                 pendingTransition = false,
                 showPlayer = !keepMiniPlayer,
@@ -1968,6 +1983,7 @@ class SnapMusicViewModel(
             showPlayer = !keepMiniPlayer,
             showMiniPlayer = keepMiniPlayer,
             currentPositionMs = 0L,
+            playbackSeekRequestId = nextYouTubePlaybackSeekRequestId(current),
             shouldAutoPlayCurrent = userInitiated,
             nextUpItem = if (current.autoplayEnabled) {
                 nextQueueItem(queueItems, normalizedIndex, current.continuationMode)
@@ -1999,6 +2015,7 @@ class SnapMusicViewModel(
                         },
                         preloadedNextFeatured = nextQueueItem(queueItems, normalizedIndex, latest.continuationMode)?.let { youTubeResolveCache[it.url] },
                         currentPositionMs = 0L,
+                        playbackSeekRequestId = latest.playbackSeekRequestId,
                         shouldAutoPlayCurrent = userInitiated,
                         errorMessage = null,
                     )
@@ -2025,6 +2042,7 @@ class SnapMusicViewModel(
                 pendingTransition = false,
                 shouldAutoPlayCurrent = false,
                 currentPositionMs = 0L,
+                playbackSeekRequestId = nextYouTubePlaybackSeekRequestId(current),
                 nextUpItem = null,
                 preloadedNextFeatured = null,
             )
@@ -2037,6 +2055,7 @@ class SnapMusicViewModel(
                 pendingTransition = false,
                 shouldAutoPlayCurrent = false,
                 currentPositionMs = 0L,
+                playbackSeekRequestId = nextYouTubePlaybackSeekRequestId(current),
                 nextUpItem = null,
                 preloadedNextFeatured = null,
             )
@@ -2236,7 +2255,8 @@ class SnapMusicViewModel(
                 .onSuccess { featured ->
                     lastFailureFallbackSourceUrl = null
                     lastExpiredStreamRetrySourceUrl = null
-                    _youtubeState.value = _youtubeState.value.copy(
+                    val restoredState = _youtubeState.value
+                    _youtubeState.value = restoredState.copy(
                         query = snapshot.query,
                         items = snapshot.queue,
                         watchNextItems = initialWatchNextItems(snapshot.queue, snapshot.currentQueueIndex),
@@ -2256,6 +2276,7 @@ class SnapMusicViewModel(
                         preloadedNextFeatured = nextQueueItem(snapshot.queue, snapshot.currentQueueIndex, snapshot.continuationMode)?.let { youTubeResolveCache[it.url] },
                         pendingTransition = false,
                         currentPositionMs = snapshot.lastPositionMs,
+                        playbackSeekRequestId = nextYouTubePlaybackSeekRequestId(restoredState),
                         shouldAutoPlayCurrent = false,
                         queueOrigin = snapshot.origin,
                         compactMiniPlayer = snapshot.showMiniPlayer,
@@ -2622,8 +2643,12 @@ class SnapMusicViewModel(
                     if (current.nextUpItem?.url == nextItem.url) {
                         _youtubeState.value = current.copy(preloadedNextFeatured = featured)
                     }
-                }
+            }
         }
+    }
+
+    private fun nextYouTubePlaybackSeekRequestId(state: YouTubeUiState): Long {
+        return (state.playbackSeekRequestId + 1L).coerceAtLeast(1L)
     }
 
     private fun persistCurrentYouTubeSnapshot() {

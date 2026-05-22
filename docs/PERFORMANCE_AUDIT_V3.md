@@ -29,6 +29,11 @@
 - El overlay compartido pasa a pollinear progreso solo cuando realmente hace falta.
 - Se agregaron `@Immutable` a contratos de playback que seguían inestables.
 - La raíz de actividad ahora observa solo `themeMode`.
+- YouTube ahora separa:
+  - sesión de reproducción
+  - seek explícito por `requestId`
+  - autoplay/play-pause
+- El controller ya no se vuelve a armar por progreso persistido ni por mezclar seek/autoplay con setup de media item.
 
 ## Validación requerida
 - `:app:compileDebugKotlin`
@@ -42,6 +47,5 @@
   - `previewLibraryAndPlayback`
 
 ## Pendiente para la siguiente ola
-- Adelgazar el contrato de `YouTubePlaybackController` para que deje de depender de un render state ancho.
 - Bajar más collectors de `PreviewScreen` y `SnapMusicNavHost` a hosts hoja.
 - Revalidar `gfxinfo` y `benchmark` en dispositivo medio con esta base nueva.

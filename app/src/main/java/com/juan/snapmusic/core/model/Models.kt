@@ -297,6 +297,7 @@ data class YouTubeUiState(
     val preloadedNextFeatured: YouTubeFeaturedVideo? = null,
     val pendingTransition: Boolean = false,
     val currentPositionMs: Long = 0L,
+    val playbackSeekRequestId: Long = 0L,
     val shouldAutoPlayCurrent: Boolean = false,
     val queueOrigin: YouTubeQueueOrigin = YouTubeQueueOrigin.HOME_FEED,
     val compactMiniPlayer: Boolean = false,

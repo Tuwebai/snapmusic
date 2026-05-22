@@ -21,8 +21,9 @@ import androidx.media3.common.Tracks
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import com.juan.snapmusic.core.model.YouTubePlaybackRenderState
 import com.juan.snapmusic.core.model.YouTubeFeaturedVideo
+import com.juan.snapmusic.core.model.YouTubePlayerSeekState
+import com.juan.snapmusic.core.model.YouTubePlayerSessionState
 import com.juan.snapmusic.core.platform.PlaybackArtworkBadgeHelper
 import com.juan.snapmusic.core.platform.SnapMusicPlaybackService
 import kotlin.math.abs
@@ -81,7 +82,9 @@ private fun androidx.media3.common.PlaybackException.isExpiredStream403(): Boole
 @androidx.media3.common.util.UnstableApi
 @Composable
 fun rememberYouTubePlayer(
-    state: YouTubePlaybackRenderState,
+    sessionState: YouTubePlayerSessionState,
+    seekState: YouTubePlayerSeekState,
+    shouldAutoPlayCurrent: Boolean,
     onPlaybackEnded: () -> Unit,
     onPlaybackError: (String?, Boolean) -> Unit,
     onPlaybackProgress: (Long, Boolean, Boolean) -> Unit,
@@ -89,7 +92,8 @@ fun rememberYouTubePlayer(
     onPlaybackQualityChanged: (List<Int>, Int?) -> Unit,
 ): Player? {
     val context = LocalContext.current
-    var artworkData by remember(state.featured.sourceUrl, state.featured.thumbnailUrl) { mutableStateOf<ByteArray?>(null) }
+    val featured = sessionState.featured
+    var artworkData by remember(featured.sourceUrl, featured.thumbnailUrl) { mutableStateOf<ByteArray?>(null) }
     val future = remember(context) {
         MediaController.Builder(
             context,
@@ -113,15 +117,15 @@ fun rememberYouTubePlayer(
         }
     }
 
-    LaunchedEffect(state.featured.sourceUrl, state.featured.thumbnailUrl) {
+    LaunchedEffect(featured.sourceUrl, featured.thumbnailUrl) {
         artworkData = PlaybackArtworkBadgeHelper.resolve(
             context = context,
-            artworkSource = state.featured.thumbnailUrl.takeIf { it.isNotBlank() },
+            artworkSource = featured.thumbnailUrl.takeIf { it.isNotBlank() },
         )
     }
 
-    val currentFeaturedSourceUrl by rememberUpdatedState(state.featured.sourceUrl)
-    val currentFeatured by rememberUpdatedState(state.featured)
+    val currentFeaturedSourceUrl by rememberUpdatedState(featured.sourceUrl)
+    val currentFeatured by rememberUpdatedState(featured)
 
     DisposableEffect(controller) {
         val mediaController = controller
@@ -193,13 +197,12 @@ fun rememberYouTubePlayer(
 
     LaunchedEffect(
         controller,
-        state.featured.sourceUrl,
-        state.featured.playbackUrl,
-        state.shouldAutoPlayCurrent,
+        featured.sourceUrl,
+        featured.playbackUrl,
     ) {
         val mediaController = controller ?: return@LaunchedEffect
-        val playbackUrl = state.featured.playbackUrl ?: return@LaunchedEffect
-        val currentItem = state.featured.copy(playbackUrl = playbackUrl).toMediaItem(artworkData = null)
+        val playbackUrl = featured.playbackUrl ?: return@LaunchedEffect
+        val currentItem = featured.copy(playbackUrl = playbackUrl).toMediaItem(artworkData = null)
         val sameCurrentItem =
             mediaController.mediaItemCount > 0 &&
                 mediaController.getMediaItemAt(0).samePlaybackAs(currentItem)
@@ -209,12 +212,12 @@ fun rememberYouTubePlayer(
 
         if (!sameCurrentItem) {
             val resumePositionMs =
-                if (mediaController.currentMediaItem?.mediaId == state.featured.sourceUrl) {
+                if (mediaController.currentMediaItem?.mediaId == featured.sourceUrl) {
                     mediaController.currentPosition.coerceAtLeast(0L)
                 } else {
-                    state.currentPositionMs.coerceAtLeast(0L)
+                    seekState.positionMs.coerceAtLeast(0L)
                 }
-            val shouldResumePlaying = state.shouldAutoPlayCurrent || mediaController.playWhenReady
+            val shouldResumePlaying = shouldAutoPlayCurrent
             if (sameSourceItem) {
                 mediaController.replaceMediaItem(0, currentItem)
                 mediaController.seekTo(0, resumePositionMs)
@@ -231,20 +234,32 @@ fun rememberYouTubePlayer(
                 mediaController.playWhenReady = shouldResumePlaying
                 mediaController.prepare()
             }
-        } else if (abs(mediaController.currentPosition - state.currentPositionMs) > 1_200L) {
-            mediaController.seekTo(state.currentPositionMs.coerceAtLeast(0L))
         }
 
         applyYouTubePlaybackQuality(
             mediaController = mediaController,
-            featured = state.featured,
+            featured = featured,
         )
         onPlaybackQualityChanged(
             resolveAvailableVideoHeights(mediaController.currentTracks),
             resolveActualVideoHeight(mediaController.currentTracks),
         )
+    }
 
-        if (!state.shouldAutoPlayCurrent) {
+    LaunchedEffect(controller, featured.sourceUrl, seekState.requestId) {
+        val mediaController = controller ?: return@LaunchedEffect
+        if (seekState.requestId <= 0L) return@LaunchedEffect
+        if (mediaController.currentMediaItem?.mediaId != featured.sourceUrl) return@LaunchedEffect
+        val targetPositionMs = seekState.positionMs.coerceAtLeast(0L)
+        if (abs(mediaController.currentPosition - targetPositionMs) > 1_200L) {
+            mediaController.seekTo(targetPositionMs)
+        }
+    }
+
+    LaunchedEffect(controller, featured.sourceUrl, shouldAutoPlayCurrent) {
+        val mediaController = controller ?: return@LaunchedEffect
+        if (mediaController.currentMediaItem?.mediaId != featured.sourceUrl) return@LaunchedEffect
+        if (!shouldAutoPlayCurrent) {
             mediaController.pause()
             mediaController.playWhenReady = false
         } else if (!mediaController.playWhenReady) {
@@ -253,12 +268,12 @@ fun rememberYouTubePlayer(
         }
     }
 
-    LaunchedEffect(controller, state.featured.sourceUrl, artworkData) {
+    LaunchedEffect(controller, featured.sourceUrl, artworkData) {
         val mediaController = controller ?: return@LaunchedEffect
         val artwork = artworkData ?: return@LaunchedEffect
         if (mediaController.mediaItemCount == 0) return@LaunchedEffect
         val current = mediaController.getMediaItemAt(0)
-        if (current.mediaId != state.featured.sourceUrl) return@LaunchedEffect
+        if (current.mediaId != featured.sourceUrl) return@LaunchedEffect
         val withArtwork = current.buildUpon()
             .setMediaMetadata(
                 current.mediaMetadata.buildUpon()
@@ -274,22 +289,22 @@ fun rememberYouTubePlayer(
         }
     }
 
-    LaunchedEffect(controller, state.featured.selectedVideoQualityId, state.featured.playbackUrl) {
+    LaunchedEffect(controller, featured.selectedVideoQualityId, featured.playbackUrl) {
         val mediaController = controller ?: return@LaunchedEffect
         if (mediaController.playbackState == Player.STATE_IDLE) return@LaunchedEffect
         applyYouTubePlaybackQuality(
             mediaController = mediaController,
-            featured = state.featured,
+            featured = featured,
         )
     }
 
-    LaunchedEffect(controller, state.featured.sourceUrl) {
+    LaunchedEffect(controller, featured.sourceUrl) {
         val mediaController = controller ?: return@LaunchedEffect
         var lastReportedPosition = -1L
         var lastReportedPlayWhenReady: Boolean? = null
         var lastReportedBuffering: Boolean? = null
         while (isActive) {
-            val syncingCurrentItem = mediaController.currentMediaItem?.mediaId == state.featured.sourceUrl
+            val syncingCurrentItem = mediaController.currentMediaItem?.mediaId == featured.sourceUrl
             val activelyPlaying = syncingCurrentItem && mediaController.isPlaying
             if (syncingCurrentItem) {
                 val currentPosition = mediaController.currentPosition.coerceAtLeast(0L)
