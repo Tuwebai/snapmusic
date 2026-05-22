@@ -30,7 +30,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.OutputStream
-import java.util.UUID
+import java.security.MessageDigest
 
 class DownloadWorker(
     appContext: Context,
@@ -70,7 +70,7 @@ class DownloadWorker(
             )
 
             executeDownloadWithFreshSources(queueId, entry, targetUri)
-            val localThumbnailUrl = downloadThumbnailForHistory(queueId, entry.thumbnailUrl)
+            val localThumbnailUrl = downloadThumbnailForHistory(entry.sourceUrl, entry.thumbnailUrl)
 
             graph.queueRepository.updateStatus(queueId, QueueStatus.SUCCESS, 100, outputUri = targetUri.toString())
             graph.historyRepository.append(
@@ -327,12 +327,15 @@ class DownloadWorker(
     }
 
     private suspend fun downloadThumbnailForHistory(
-        queueId: String,
+        sourceUrl: String,
         thumbnailUrl: String,
     ): String {
         if (thumbnailUrl.isBlank()) return thumbnailUrl
         val artworkDir = File(applicationContext.filesDir, "download-artwork").apply { mkdirs() }
-        val artworkFile = File(artworkDir, "$queueId-${UUID.randomUUID()}.jpg")
+        val artworkFile = File(artworkDir, "${sourceUrl.sha256Hex()}.jpg")
+        if (artworkFile.exists() && artworkFile.length() > 0L) {
+            return Uri.fromFile(artworkFile).toString()
+        }
         return runCatching {
             val request = Request.Builder().url(thumbnailUrl).build()
             graph.okHttpClient.newCall(request).execute().use { response ->
@@ -483,6 +486,13 @@ class DownloadWorker(
         ContainerFormat.MP3 -> "audio/mpeg"
         ContainerFormat.M4A -> "audio/mp4"
         ContainerFormat.MP4 -> "video/mp4"
+    }
+
+    private fun String.sha256Hex(): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(toByteArray())
+        return buildString(digest.size * 2) {
+            digest.forEach { byte -> append("%02x".format(byte)) }
+        }
     }
 
     private fun friendlyErrorMessage(raw: String?): String {

@@ -5,8 +5,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.metrics.performance.FrameData
 import androidx.metrics.performance.JankStats
-import java.util.ArrayDeque
+import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.roundToInt
 
 private const val PERFORMANCE_LOG_TAG = "SnapMusicPerf"
@@ -39,25 +40,29 @@ object PerformanceTelemetry {
     fun recordFrame(frameData: FrameData) {
         val scene = currentScene.key
         val stats = statsByScene.getOrPut(scene) { SceneStats() }
-        synchronized(stats) {
-            stats.frames += 1
-            if (frameData.isJank) {
-                stats.jankFrames += 1
+        val frames = stats.frames.incrementAndGet()
+        if (frameData.isJank) {
+            stats.jankFrames.incrementAndGet()
+        }
+        val durationMs = frameData.frameDurationUiNanos / 1_000_000.0
+        stats.lastDurations.addLast(durationMs)
+        stats.durationCount.incrementAndGet()
+        while (stats.durationCount.get() > PERFORMANCE_WINDOW_SIZE) {
+            if (stats.lastDurations.pollFirst() != null) {
+                stats.durationCount.decrementAndGet()
+            } else {
+                stats.durationCount.set(0)
+                break
             }
-            val durationMs = frameData.frameDurationUiNanos / 1_000_000.0
-            stats.lastDurations.addLast(durationMs)
-            while (stats.lastDurations.size > PERFORMANCE_WINDOW_SIZE) {
-                stats.lastDurations.removeFirst()
-            }
-            if (stats.frames % PERFORMANCE_LOG_INTERVAL == 0 && stats.lastDurations.isNotEmpty()) {
-                val sorted = stats.lastDurations.sorted()
-                val p50 = percentile(sorted, 0.5)
-                val p95 = percentile(sorted, 0.95)
-                Log.d(
-                    PERFORMANCE_LOG_TAG,
-                    "scene=$scene frames=${stats.frames} jank=${stats.jankFrames} p50=${p50.format()}ms p95=${p95.format()}ms",
-                )
-            }
+        }
+        if (frames % PERFORMANCE_LOG_INTERVAL == 0 && stats.lastDurations.isNotEmpty()) {
+            val sorted = stats.lastDurations.toList().sorted()
+            val p50 = percentile(sorted, 0.5)
+            val p95 = percentile(sorted, 0.95)
+            Log.d(
+                PERFORMANCE_LOG_TAG,
+                "scene=$scene frames=$frames jank=${stats.jankFrames.get()} p50=${p50.format()}ms p95=${p95.format()}ms",
+            )
         }
     }
 
@@ -82,7 +87,8 @@ private data class PerformanceScene(
 }
 
 private class SceneStats {
-    var frames: Int = 0
-    var jankFrames: Int = 0
-    val lastDurations: ArrayDeque<Double> = ArrayDeque()
+    val frames = AtomicInteger(0)
+    val jankFrames = AtomicInteger(0)
+    val durationCount = AtomicInteger(0)
+    val lastDurations = ConcurrentLinkedDeque<Double>()
 }
