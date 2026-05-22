@@ -91,10 +91,12 @@ import com.juan.snapmusic.feature.player.LandscapeFullscreenVideoDialog
 import com.juan.snapmusic.feature.player.PlaybackOverlayState
 import com.juan.snapmusic.feature.player.PlayerSurface
 import com.juan.snapmusic.feature.player.rememberPlaybackOverlayState
+import com.juan.snapmusic.feature.player.DOUBLE_TAP_SEEK_MS
+import com.juan.snapmusic.feature.player.seekByClamped
+import com.juan.snapmusic.feature.player.videoDoubleTapSeek
 import androidx.compose.ui.text.style.TextOverflow
 import java.text.DecimalFormat
 import kotlinx.coroutines.delay
-import androidx.compose.foundation.interaction.MutableInteractionSource
 
 private val WatchPlayerHeight = 304.dp
 
@@ -335,7 +337,6 @@ private fun FeaturedVideoPlayerShell(
         )
     }
     var totalVerticalDrag by remember(featured.sourceUrl) { mutableStateOf(0f) }
-    val tapInteractionSource = remember { MutableInteractionSource() }
     val minimizeBySwipeState = rememberDraggableState { delta ->
         if (delta > 0f) {
             totalVerticalDrag += delta
@@ -437,10 +438,11 @@ private fun FeaturedVideoPlayerShell(
                     orientation = Orientation.Vertical,
                     onDragStopped = { totalVerticalDrag = 0f },
                 )
-                .clickable(
-                    interactionSource = tapInteractionSource,
-                    indication = null,
-                ) { showOverlayControls = !showOverlayControls }
+                .videoDoubleTapSeek(
+                    onTap = { showOverlayControls = !showOverlayControls },
+                    onSeekBack = { player?.seekByClamped(-DOUBLE_TAP_SEEK_MS) },
+                    onSeekForward = { player?.seekByClamped(DOUBLE_TAP_SEEK_MS) },
+                )
         ) {
             FeaturedVideoOverlayHost(
                 overlayState = overlayState,

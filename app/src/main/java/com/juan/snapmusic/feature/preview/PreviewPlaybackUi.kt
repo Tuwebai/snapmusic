@@ -9,7 +9,6 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -89,6 +88,9 @@ import com.juan.snapmusic.feature.player.VideoFullscreenOverlay
 import com.juan.snapmusic.feature.player.rememberPlaybackOverlayState
 import com.juan.snapmusic.feature.player.rememberPlaybackSliderBindings
 import com.juan.snapmusic.feature.player.VideoMiniOverlay
+import com.juan.snapmusic.feature.player.DOUBLE_TAP_SEEK_MS
+import com.juan.snapmusic.feature.player.seekByClamped
+import com.juan.snapmusic.feature.player.videoDoubleTapSeek
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 
@@ -289,7 +291,6 @@ private fun PreviewVideoPlaybackCard(
         mutableStateOf(player.videoSize.width > 0)
     }
     var totalVerticalDrag by remember(preview.fileUri) { mutableStateOf(0f) }
-    val tapInteractionSource = remember { MutableInteractionSource() }
 
     DisposableEffect(player, preview.fileUri) {
         val listener = object : Player.Listener {
@@ -364,10 +365,11 @@ private fun PreviewVideoPlaybackCard(
                         orientation = Orientation.Vertical,
                         onDragStopped = { totalVerticalDrag = 0f },
                     )
-                    .clickable(
-                        interactionSource = tapInteractionSource,
-                        indication = null,
-                    ) { showControls = !showControls },
+                    .videoDoubleTapSeek(
+                        onTap = { showControls = !showControls },
+                        onSeekBack = { player.seekByClamped(-DOUBLE_TAP_SEEK_MS) },
+                        onSeekForward = { player.seekByClamped(DOUBLE_TAP_SEEK_MS) },
+                    ),
             ) {
                 VideoFullscreenOverlay(
                     playbackState = overlayState,
