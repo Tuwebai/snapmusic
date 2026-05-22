@@ -3196,7 +3196,6 @@ class SnapMusicViewModel(
     }
 
     private fun fallbackAutomaticPlaybackUrl(resolved: com.juan.snapmusic.core.model.ResolvedMedia): String? {
-        resolved.adaptivePlaybackUrl?.takeIf(::isAdaptivePlaybackUrl)?.let { return it }
         val automaticHeight = preferredAutomaticPlaybackHeight(resolved)
         val playbackCandidates = resolved.videoVariants.filter { !it.directUrl.isNullOrBlank() }
         val fallbackVariant = resolveNearestPlaybackVariant(
@@ -3220,7 +3219,6 @@ class SnapMusicViewModel(
         media: com.juan.snapmusic.core.model.ResolvedMedia,
         requestedVariantId: String,
     ): PlaybackSelection? {
-        val adaptivePlaybackUrl = media.adaptivePlaybackUrl?.takeIf(::isAdaptivePlaybackUrl)
         val playbackCandidates = media.videoVariants
             .filter { !it.directUrl.isNullOrBlank() }
             .sortedWith(
@@ -3243,14 +3241,6 @@ class SnapMusicViewModel(
             return PlaybackSelection(
                 playbackUrl = fallbackAutomaticPlaybackUrl(media) ?: return null,
                 expectedHeight = automaticHeight,
-            )
-        }
-
-        if (adaptivePlaybackUrl != null) {
-            val fallbackHeight = resolveNearestPlaybackHeight(playbackCandidates, requestedHeight)
-            return PlaybackSelection(
-                playbackUrl = adaptivePlaybackUrl,
-                expectedHeight = fallbackHeight,
             )
         }
 
@@ -3281,15 +3271,11 @@ class SnapMusicViewModel(
             ?.distinct()
             ?.sortedDescending()
             .orEmpty()
-        val hasAdaptivePlayback = media?.adaptivePlaybackUrl
-            ?.takeIf(::isAdaptivePlaybackUrl)
-            ?.isNotBlank() == true
         return when {
             720 in heights -> 720
+            1080 in heights -> 1080
             480 in heights -> 480
             360 in heights -> 360
-            hasAdaptivePlayback && 1080 in heights -> 1080
-            1080 in heights -> 1080
             else -> heights.firstOrNull()
         }
     }

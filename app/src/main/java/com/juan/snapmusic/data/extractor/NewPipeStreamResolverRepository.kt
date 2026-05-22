@@ -169,6 +169,8 @@ class NewPipeStreamResolverRepository(
         sourceContainerHint = stream.format?.name ?: "UNKNOWN",
         isDirectM4a = stream.format == MediaFormat.M4A,
         isAudioOnly = true,
+        audioTrackType = stream.audioTrackType?.name,
+        audioTrackName = stream.audioTrackName,
         headers = transferHeaders,
     )
 

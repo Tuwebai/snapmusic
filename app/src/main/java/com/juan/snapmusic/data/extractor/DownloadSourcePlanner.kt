@@ -16,6 +16,8 @@ internal data class AudioSourceCandidate(
     val sourceContainerHint: String,
     val isDirectM4a: Boolean,
     val isAudioOnly: Boolean = true,
+    val audioTrackType: String? = null,
+    val audioTrackName: String? = null,
     val headers: Map<String, String> = emptyMap(),
 )
 
@@ -39,7 +41,11 @@ internal object DownloadSourcePlanner {
         val variants = mutableListOf<MediaVariant>()
         val directM4aByBitrate = compatible
             .filter { it.isDirectM4a && it.isAudioOnly }
-            .sortedWith(compareByDescending<AudioSourceCandidate> { sanitizeBitrate(it.bitrateKbps) ?: 0 }.thenBy { it.id })
+            .sortedWith(
+                compareByDescending<AudioSourceCandidate> { sanitizeBitrate(it.bitrateKbps) ?: 0 }
+                    .thenBy { audioTrackPriority(it) }
+                    .thenBy { it.id },
+            )
             .distinctBy { sanitizeBitrate(it.bitrateKbps) ?: -1 }
 
         directM4aByBitrate.forEach { candidate ->
@@ -84,10 +90,12 @@ internal object DownloadSourcePlanner {
             .sortedByDescending { normalizeHeight(it.height, it.resolution) ?: 0 }
             .distinctBy { normalizeHeight(it.height, it.resolution) ?: -1 }
         val audioReady = audioCandidates.any { it.url.isNotBlank() }
-        val bestMuxAudioUrl = audioCandidates
-            .filter { it.url.isNotBlank() }
-            .maxByOrNull { sanitizeBitrate(it.bitrateKbps) ?: 0 }
-            ?.url
+        val bestMuxAudioUrl = pickBestAudioSource(
+            candidates = audioCandidates.filter { it.url.isNotBlank() },
+            targetBitrate = null,
+            preferredSourceId = null,
+            preferredContainerHint = null,
+        )?.url
         val directHeights = progressive.mapNotNull { normalizeHeight(it.height, it.resolution) }.toSet()
         val mux = if (audioReady) {
             muxCandidates
@@ -306,6 +314,8 @@ internal object DownloadSourcePlanner {
                 compareBy<AudioSourceCandidate> {
                     if (preferredSourceId != null && it.id == preferredSourceId) 0 else 1
                 }.thenBy {
+                    audioTrackPriority(it)
+                }.thenBy {
                     audioDistance(sanitizeBitrate(it.bitrateKbps), targetBitrate)
                 }.thenByDescending {
                     sanitizeBitrate(it.bitrateKbps) ?: 0
@@ -322,6 +332,8 @@ internal object DownloadSourcePlanner {
         return candidates.minWithOrNull(
             compareBy<AudioSourceCandidate> {
                 if (preferredSourceId != null && it.id == preferredSourceId) 0 else 1
+            }.thenBy {
+                audioTrackPriority(it)
             }.thenBy {
                 audioDistance(sanitizeBitrate(it.bitrateKbps), targetBitrate)
             }.thenBy {
@@ -410,6 +422,17 @@ internal object DownloadSourcePlanner {
             candidateBitrate == null -> Int.MAX_VALUE / 4
             targetBitrate == null -> 0
             else -> abs(candidateBitrate - targetBitrate)
+        }
+    }
+
+    private fun audioTrackPriority(candidate: AudioSourceCandidate): Int {
+        return when (candidate.audioTrackType?.lowercase()) {
+            "original" -> 0
+            null, "" -> if (candidate.audioTrackName.isNullOrBlank()) 1 else 2
+            "secondary" -> 3
+            "descriptive" -> 4
+            "dubbed" -> 5
+            else -> 2
         }
     }
 
