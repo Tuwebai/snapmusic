@@ -34,6 +34,9 @@
   - seek explícito por `requestId`
   - autoplay/play-pause
 - El controller ya no se vuelve a armar por progreso persistido ni por mezclar seek/autoplay con setup de media item.
+- `PreviewScreen` ya no observa en su raíz el shell de descargas ni la escena de performance completa.
+- `SnapMusicNavHost` ya no observa en su raíz el playback/nav state ni el estado completo del bottom bar.
+- El gating de PiP, el ruteo por notificaciones y los visibility effects quedaron más abajo en hosts dedicados.
 
 ## Validación requerida
 - `:app:compileDebugKotlin`
@@ -47,5 +50,5 @@
   - `previewLibraryAndPlayback`
 
 ## Pendiente para la siguiente ola
-- Bajar más collectors de `PreviewScreen` y `SnapMusicNavHost` a hosts hoja.
 - Revalidar `gfxinfo` y `benchmark` en dispositivo medio con esta base nueva.
+- Si el jank residual sigue alto, adelgazar después `PreviewDetailHost` y `PreviewLibraryRoot` con subhosts más finos para selección, búsqueda y acciones masivas.

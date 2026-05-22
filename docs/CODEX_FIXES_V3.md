@@ -47,6 +47,16 @@ Agregar `@Immutable` a:
 - Hacer que play/pause ya no reinicialice media items ni reaplique setup completo.
 - Dejar el controller reaccionando a cambios de fuente, calidad, seek y autoplay en circuitos distintos.
 
+## Fix 7 — Bajar collectors altos de Preview y NavHost
+**Archivos principales:**
+- `app/src/main/java/com/juan/snapmusic/feature/preview/PreviewScreen.kt`
+- `app/src/main/java/com/juan/snapmusic/navigation/SnapMusicNavHost.kt`
+
+- Sacar de la raíz de `PreviewScreen` la observación directa de shell de descargas y telemetría de escena.
+- Mover esos collectors a hosts de efectos/scene dedicados.
+- Sacar de la raíz de `SnapMusicNavHost` la observación directa de `navHostPlaybackState` y `bottomBarUiState`.
+- Mover gating de PiP, ruteo por notificación, visibility effects y bottom bar a hosts hoja.
+
 ## Checklist de cierre
 - [x] `compileDebugKotlin`
 - [x] `testDebugUnitTest`

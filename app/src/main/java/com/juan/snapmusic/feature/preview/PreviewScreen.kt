@@ -49,44 +49,22 @@ fun PreviewScreen(
     player: Player?,
 ) {
     val routeVisibility = viewModel.previewRouteVisibility.collectAsStateWithLifecycle().value
-    val previewPerformance = viewModel.previewPerformanceState.collectAsStateWithLifecycle().value
-    val downloadsShell = viewModel.previewDownloadsShellState.collectAsStateWithLifecycle().value
     val context = LocalContext.current
     val hasPermission = remember(context) { hasMediaPermission(context) }
     var showDownloadsScreen by rememberSaveable { mutableStateOf(false) }
-    ReportPerformanceScene(
-        screen = "preview",
-        detail = when {
-            routeVisibility.detailVisible && previewPerformance.isReady && previewPerformance.isVideo -> "preview-player-video"
-            routeVisibility.detailVisible && previewPerformance.isReady -> "preview-player-audio"
-            showDownloadsScreen -> "downloads-active"
-            else -> "preview-library"
-        },
+
+    PreviewDownloadsLifecycleHost(
+        viewModel = viewModel,
+        hasPermission = hasPermission,
+        showDownloadsScreen = showDownloadsScreen,
+        onShowDownloadsScreenChange = { showDownloadsScreen = it },
+    )
+    PreviewSceneReporterHost(
+        viewModel = viewModel,
+        showDownloadsScreen = showDownloadsScreen,
     )
 
-    LaunchedEffect(hasPermission, downloadsShell.completedCount) {
-        if (hasPermission) {
-            if (downloadsShell.completedCount > 0) {
-                viewModel.refreshLocalPreviewLibrary(forceRefresh = true)
-            } else {
-                viewModel.ensureLocalPreviewLibraryLoaded()
-            }
-        }
-    }
-
-    LaunchedEffect(downloadsShell.openRequestId) {
-        if (downloadsShell.openRequestId > 0L && downloadsShell.hasActiveDownloads) {
-            showDownloadsScreen = true
-        }
-    }
-
-    LaunchedEffect(downloadsShell.hasActiveDownloads) {
-        if (!downloadsShell.hasActiveDownloads && showDownloadsScreen) {
-            showDownloadsScreen = false
-        }
-    }
-
-    if (routeVisibility.detailVisible && previewPerformance.isReady) {
+    if (routeVisibility.detailVisible && routeVisibility.isReady) {
         PreviewDetailHost(
             viewModel = viewModel,
             padding = padding,
@@ -113,6 +91,57 @@ fun PreviewScreen(
         padding = padding,
         hasPermission = hasPermission,
         onOpenDownloads = { showDownloadsScreen = true },
+    )
+}
+
+@Composable
+private fun PreviewDownloadsLifecycleHost(
+    viewModel: SnapMusicViewModel,
+    hasPermission: Boolean,
+    showDownloadsScreen: Boolean,
+    onShowDownloadsScreenChange: (Boolean) -> Unit,
+) {
+    val downloadsShell = viewModel.previewDownloadsShellState.collectAsStateWithLifecycle().value
+
+    LaunchedEffect(hasPermission, downloadsShell.completedCount) {
+        if (hasPermission) {
+            if (downloadsShell.completedCount > 0) {
+                viewModel.refreshLocalPreviewLibrary(forceRefresh = true)
+            } else {
+                viewModel.ensureLocalPreviewLibraryLoaded()
+            }
+        }
+    }
+
+    LaunchedEffect(downloadsShell.openRequestId, downloadsShell.hasActiveDownloads) {
+        if (downloadsShell.openRequestId > 0L && downloadsShell.hasActiveDownloads) {
+            onShowDownloadsScreenChange(true)
+        }
+    }
+
+    LaunchedEffect(downloadsShell.hasActiveDownloads, showDownloadsScreen) {
+        if (!downloadsShell.hasActiveDownloads && showDownloadsScreen) {
+            onShowDownloadsScreenChange(false)
+        }
+    }
+}
+
+@Composable
+private fun PreviewSceneReporterHost(
+    viewModel: SnapMusicViewModel,
+    showDownloadsScreen: Boolean,
+) {
+    val routeVisibility = viewModel.previewRouteVisibility.collectAsStateWithLifecycle().value
+    val previewPerformance = viewModel.previewPerformanceState.collectAsStateWithLifecycle().value
+
+    ReportPerformanceScene(
+        screen = "preview",
+        detail = when {
+            routeVisibility.detailVisible && routeVisibility.isReady && previewPerformance.isVideo -> "preview-player-video"
+            routeVisibility.detailVisible && routeVisibility.isReady -> "preview-player-audio"
+            showDownloadsScreen -> "downloads-active"
+            else -> "preview-library"
+        },
     )
 }
 

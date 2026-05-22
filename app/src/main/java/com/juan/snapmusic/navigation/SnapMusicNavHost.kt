@@ -68,8 +68,6 @@ fun SnapMusicNavHost(
         SnapMusicDestination.Preview,
         SnapMusicDestination.Settings,
     )
-    val navHostPlaybackState by viewModel.navHostPlaybackState.collectAsStateWithLifecycle()
-    val bottomBarUiState by viewModel.bottomBarUiState.collectAsStateWithLifecycle()
     val youTubePlayer = rememberManagedYouTubePlayer(viewModel)
     val previewPlayer = rememberManagedPreviewPlayer(viewModel)
     val backStack by navController.currentBackStackEntryAsState()
@@ -84,124 +82,138 @@ fun SnapMusicNavHost(
         }
     }
 
-    LaunchedEffect(notificationRoute) {
-        if (notificationRoute != null) {
-            if (notificationRoute == SnapMusicDestination.Queue.route) {
-                viewModel.requestOpenPreviewDownloads()
-                if (currentRoute != SnapMusicDestination.Preview.route) {
-                    navigateTo(SnapMusicDestination.Preview.route)
-                }
-            } else if (notificationRoute == MainActivity.ROUTE_PLAYBACK) {
-                when (viewModel.resolvePlaybackNotificationTarget()) {
-                    PlaybackNotificationTarget.PREVIEW -> {
-                        if (navHostPlaybackState.previewCanRestore) {
-                            viewModel.restorePreviewPlaybackShell()
-                        } else {
-                            viewModel.restorePreviewPlaybackSnapshot(showDetail = true)
-                        }
-                        if (currentRoute != SnapMusicDestination.Preview.route) {
-                            navigateTo(SnapMusicDestination.Preview.route)
-                        }
-                    }
-                    PlaybackNotificationTarget.YOUTUBE -> {
-                        if (navHostPlaybackState.youtubeCanRestore) {
-                            viewModel.restoreYouTubePlaybackShell()
-                        } else {
-                            viewModel.restoreYouTubePlaybackSnapshot()
-                        }
-                        if (currentRoute != SnapMusicDestination.Home.route) {
-                            navigateTo(SnapMusicDestination.Home.route)
-                        }
-                    }
-                    PlaybackNotificationTarget.NONE -> navigateTo(SnapMusicDestination.Home.route)
-                }
-            } else {
-                navigateTo(notificationRoute)
-            }
-            onNotificationRouteConsumed()
-        }
-    }
+    NotificationRouteEffectHost(
+        viewModel = viewModel,
+        currentRoute = currentRoute,
+        notificationRoute = notificationRoute,
+        onNotificationRouteConsumed = onNotificationRouteConsumed,
+        onNavigate = ::navigateTo,
+    )
 
     NavHostVisibilityEffects(
         viewModel = viewModel,
         currentRoute = currentRoute,
         isInPictureInPictureMode = isInPictureInPictureMode,
-        playbackState = navHostPlaybackState,
         onNavigateHome = { navigateTo(SnapMusicDestination.Home.route) },
         onNavigatePreview = { navigateTo(SnapMusicDestination.Preview.route) },
     )
 
-    if (isInPictureInPictureMode && navHostPlaybackState.previewPipEligible) {
-        PreviewPictureInPictureHost(viewModel = viewModel, player = previewPlayer)
-        return
-    }
-
-    if (isInPictureInPictureMode && navHostPlaybackState.youtubePipEligible) {
-        YouTubePictureInPictureHost(viewModel = viewModel, player = youTubePlayer)
-        return
-    }
-
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-        SnapMusicBottomBar(
-            viewModel = viewModel,
-            items = items,
-            currentRoute = currentRoute,
-            state = bottomBarUiState,
-            onNavigate = ::navigateTo,
-        )
-        },
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            NavHost(
-                navController = navController,
-                startDestination = SnapMusicDestination.Home.route,
-            ) {
-                composable(SnapMusicDestination.Home.route) {
-                    HomeScreen(
-                        viewModel = viewModel,
-                        padding = padding,
-                        player = youTubePlayer,
-                        onDownloadQueued = {
-                            viewModel.requestOpenPreviewDownloads()
-                            navigateTo(SnapMusicDestination.Preview.route)
-                        },
-                    )
+    PictureInPictureGate(
+        viewModel = viewModel,
+        isInPictureInPictureMode = isInPictureInPictureMode,
+        previewPlayer = previewPlayer,
+        youTubePlayer = youTubePlayer,
+    ) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            bottomBar = {
+                SnapMusicBottomBar(
+                    viewModel = viewModel,
+                    items = items,
+                    currentRoute = currentRoute,
+                    onNavigate = ::navigateTo,
+                )
+            },
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                NavHost(
+                    navController = navController,
+                    startDestination = SnapMusicDestination.Home.route,
+                ) {
+                    composable(SnapMusicDestination.Home.route) {
+                        HomeScreen(
+                            viewModel = viewModel,
+                            padding = padding,
+                            player = youTubePlayer,
+                            onDownloadQueued = {
+                                viewModel.requestOpenPreviewDownloads()
+                                navigateTo(SnapMusicDestination.Preview.route)
+                            },
+                        )
+                    }
+                    composable(SnapMusicDestination.History.route) {
+                        YouTubeTabContent(
+                            viewModel = viewModel,
+                            player = youTubePlayer,
+                            contentPadding = padding,
+                            onDownloadQueued = {
+                                viewModel.requestOpenPreviewDownloads()
+                                navigateTo(SnapMusicDestination.Preview.route)
+                            },
+                        )
+                    }
+                    composable(SnapMusicDestination.Preview.route) { PreviewScreen(viewModel, padding, previewPlayer) }
+                    composable(SnapMusicDestination.Settings.route) { SettingsScreen(viewModel, padding) }
                 }
-                composable(SnapMusicDestination.History.route) {
-                    YouTubeTabContent(
-                        viewModel = viewModel,
-                        player = youTubePlayer,
-                        contentPadding = padding,
-                        onDownloadQueued = {
-                            viewModel.requestOpenPreviewDownloads()
-                            navigateTo(SnapMusicDestination.Preview.route)
-                        },
-                    )
-                }
-                composable(SnapMusicDestination.Preview.route) { PreviewScreen(viewModel, padding, previewPlayer) }
-                composable(SnapMusicDestination.Settings.route) { SettingsScreen(viewModel, padding) }
+
+                PreviewMiniPlayerHost(
+                    viewModel = viewModel,
+                    player = previewPlayer,
+                    currentRoute = currentRoute,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = padding.calculateBottomPadding() + 12.dp),
+                    onNavigatePreview = { navigateTo(SnapMusicDestination.Preview.route) },
+                )
+                YouTubeMiniPlayerHost(
+                    viewModel = viewModel,
+                    player = youTubePlayer,
+                    currentRoute = currentRoute,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = padding.calculateBottomPadding() + 12.dp),
+                    onNavigateHome = { navigateTo(SnapMusicDestination.Home.route) },
+                )
             }
+        }
+    }
+}
 
-            PreviewMiniPlayerHost(
-                viewModel = viewModel,
-                player = previewPlayer,
-                currentRoute = currentRoute,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = padding.calculateBottomPadding() + 12.dp),
-                onNavigatePreview = { navigateTo(SnapMusicDestination.Preview.route) },
-            )
-            YouTubeMiniPlayerHost(
-                viewModel = viewModel,
-                player = youTubePlayer,
-                currentRoute = currentRoute,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = padding.calculateBottomPadding() + 12.dp),
-                onNavigateHome = { navigateTo(SnapMusicDestination.Home.route) },
-            )
+@Composable
+private fun NotificationRouteEffectHost(
+    viewModel: SnapMusicViewModel,
+    currentRoute: String?,
+    notificationRoute: String?,
+    onNotificationRouteConsumed: () -> Unit,
+    onNavigate: (String) -> Unit,
+) {
+    val playbackState by viewModel.navHostPlaybackState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(notificationRoute, currentRoute, playbackState) {
+        if (notificationRoute != null) {
+            if (notificationRoute == SnapMusicDestination.Queue.route) {
+                viewModel.requestOpenPreviewDownloads()
+                if (currentRoute != SnapMusicDestination.Preview.route) {
+                    onNavigate(SnapMusicDestination.Preview.route)
+                }
+            } else if (notificationRoute == MainActivity.ROUTE_PLAYBACK) {
+                when (viewModel.resolvePlaybackNotificationTarget()) {
+                    PlaybackNotificationTarget.PREVIEW -> {
+                        if (playbackState.previewCanRestore) {
+                            viewModel.restorePreviewPlaybackShell()
+                        } else {
+                            viewModel.restorePreviewPlaybackSnapshot(showDetail = true)
+                        }
+                        if (currentRoute != SnapMusicDestination.Preview.route) {
+                            onNavigate(SnapMusicDestination.Preview.route)
+                        }
+                    }
+                    PlaybackNotificationTarget.YOUTUBE -> {
+                        if (playbackState.youtubeCanRestore) {
+                            viewModel.restoreYouTubePlaybackShell()
+                        } else {
+                            viewModel.restoreYouTubePlaybackSnapshot()
+                        }
+                        if (currentRoute != SnapMusicDestination.Home.route) {
+                            onNavigate(SnapMusicDestination.Home.route)
+                        }
+                    }
+                    PlaybackNotificationTarget.NONE -> onNavigate(SnapMusicDestination.Home.route)
+                }
+            } else {
+                onNavigate(notificationRoute)
+            }
+            onNotificationRouteConsumed()
         }
     }
 }
@@ -211,10 +223,10 @@ private fun NavHostVisibilityEffects(
     viewModel: SnapMusicViewModel,
     currentRoute: String?,
     isInPictureInPictureMode: Boolean,
-    playbackState: NavHostPlaybackState,
     onNavigateHome: () -> Unit,
     onNavigatePreview: () -> Unit,
 ) {
+    val playbackState by viewModel.navHostPlaybackState.collectAsStateWithLifecycle()
     val wasInPictureInPictureMode = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
     LaunchedEffect(currentRoute, playbackState.youtubeShowPlayer, playbackState.youtubeReady) {
@@ -264,15 +276,36 @@ private fun NavHostVisibilityEffects(
     }
 }
 
+@Composable
+private fun PictureInPictureGate(
+    viewModel: SnapMusicViewModel,
+    isInPictureInPictureMode: Boolean,
+    previewPlayer: Player?,
+    youTubePlayer: Player?,
+    content: @Composable () -> Unit,
+) {
+    val playbackState by viewModel.navHostPlaybackState.collectAsStateWithLifecycle()
+
+    when {
+        isInPictureInPictureMode && playbackState.previewPipEligible -> {
+            PreviewPictureInPictureHost(viewModel = viewModel, player = previewPlayer)
+        }
+        isInPictureInPictureMode && playbackState.youtubePipEligible -> {
+            YouTubePictureInPictureHost(viewModel = viewModel, player = youTubePlayer)
+        }
+        else -> content()
+    }
+}
+
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun SnapMusicBottomBar(
     viewModel: SnapMusicViewModel,
     items: List<SnapMusicDestination>,
     currentRoute: String?,
-    state: BottomBarUiState,
     onNavigate: (String) -> Unit,
 ) {
+    val state by viewModel.bottomBarUiState.collectAsStateWithLifecycle()
     NavigationBar {
         items.forEach { item ->
             when (item) {
