@@ -78,37 +78,6 @@ private fun androidx.media3.common.PlaybackException.isExpiredStream403(): Boole
         message?.contains("403", ignoreCase = true) == true
 }
 
-private fun MediaController.syncQueuedNext(nextItem: MediaItem?) {
-    when {
-        nextItem == null -> {
-            if (mediaItemCount > 1) {
-                removeMediaItems(1, mediaItemCount)
-            }
-        }
-        mediaItemCount <= 1 -> addMediaItem(nextItem)
-        getMediaItemAt(1).samePlaybackAs(nextItem) -> {
-            if (mediaItemCount > 2) {
-                removeMediaItems(2, mediaItemCount)
-            }
-        }
-        else -> {
-            replaceMediaItem(1, nextItem)
-            if (mediaItemCount > 2) {
-                removeMediaItems(2, mediaItemCount)
-            }
-        }
-    }
-}
-
-private fun MediaController.canAttachQueuedNext(currentMediaId: String): Boolean {
-    if (currentMediaItem?.mediaId != currentMediaId) return false
-    if (playbackState == Player.STATE_IDLE) return false
-    val bufferedAheadMs = (bufferedPosition - currentPosition).coerceAtLeast(0L)
-    return playbackState == Player.STATE_ENDED ||
-        bufferedAheadMs >= 15_000L ||
-        bufferedPercentage >= 35
-}
-
 @androidx.media3.common.util.UnstableApi
 @Composable
 fun rememberYouTubePlayer(
@@ -303,33 +272,6 @@ fun rememberYouTubePlayer(
                 mediaController.playbackState == Player.STATE_ENDED
         if (canUpdateWithoutRestarting && !current.sameArtworkAs(withArtwork)) {
             mediaController.replaceMediaItem(0, withArtwork)
-        }
-    }
-
-    LaunchedEffect(
-        controller,
-        state.featured.sourceUrl,
-        state.preloadedNextFeatured?.sourceUrl,
-        state.preloadedNextFeatured?.playbackUrl,
-    ) {
-        val mediaController = controller ?: return@LaunchedEffect
-        if (mediaController.mediaItemCount == 0 || mediaController.getMediaItemAt(0).mediaId != state.featured.sourceUrl) {
-            return@LaunchedEffect
-        }
-        val nextQueuedItem = state.preloadedNextFeatured
-            ?.takeIf { it.sourceUrl != state.featured.sourceUrl && !it.playbackUrl.isNullOrBlank() }
-            ?.toMediaItem()
-            ?.takeIf { it != MediaItem.EMPTY }
-        if (nextQueuedItem == null) {
-            mediaController.syncQueuedNext(null)
-            return@LaunchedEffect
-        }
-        while (isActive && mediaController.currentMediaItem?.mediaId == state.featured.sourceUrl) {
-            if (mediaController.canAttachQueuedNext(state.featured.sourceUrl)) {
-                mediaController.syncQueuedNext(nextQueuedItem)
-                return@LaunchedEffect
-            }
-            delay(1_000)
         }
     }
 
