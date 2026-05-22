@@ -317,7 +317,7 @@ class SnapMusicViewModel(
         const val YOUTUBE_HOME_FEED_PAGE_SIZE = 24
         const val YOUTUBE_WATCH_NEXT_PAGE_SIZE = 18
         const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 2_500L
-        const val YOUTUBE_NEXT_PRE_RESOLVE_DELAY_MS = 3_000L
+        const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 20_000L
         const val PRESET_MP3_320 = "preset_mp3_320"
         const val PRESET_M4A = "preset_m4a"
         const val PRESET_MP4_720 = "preset_mp4_720"
@@ -2211,6 +2211,22 @@ class SnapMusicViewModel(
                 shouldAutoPlayCurrent = shouldAutoPlay,
             )
         }
+        if (
+            safePosition >= YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS &&
+            current.autoplayEnabled &&
+            current.preloadedNextFeatured == null &&
+            nextQueuePreResolveJob?.isActive != true
+        ) {
+            val queueItems = current.playbackQueue.ifEmpty { current.items }
+            if (queueItems.isNotEmpty()) {
+                preResolveNextQueueItem(
+                    queueItems = queueItems,
+                    currentIndex = resolveCurrentQueueIndex(current, queueItems),
+                    continuationMode = current.continuationMode,
+                    allowNetwork = true,
+                )
+            }
+        }
         maybeRecordPlaybackMilestones(current.featured, safePosition)
         if (persist || shouldCheckpoint) {
             persistCurrentYouTubeSnapshot()
@@ -2562,6 +2578,7 @@ class SnapMusicViewModel(
         queueItems: List<YouTubeFeedItem>,
         currentIndex: Int,
         continuationMode: PlaybackContinuationMode,
+        allowNetwork: Boolean = false,
     ) {
         nextQueuePreResolveJob?.cancel()
         val nextItem = nextQueueItem(queueItems, currentIndex, continuationMode) ?: return
@@ -2572,8 +2589,8 @@ class SnapMusicViewModel(
             }
             return
         }
+        if (!allowNetwork) return
         nextQueuePreResolveJob = viewModelScope.launch {
-            delay(YOUTUBE_NEXT_PRE_RESOLVE_DELAY_MS)
             val latest = _youtubeState.value
             if (latest.nextUpItem?.url != nextItem.url) return@launch
             runCatching { resolveFeaturedVideo(nextItem) }
