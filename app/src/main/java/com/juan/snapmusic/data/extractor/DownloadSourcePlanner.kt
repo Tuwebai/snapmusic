@@ -15,6 +15,7 @@ internal data class AudioSourceCandidate(
     val bitrateKbps: Int?,
     val sourceContainerHint: String,
     val isDirectM4a: Boolean,
+    val isAudioOnly: Boolean = true,
     val headers: Map<String, String> = emptyMap(),
 )
 
@@ -35,12 +36,9 @@ internal object DownloadSourcePlanner {
     ): List<MediaVariant> {
         val compatible = audioCandidates.filter { it.url.isNotBlank() }
         if (compatible.isEmpty()) return emptyList()
-        val bitrates = compatible.mapNotNull { sanitizeBitrate(it.bitrateKbps) }
-            .distinct()
-            .sortedDescending()
         val variants = mutableListOf<MediaVariant>()
         val directM4aByBitrate = compatible
-            .filter { it.isDirectM4a }
+            .filter { it.isDirectM4a && it.isAudioOnly }
             .sortedWith(compareByDescending<AudioSourceCandidate> { sanitizeBitrate(it.bitrateKbps) ?: 0 }.thenBy { it.id })
             .distinctBy { sanitizeBitrate(it.bitrateKbps) ?: -1 }
 
@@ -61,22 +59,9 @@ internal object DownloadSourcePlanner {
                 allowTranscodeFallback = true,
             )
         }
-
-        if (bitrates.isEmpty()) {
-            val fallback = pickBestAudioSource(compatible, null, null, null)
-                ?: return variants
-            if (directM4aByBitrate.isEmpty()) {
-                variants += syntheticAudioVariant(fallback, ContainerFormat.M4A, null)
-            }
-            variants += syntheticAudioVariant(fallback, ContainerFormat.MP3, null)
-            return variants
-        }
-
-        bitrates.forEach { targetBitrate ->
+        val ceiling = compatible.maxOfOrNull { sanitizeBitrate(it.bitrateKbps) ?: 0 }?.takeIf { it > 0 }
+        preferredMp3Targets(ceiling).forEach { targetBitrate ->
             val source = pickBestAudioSource(compatible, targetBitrate, null, null) ?: return@forEach
-            if (directM4aByBitrate.none { sanitizeBitrate(it.bitrateKbps) == targetBitrate }) {
-                variants += syntheticAudioVariant(source, ContainerFormat.M4A, targetBitrate)
-            }
             variants += syntheticAudioVariant(source, ContainerFormat.MP3, targetBitrate)
         }
 
@@ -343,6 +328,8 @@ internal object DownloadSourcePlanner {
                 if (preferredContainerHint != null && it.sourceContainerHint.equals(preferredContainerHint, ignoreCase = true)) 0 else 1
             }.thenBy {
                 if (it.isDirectM4a) 0 else 1
+            }.thenBy {
+                if (it.isAudioOnly) 0 else 1
             }.thenByDescending {
                 sanitizeBitrate(it.bitrateKbps) ?: 0
             },
@@ -373,8 +360,7 @@ internal object DownloadSourcePlanner {
         bitrateKbps: Int?,
         converted: Boolean,
     ): String {
-        val base = if (bitrateKbps != null) "${container.name} ${bitrateKbps}kbps" else container.name
-        return if (converted) "$base · convertido" else base
+        return if (bitrateKbps != null) "${container.name} ${bitrateKbps}kbps" else container.name
     }
 
     private fun buildVideoLabel(height: Int?): String {
@@ -403,6 +389,19 @@ internal object DownloadSourcePlanner {
     private fun outputBitrateFor(container: ContainerFormat, value: Int?): Int? {
         val sanitized = sanitizeBitrate(value) ?: return null
         return if (container == ContainerFormat.MP3) sanitized.coerceAtMost(320) else sanitized
+    }
+
+    private fun preferredMp3Targets(ceiling: Int?): List<Int?> {
+        val safeCeiling = ceiling ?: return listOf(null)
+        return when {
+            safeCeiling >= 320 -> listOf(320, 192, 128)
+            safeCeiling >= 256 -> listOf(256, 192, 128)
+            safeCeiling >= 192 -> listOf(192, 128)
+            safeCeiling >= 160 -> listOf(160, 128)
+            safeCeiling >= 128 -> listOf(128)
+            safeCeiling >= 96 -> listOf(96)
+            else -> listOf(safeCeiling)
+        }
     }
 
     private fun audioDistance(candidateBitrate: Int?, targetBitrate: Int?): Int {

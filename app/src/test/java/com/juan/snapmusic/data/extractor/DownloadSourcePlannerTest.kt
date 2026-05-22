@@ -11,7 +11,7 @@ import org.junit.Test
 
 class DownloadSourcePlannerTest {
     @Test
-    fun `expone audio sintetico aunque no exista M4A directo`() {
+    fun `expone mp3 aunque no exista M4A directo`() {
         val variants = DownloadSourcePlanner.buildAudioVariants(
             listOf(
                 AudioSourceCandidate(
@@ -25,7 +25,25 @@ class DownloadSourcePlannerTest {
         )
 
         assertTrue(variants.any { it.container == ContainerFormat.MP3 && it.isSyntheticOutput })
-        assertTrue(variants.any { it.container == ContainerFormat.M4A && it.isSyntheticOutput })
+        assertTrue(variants.none { it.container == ContainerFormat.M4A && it.isSyntheticOutput })
+    }
+
+    @Test
+    fun `usa fuente progresiva con audio cuando no hay audio only`() {
+        val variants = DownloadSourcePlanner.buildAudioVariants(
+            listOf(
+                AudioSourceCandidate(
+                    id = "progressive-720",
+                    url = "https://cdn.test/video-with-audio",
+                    bitrateKbps = null,
+                    sourceContainerHint = "WEBM",
+                    isDirectM4a = false,
+                    isAudioOnly = false,
+                ),
+            ),
+        )
+
+        assertTrue(variants.any { it.container == ContainerFormat.MP3 })
     }
 
     @Test

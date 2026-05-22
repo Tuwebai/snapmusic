@@ -48,7 +48,8 @@ class NewPipeStreamResolverRepository(
 
     override suspend fun resolve(url: String): ResolvedMedia = withContext(Dispatchers.IO) {
         val info = StreamInfo.getInfo(url)
-        val audioCandidates = info.audioStreams.map(::toAudioCandidate)
+        val audioCandidates = info.audioStreams.map(::toAudioCandidate) +
+            info.videoStreams.mapNotNull(::toProgressiveAudioCandidate)
         val progressiveCandidates = info.videoStreams.map(::toVideoCandidate)
         val muxCandidates = info.videoOnlyStreams.map(::toVideoCandidate)
         ResolvedMedia(
@@ -72,7 +73,8 @@ class NewPipeStreamResolverRepository(
         val info = StreamInfo.getInfo(url)
         DownloadSourcePlanner.resolveDownloadPlan(
             selection = selection,
-            audioCandidates = info.audioStreams.map(::toAudioCandidate),
+            audioCandidates = info.audioStreams.map(::toAudioCandidate) +
+                info.videoStreams.mapNotNull(::toProgressiveAudioCandidate),
             progressiveCandidates = info.videoStreams.map(::toVideoCandidate),
             muxCandidates = info.videoOnlyStreams.map(::toVideoCandidate),
         )
@@ -166,8 +168,22 @@ class NewPipeStreamResolverRepository(
         bitrateKbps = stream.averageBitrate.takeIf { it > 0 },
         sourceContainerHint = stream.format?.name ?: "UNKNOWN",
         isDirectM4a = stream.format == MediaFormat.M4A,
+        isAudioOnly = true,
         headers = transferHeaders,
     )
+
+    private fun toProgressiveAudioCandidate(stream: VideoStream): AudioSourceCandidate? {
+        if (stream.isVideoOnly || stream.url.isNullOrBlank()) return null
+        return AudioSourceCandidate(
+            id = "progressive-${stream.id}",
+            url = stream.url.orEmpty(),
+            bitrateKbps = null,
+            sourceContainerHint = stream.format?.name ?: "UNKNOWN",
+            isDirectM4a = false,
+            isAudioOnly = false,
+            headers = transferHeaders,
+        )
+    }
 
     private fun toVideoCandidate(stream: VideoStream): VideoSourceCandidate = VideoSourceCandidate(
         id = stream.id.toString(),
