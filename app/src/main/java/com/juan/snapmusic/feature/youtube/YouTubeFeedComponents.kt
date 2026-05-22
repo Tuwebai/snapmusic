@@ -406,6 +406,7 @@ private fun FeaturedVideoPlayerShell(
         modifier = Modifier
             .fillMaxWidth()
             .height(WatchPlayerHeight)
+            .clip(RoundedCornerShape(18.dp))
             .background(androidx.compose.ui.graphics.Color.Black),
     ) {
         if (!hasRenderedFirstFrame) {
@@ -420,8 +421,7 @@ private fun FeaturedVideoPlayerShell(
             key(featured.sourceUrl, player) {
                 AndroidView(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(WatchPlayerHeight)
+                        .fillMaxSize()
                         .alpha(if (hasRenderedFirstFrame) 1f else 0f),
                     factory = { context ->
                         PlayerView(context).apply {
