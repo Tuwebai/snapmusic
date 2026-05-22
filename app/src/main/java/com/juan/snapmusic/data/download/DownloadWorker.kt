@@ -50,6 +50,7 @@ class DownloadWorker(
         val entry = graph.queueRepository.get(queueId) ?: return@withContext Result.failure()
         lastPublishedProgress = -1
         lastPublishedAtMs = 0L
+        var targetUri: Uri? = null
 
         return@withContext try {
             setForeground(createForegroundInfo(queueId, entry.title, entry.variantLabel, entry.thumbnailUrl, 0))
@@ -63,29 +64,33 @@ class DownloadWorker(
                 snapshot = DownloadProgressSnapshot(0L, null, 0L, DownloadStage.PREPARING),
             )
 
-            val targetUri = graph.storageRepository.createDestinationUri(
+            val reservedTargetUri = graph.storageRepository.createDestinationUri(
                 preferences = graph.currentPreferences(),
                 fileName = buildFileName(entry.title, entry.container),
                 mimeType = mimeTypeFor(entry.container),
             )
+            targetUri = reservedTargetUri
 
-            executeDownloadWithFreshSources(queueId, entry, targetUri)
+            executeDownloadWithFreshSources(queueId, entry, reservedTargetUri)
+            graph.storageRepository.publishOutput(reservedTargetUri)
             val localThumbnailUrl = downloadThumbnailForHistory(entry.sourceUrl, entry.thumbnailUrl)
 
-            graph.queueRepository.updateStatus(queueId, QueueStatus.SUCCESS, 100, outputUri = targetUri.toString())
+            graph.queueRepository.updateStatus(queueId, QueueStatus.SUCCESS, 100, outputUri = reservedTargetUri.toString())
             graph.historyRepository.append(
                 id = queueId,
                 title = entry.title,
                 author = entry.author,
                 sourceUrl = entry.sourceUrl,
                 thumbnailUrl = localThumbnailUrl,
-                outputUri = targetUri.toString(),
+                outputUri = reservedTargetUri.toString(),
                 format = entry.container,
                 qualityLabel = entry.variantLabel,
             )
             notifications.showSuccess(queueId.hashCode(), entry.title, entry.variantLabel, localThumbnailUrl)
             Result.success()
         } catch (cancelled: Throwable) {
+            targetUri?.let { graph.storageRepository.deleteOutput(it.toString()) }
+            graph.storageRepository.invalidateLocalMediaCache()
             if (isStopped) {
                 graph.queueRepository.updateStatus(queueId, QueueStatus.CANCELLED, 0, errorMessage = "Cancelado por el usuario")
                 Result.failure()
@@ -431,39 +436,44 @@ class DownloadWorker(
         val fraction = if ((snapshot.totalBytes ?: 0L) > 0L) {
             (snapshot.bytesDownloaded.toDouble() / snapshot.totalBytes!!.toDouble()).coerceIn(0.0, 1.0)
         } else {
-            0.0
+            null
         }
         return when (strategy) {
             DownloadStrategy.DIRECT -> when (snapshot.stage) {
                 DownloadStage.PREPARING -> 0
-                DownloadStage.DOWNLOADING -> scaleProgress(0, 86, fraction)
-                DownloadStage.COPYING -> scaleProgress(86, 98, fraction)
+                DownloadStage.DOWNLOADING -> scaleProgress(0, 86, fraction, snapshot.bytesDownloaded)
+                DownloadStage.COPYING -> scaleProgress(86, 98, fraction, snapshot.bytesDownloaded)
                 DownloadStage.VALIDATING -> 99
                 else -> 99
             }
 
             DownloadStrategy.TRANSCODE_AUDIO -> when (snapshot.stage) {
                 DownloadStage.PREPARING -> 0
-                DownloadStage.DOWNLOADING -> scaleProgress(0, 56, fraction)
+                DownloadStage.DOWNLOADING -> scaleProgress(0, 56, fraction, snapshot.bytesDownloaded)
                 DownloadStage.TRANSCODING -> 78
-                DownloadStage.COPYING -> scaleProgress(88, 98, fraction)
+                DownloadStage.COPYING -> scaleProgress(88, 98, fraction, snapshot.bytesDownloaded)
                 DownloadStage.VALIDATING -> 99
                 else -> 78
             }
 
             DownloadStrategy.MUX_VIDEO_AUDIO -> when (snapshot.stage) {
                 DownloadStage.PREPARING -> 0
-                DownloadStage.DOWNLOADING -> scaleProgress(0, 72, fraction)
+                DownloadStage.DOWNLOADING -> scaleProgress(0, 72, fraction, snapshot.bytesDownloaded)
                 DownloadStage.MUXING -> 90
-                DownloadStage.COPYING -> scaleProgress(94, 98, fraction)
+                DownloadStage.COPYING -> scaleProgress(94, 98, fraction, snapshot.bytesDownloaded)
                 DownloadStage.VALIDATING -> 99
                 else -> 90
             }
         }
     }
 
-    private fun scaleProgress(start: Int, end: Int, fraction: Double): Int {
-        return start + ((end - start) * fraction.coerceIn(0.0, 1.0)).toInt()
+    private fun scaleProgress(start: Int, end: Int, fraction: Double?, bytesDownloaded: Long): Int {
+        if (fraction != null) {
+            return start + ((end - start) * fraction.coerceIn(0.0, 1.0)).toInt()
+        }
+        if (bytesDownloaded <= 0L) return start
+        val coarseStep = (bytesDownloaded / (4L * 1024L * 1024L)).toInt().coerceAtLeast(1)
+        return (start + coarseStep).coerceAtMost((end - 2).coerceAtLeast(start))
     }
 
     private fun shouldRetryWithFreshSources(error: Throwable): Boolean {

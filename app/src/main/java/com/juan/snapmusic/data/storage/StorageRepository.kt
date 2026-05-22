@@ -3,6 +3,7 @@ package com.juan.snapmusic.data.storage
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -70,18 +71,47 @@ class StorageRepository(
         }
 
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-                put(MediaStore.Downloads.MIME_TYPE, mimeType)
-                put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/SnapMusic")
+            val collection = when {
+                mimeType.startsWith("audio/") -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                mimeType.startsWith("video/") -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                else -> MediaStore.Downloads.EXTERNAL_CONTENT_URI
             }
-            context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.TITLE, fileName.substringBeforeLast('.', fileName))
+                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/SnapMusic")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+            context.contentResolver.insert(collection, values)
                 ?: error("No se pudo reservar el archivo en Downloads.")
         } else {
             val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             val dir = File(downloads, "SnapMusic").apply { mkdirs() }
             Uri.fromFile(File(dir, fileName))
         }
+    }
+
+    fun publishOutput(uri: Uri) {
+        runCatching {
+            when (uri.scheme) {
+                "content" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        val values = ContentValues().apply {
+                            put(MediaStore.MediaColumns.IS_PENDING, 0)
+                        }
+                        context.contentResolver.update(uri, values, null, null)
+                    }
+                }
+
+                "file", null -> {
+                    uri.path?.let { path ->
+                        MediaScannerConnection.scanFile(context, arrayOf(path), null, null)
+                    }
+                }
+            }
+        }
+        invalidateLocalMediaCache()
     }
 
     fun deleteOutput(uriString: String): Boolean {
@@ -145,6 +175,7 @@ class StorageRepository(
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.DATE_ADDED,
             MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.SIZE,
         )
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
 
@@ -163,10 +194,13 @@ class StorageRepository(
                 val durationIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val dateIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
                 val albumIdIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                val sizeIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idIndex)
                     val duration = cursor.getLong(durationIndex)
+                    val size = cursor.getLong(sizeIndex)
+                    if (duration <= 0L || size <= 0L) continue
                     val artist = cursor.getString(artistIndex).orEmpty().ifBlank { "Audio local" }
                     val contentUri = ContentUris.withAppendedId(collection, id)
                     val albumId = cursor.getLong(albumIdIndex)
@@ -202,6 +236,7 @@ class StorageRepository(
             MediaStore.Video.Media.DISPLAY_NAME,
             MediaStore.Video.Media.DURATION,
             MediaStore.Video.Media.DATE_ADDED,
+            MediaStore.Video.Media.SIZE,
         )
 
         return buildList {
@@ -217,10 +252,13 @@ class StorageRepository(
                 val displayNameIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
                 val durationIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
                 val dateIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
+                val sizeIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idIndex)
                     val duration = cursor.getLong(durationIndex)
+                    val size = cursor.getLong(sizeIndex)
+                    if (duration <= 0L || size <= 0L) continue
                     val contentUri = ContentUris.withAppendedId(collection, id)
 
                     add(
