@@ -1,5 +1,19 @@
 # Progreso de implementación — SnapMusic Android
 
+## 2026-05-23
+- Se aplicaron los fixes de startup pedidos en:
+  - `docs/STARTUP_PERF_AUDIT.md`
+  - `docs/STARTUP_CODEX_FIXES.md`
+- Cambios aplicados:
+  - `SnapMusicApplication.kt`: limpieza de `ffmpeg/` y `http-transfer/` movida a un hilo daemon para sacar I/O del arranque en main thread.
+  - `SnapMusicViewModel.kt`: restauración del snapshot YouTube sin resolver streams al iniciar; ahora vuelve en estado de carga diferida.
+  - `SnapMusicViewModel.kt`: prefetch inicial del home cacheado retrasado `3s` para no competir con el primer frame.
+  - `SnapMusicViewModel.kt`: endurecimiento mínimo para que un snapshot restaurado en estado diferido siga pudiéndose abrir o reproducir desde la UI.
+  - `Models.kt`: no requirió cambio nuevo porque `YouTubePlaybackRenderState` y `PreviewPlaybackRenderState` ya tenían `@Immutable`.
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat :app:assembleDebug`
+  - `.\gradlew.bat :app:assembleDebug` después de los fixes del ViewModel
+
 ## 2026-05-21
 - Se implementó la remediación estructural nueva del playback para atacar el jank de 60fps desde la raíz.
 - Cambios principales aplicados:

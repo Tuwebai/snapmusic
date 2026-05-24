@@ -23,12 +23,17 @@ class SnapMusicApplication : Application(), Configuration.Provider {
 
     private fun cleanupFfmpegWorkDir() {
         val ffmpegDir = java.io.File(cacheDir, "ffmpeg")
-        ffmpegDir.listFiles().orEmpty().forEach { file ->
-            if (file.isDirectory) {
-                file.deleteRecursively()
-            } else {
-                file.delete()
+        val httpTransferDir = java.io.File(cacheDir, "http-transfer")
+        Thread {
+            try {
+                ffmpegDir.listFiles().orEmpty().forEach { file ->
+                    if (file.isDirectory) file.deleteRecursively() else file.delete()
+                }
+                httpTransferDir.listFiles().orEmpty().forEach { file ->
+                    if (file.isDirectory) file.deleteRecursively() else file.delete()
+                }
+            } catch (_: Exception) {
             }
-        }
+        }.also { it.isDaemon = true }.start()
     }
 }

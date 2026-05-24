@@ -1,5 +1,17 @@
 # Findings — SnapMusic Android
 
+## Startup audit y fixes diferidos — 2026-05-23
+- El arranque lento venía de tres costos metidos demasiado temprano:
+  - limpieza de cachés pesadas en `Application.onCreate()`
+  - restore de snapshot YouTube con red real al abrir
+  - prefetch del home cacheado disparado antes de que la UI terminara de mostrarse
+- La corrección elegida mantiene funcionalidad pero mueve trabajo fuera del camino crítico:
+  - cleanup a hilo daemon
+  - snapshot YouTube restaurado como `loading` sin resolver streams en startup
+  - prefetch inicial del home retrasado `3s`
+- El audit `STARTUP_CODEX_FIXES.md` traía además dos anotaciones `@Immutable` como fix 4, pero al revisar `Models.kt` ese punto ya estaba cerrado en el código actual.
+- Para que el snapshot diferido no quede muerto en la UI, hubo que permitir la reapertura/resolución bajo demanda desde el mismo `SnapMusicViewModel`.
+
 ## Remediación nueva de playback 60fps — 2026-05-21
 - El cuello principal confirmado en reproducción era estructural y no solo visual:
   - YouTube creaba polling de progreso/buffer duplicado entre overlay inline y fullscreen.
