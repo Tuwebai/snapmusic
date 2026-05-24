@@ -741,6 +741,40 @@ class SnapMusicViewModel(
             initialValue = PictureInPictureEligibilityState(),
         )
 
+    val youtubePlayerMountEnabled = combine(
+        youtubeRouteVisibility,
+        youtubePictureInPictureEligibility,
+    ) { visibility, pip ->
+        visibility.isReady && (
+            visibility.showPlayer ||
+                visibility.showMiniPlayer ||
+                pip.eligible
+            )
+    }
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    val previewPlayerMountEnabled = combine(
+        previewRouteVisibility,
+        previewPictureInPictureEligibility,
+    ) { visibility, pip ->
+        visibility.isReady && (
+            visibility.detailVisible ||
+                visibility.miniVisible ||
+                pip.eligible
+            )
+    }
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
     private val youtubeFeedProjection = youtubeState
         .map { state ->
             YouTubeFeedProjection(

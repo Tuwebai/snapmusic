@@ -68,8 +68,10 @@ fun SnapMusicNavHost(
         SnapMusicDestination.Preview,
         SnapMusicDestination.Settings,
     )
-    val youTubePlayer = rememberManagedYouTubePlayer(viewModel)
-    val previewPlayer = rememberManagedPreviewPlayer(viewModel)
+    val mountYouTubePlayer by viewModel.youtubePlayerMountEnabled.collectAsStateWithLifecycle()
+    val mountPreviewPlayer by viewModel.previewPlayerMountEnabled.collectAsStateWithLifecycle()
+    val youTubePlayer = rememberManagedYouTubePlayer(viewModel, enabled = mountYouTubePlayer)
+    val previewPlayer = rememberManagedPreviewPlayer(viewModel, enabled = mountPreviewPlayer)
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
 
@@ -523,7 +525,9 @@ private fun YouTubeMiniPlayerHost(
 @Composable
 private fun rememberManagedYouTubePlayer(
     viewModel: SnapMusicViewModel,
+    enabled: Boolean,
 ): Player? {
+    if (!enabled) return null
     val sessionState by viewModel.youtubePlayerSessionState.collectAsStateWithLifecycle()
     val seekState by viewModel.youtubePlayerSeekState.collectAsStateWithLifecycle()
     val shouldAutoPlay by viewModel.youtubePlaybackAutoPlay.collectAsStateWithLifecycle()
@@ -568,7 +572,9 @@ private fun SnapMusicNavCounterBadge(
 @Composable
 private fun rememberManagedPreviewPlayer(
     viewModel: SnapMusicViewModel,
+    enabled: Boolean,
 ): Player? {
+    if (!enabled) return null
     val previewState by viewModel.previewPlaybackRenderState.collectAsStateWithLifecycle()
     return rememberPreviewPlayer(
         preview = previewState.preview,

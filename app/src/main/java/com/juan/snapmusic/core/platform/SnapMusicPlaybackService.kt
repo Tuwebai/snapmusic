@@ -21,7 +21,25 @@ class SnapMusicPlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
-        if (mediaSession != null) return
+    }
+
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
+        return ensureSession()
+    }
+
+    override fun onDestroy() {
+        mediaSession?.run {
+            player.release()
+            release()
+        }
+        mediaSession = null
+        PlaybackNotificationRouteStore.clear()
+        super.onDestroy()
+    }
+
+    @Synchronized
+    private fun ensureSession(): MediaSession {
+        mediaSession?.let { return it }
 
         val trackSelector = DefaultTrackSelector(this).apply {
             parameters = buildUponParameters()
@@ -76,7 +94,7 @@ class SnapMusicPlaybackService : MediaSessionService() {
             mediaUri = player.currentMediaItem?.localConfiguration?.uri,
         )
 
-        mediaSession = MediaSession.Builder(this, player)
+        return MediaSession.Builder(this, player)
             .setSessionActivity(MainActivity.buildOpenPlaybackPendingIntent(this))
             .setCallback(
                 object : MediaSession.Callback {
@@ -94,19 +112,8 @@ class SnapMusicPlaybackService : MediaSessionService() {
                 },
             )
             .build()
-    }
-
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
-        return mediaSession
-    }
-
-    override fun onDestroy() {
-        mediaSession?.run {
-            player.release()
-            release()
-        }
-        mediaSession = null
-        PlaybackNotificationRouteStore.clear()
-        super.onDestroy()
+            .also { session ->
+                mediaSession = session
+            }
     }
 }

@@ -630,3 +630,32 @@
 - `SnapMusicNavHost` dejó de disparar restores y aperturas manuales por rutas distintas y ahora reutiliza helpers dedicados de shell.
 - El fullscreen del watch quedó encapsulado en `FeaturedVideoFullscreenShell`, separado del resto del shell del player.
 - Se eliminó estado sobrante del watch superior para evitar recomposiciones que ya no aportaban a la UX.
+
+## 2026-05-23 — Auditoría integral V4 de startup y runtime
+
+- Se auditó de nuevo el rendimiento completo porque la app seguía lenta desde el arranque y con jank general.
+- Resultado principal:
+  - el startup sigue penalizado por boot ansioso del stack de playback
+  - YouTube sigue sobrecargado por fan-out de extractor/red
+  - todavía quedan collectors altos y polling en rutas calientes
+- Se agregaron los documentos canónicos de esta ola:
+  - `docs/PERFORMANCE_AUDIT_V4.md`
+  - `docs/CODEX_FIXES_V4.md`
+- La remediación quedó separada por slices en este orden:
+  1. lazy boot del playback stack
+  2. startup silencioso sin trabajo global no pedido
+  3. recorte de fan-out en Home/Watch Next
+  4. bajar collectors altos en Nav/Preview
+  5. overlay/progreso sin polling caro
+  6. revalidación con métricas y smoke
+
+## 2026-05-23 — Slice 1 V4: lazy boot del playback stack
+
+- Se aplicó la primera slice del plan V4 sin tocar la UI.
+- Cambios:
+  - `SnapMusicNavHost` ahora monta player de YouTube y Preview solo cuando el playback está listo y visible/restaurable.
+  - `SnapMusicViewModel` expone `youtubePlayerMountEnabled` y `previewPlayerMountEnabled` para evitar crear `MediaController` en frío.
+  - `SnapMusicPlaybackService` pasó a construir `MediaSession`/`ExoPlayer` bajo demanda en `onGetSession()`.
+- Validación ejecutada:
+  - `:app:compileDebugKotlin`
+  - `:app:testDebugUnitTest`

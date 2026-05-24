@@ -397,3 +397,25 @@
   - codec propio para cola local, item actual, posicion y mini/detail
   - fallback de cola local desde snapshot cuando `MediaStore` todavia no devolvio la biblioteca
   - resolucion de `ROUTE_PLAYBACK` por prioridad: preview viva, snapshot local, YouTube vivo, snapshot YouTube
+
+## Auditoría integral V4 de rendimiento 2026-05-23
+- Culpables raíz confirmados en el código actual:
+  - `SnapMusicNavHost` crea los dos `MediaController` al entrar y fuerza boot prematuro del stack de playback.
+  - `SnapMusicPlaybackService` arma `ExoPlayer + MediaSession` en el primer connect, acoplado al arranque por el punto anterior.
+  - `SnapMusicViewModel.init` todavía dispara trabajo global no pedido: restore de cache/snapshot y populares de descarga.
+  - `MusicHomeFeedRepository.loadMusicHomeFeed()` sigue con fan-out demasiado alto de búsquedas/resoluciones.
+  - `recommendWatchNext()` + `enrichWatchNextQueue()` + `preResolveNextQueueItem()` agregan más carga de red mientras ya se está reproduciendo.
+  - `SnapMusicNavHost` y `PreviewScreen` todavía concentran collectors/estado demasiado arriba.
+  - `PlaybackOverlayState` sigue usando ticker periódico en overlays de video.
+- Se dejaron dos docs nuevos para cerrar esta ola:
+  - `docs/PERFORMANCE_AUDIT_V4.md`
+  - `docs/CODEX_FIXES_V4.md`
+
+## Slice 1 V4 aplicada 2026-05-23
+- `SnapMusicNavHost` ya no monta los players gestionados de YouTube y Preview en cada arranque.
+- Se agregaron flags finos:
+  - `youtubePlayerMountEnabled`
+  - `previewPlayerMountEnabled`
+- Esos flags solo permiten crear `MediaController` cuando hay playback realmente visible/restaurable y listo.
+- `rememberManagedYouTubePlayer(...)` y `rememberManagedPreviewPlayer(...)` ahora devuelven `null` sin subscribirse a estado ancho cuando no están habilitados.
+- `SnapMusicPlaybackService` pasó a inicializar `MediaSession` de forma lazy en `onGetSession()` en vez de construir todo en `onCreate()`.
