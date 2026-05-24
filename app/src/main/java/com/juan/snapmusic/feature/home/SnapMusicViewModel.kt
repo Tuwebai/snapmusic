@@ -324,9 +324,9 @@ class SnapMusicViewModel(
     private val graph: SnapMusicGraph,
 ) : ViewModel() {
     private companion object {
-        const val YOUTUBE_HOME_FEED_LIMIT = 8
-        const val YOUTUBE_HOME_FEED_PAGE_SIZE = 12
-        const val YOUTUBE_HOME_CACHE_PRIME_COUNT = 4
+        const val YOUTUBE_HOME_FEED_LIMIT = 18
+        const val YOUTUBE_HOME_FEED_PAGE_SIZE = 18
+        const val YOUTUBE_HOME_CACHE_PRIME_COUNT = 8
         const val YOUTUBE_WATCH_NEXT_PAGE_SIZE = 18
         const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 4_500L
         const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 20_000L
@@ -3098,27 +3098,6 @@ class SnapMusicViewModel(
 
     private fun prefetchFeedItems(items: List<YouTubeFeedItem>) {
         youtubeFeedPrefetchJob?.cancel()
-        if (!shouldRunYouTubeFeedPrefetch()) return
-        val candidate = items.firstOrNull { !youTubeResolveCache.containsKey(it.url) } ?: return
-        youtubeFeedPrefetchJob = viewModelScope.launch {
-            delay(1_800L)
-            if (!shouldRunYouTubeFeedPrefetch()) return@launch
-            val latest = _youtubeState.value
-            if (latest.isLoading || latest.isLoadingMore) return@launch
-            if (latest.query.isNotBlank()) return@launch
-            if (latest.items.none { it.url == candidate.url }) return@launch
-            withContext(Dispatchers.IO) {
-                runCatching { resolveFeaturedVideo(candidate) }
-            }
-        }
-    }
-
-    private fun shouldRunYouTubeFeedPrefetch(): Boolean {
-        val current = _youtubeState.value
-        return _homeSelectedTab.value == HOME_TAB_YOUTUBE_INDEX &&
-            !current.showPlayer &&
-            !current.showMiniPlayer &&
-            !current.isRefreshingVideo
     }
 
     private fun restoreYouTubeHomeFeedCache() {
