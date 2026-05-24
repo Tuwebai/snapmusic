@@ -1,5 +1,19 @@
 # Findings — SnapMusic Android
 
+## Regresión de watch player por extractor y cola vieja viva — 2026-05-23
+- El combo de síntomas:
+  - `00:00`
+  - solo audio
+  - audio anterior persistiendo al abrir otro video
+  - botón de descarga eternamente “Preparando descarga...”
+  apuntaba a dos causas juntas:
+  1. el extractor se había movido a una versión vieja (`v0.24.8`) y eso reintrodujo inestabilidad fuerte en la resolución actual de streams
+  2. cuando el `featured` pasaba a estado `loading`, el controller dejaba viva la cola/media item anterior, así que la UI cambiaba de video mientras el audio viejo seguía sonando
+- La corrección raíz elegida fue:
+  - volver al extractor `v0.26.1`
+  - cortar explícitamente la reproducción/cola anterior cuando el nuevo video todavía no tiene `playbackUrl`
+- El botón de descarga quedaba “Preparando descarga...” porque dependía de que `featured.resolvedMedia` llegara a poblarse; con la resolución rota o tardando demasiado, nunca salía del estado de carga.
+
 ## Startup audit y fixes diferidos — 2026-05-23
 - El arranque lento venía de tres costos metidos demasiado temprano:
   - limpieza de cachés pesadas en `Application.onCreate()`

@@ -226,7 +226,15 @@ fun rememberYouTubePlayer(
         artworkData,
     ) {
         val mediaController = controller ?: return@LaunchedEffect
-        val playbackUrl = featured.playbackUrl ?: return@LaunchedEffect
+        val playbackUrl = featured.playbackUrl
+        if (playbackUrl == null) {
+            if (mediaController.currentMediaItem?.mediaId != featured.sourceUrl && mediaController.mediaItemCount > 0) {
+                mediaController.pause()
+                mediaController.playWhenReady = false
+                mediaController.clearMediaItems()
+            }
+            return@LaunchedEffect
+        }
         val queueItems = buildYouTubeQueueMediaItems(
             featured = featured.copy(playbackUrl = playbackUrl),
             preloadedNextFeatured = preloadedNextFeatured,

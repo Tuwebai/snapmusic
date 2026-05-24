@@ -1,6 +1,19 @@
 # Progreso de implementación — SnapMusic Android
 
 ## 2026-05-23
+- Se corrigió una regresión fuerte de playback/watch y descarga que dejaba:
+  - videos en `00:00`
+  - reproducción solo de audio
+  - audio viejo sonando al cambiar de video
+  - botón de descarga trabado en “Preparando descarga...”
+- Cambios aplicados:
+  - `gradle/libs.versions.toml`: se revirtió `NewPipeExtractor` a `v0.26.1` para volver al extractor que ya estaba estable en el proyecto antes de la regresión.
+  - `YouTubePlaybackController.kt`: al pasar a un video todavía no resuelto, ahora se pausa y limpia la cola anterior para que no quede reproduciendo el audio del item previo.
+- Validaciones ejecutadas con éxito:
+  - `.\gradlew.bat :app:assembleDebug`
+  - `.\gradlew.bat :app:testDebugUnitTest`
+
+## 2026-05-23
 - Se aplicaron los fixes de startup pedidos en:
   - `docs/STARTUP_PERF_AUDIT.md`
   - `docs/STARTUP_CODEX_FIXES.md`
