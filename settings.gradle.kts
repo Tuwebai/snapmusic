@@ -17,4 +17,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "SnapMusic"
 include(":app")
+include(":baselineprofile")
 include(":benchmark")

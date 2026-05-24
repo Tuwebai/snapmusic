@@ -38,6 +38,7 @@ internal fun PlayerSurface(
         },
         update = { view ->
             if (view.player !== player) {
+                view.player = null
                 view.player = player
             }
             if (view.resizeMode != resizeMode) {
@@ -49,6 +50,16 @@ internal fun PlayerSurface(
             if (view.keepScreenOn != keepScreenOn) {
                 view.keepScreenOn = keepScreenOn
             }
+        },
+        onReset = { view ->
+            view.hideController()
+            view.keepScreenOn = false
+            view.player = null
+        },
+        onRelease = { view ->
+            view.hideController()
+            view.keepScreenOn = false
+            view.player = null
         },
     )
 }

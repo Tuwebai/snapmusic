@@ -1,24 +1,18 @@
 plugins {
     id("com.android.test")
+    alias(libs.plugins.androidx.baselineprofile)
     id("org.jetbrains.kotlin.android")
 }
 
 android {
-    namespace = "com.juan.snapmusic.benchmark"
+    namespace = "com.juan.snapmusic.baselineprofile"
     compileSdk = 34
 
     defaultConfig {
         minSdk = 28
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments["androidx.benchmark.suppressErrors"] = "EMULATOR,LOW-BATTERY"
-    }
-
-    buildTypes {
-        create("benchmark") {
-            isDebuggable = true
-            signingConfig = signingConfigs.getByName("debug")
-            matchingFallbacks += listOf("release", "benchmark")
-        }
+        testInstrumentationRunnerArguments["androidx.benchmark.enabledRules"] = "BaselineProfile"
     }
 
     targetProjectPath = ":app"
@@ -34,10 +28,8 @@ android {
     }
 }
 
-androidComponents {
-    beforeVariants(selector().all()) { variant ->
-        variant.enable = variant.buildType == "benchmark"
-    }
+baselineProfile {
+    useConnectedDevices = true
 }
 
 dependencies {

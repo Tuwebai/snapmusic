@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.androidx.baselineprofile)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.ksp)
@@ -36,6 +37,13 @@ android {
             isDebuggable = false
             isProfileable = true
         }
+        create("perf") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            isDebuggable = false
+            isProfileable = true
+        }
     }
 
     compileOptions {
@@ -65,12 +73,17 @@ android {
             isUniversalApk = false
         }
     }
+
+    baselineProfile {
+        automaticGenerationDuringBuild = false
+        saveInSrc = true
+    }
 }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation("androidx.core:core-splashscreen:1.0.1")
-    implementation("androidx.profileinstaller:profileinstaller:1.3.1")
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation("androidx.metrics:metrics-performance:1.0.0-alpha04")
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -99,6 +112,7 @@ dependencies {
     implementation(libs.google.material)
     implementation(libs.newpipe.extractor)
     implementation(files("libs/ffmpeg-kit-full-6.1.4.aar"))
+    baselineProfile(project(":baselineprofile"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
     testImplementation(libs.junit4)

@@ -18,6 +18,9 @@ junit4 = "4.13.2"
 androidx-junit = "1.2.1"
 espresso = "3.6.1"
 ksp = "2.0.21-1.0.25"
+androidx-benchmark = "1.4.1"
+androidx-baselineprofile = "1.4.1"
+androidx-profileinstaller = "1.4.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core" }
@@ -58,3 +61,4 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+androidx-baselineprofile = { id = "androidx.baselineprofile", version.ref = "androidx-baselineprofile" }
