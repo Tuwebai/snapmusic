@@ -90,7 +90,7 @@ internal fun HomeSearchLanding(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(450.dp),
+                .height(320.dp),
         ) {
             SearchBackdrop(modifier = Modifier.fillMaxSize())
             Box(
@@ -383,10 +383,9 @@ private fun SearchBackdrop(
         SearchBackdropCard(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(start = 12.dp, top = 24.dp),
+                .padding(start = 24.dp, top = 26.dp),
             containerColor = Color(0xFF1D4ED8).copy(alpha = 0.28f),
             accentColor = Color(0xFF60A5FA),
-            rotation = -16f,
             icon = {
                 Icon(
                     imageVector = Icons.Filled.MusicNote,
@@ -398,11 +397,10 @@ private fun SearchBackdrop(
         )
         SearchBackdropCard(
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 6.dp),
+                .align(Alignment.CenterEnd)
+                .padding(end = 32.dp),
             containerColor = Color(0xFFDC2626).copy(alpha = 0.32f),
             accentColor = Color(0xFFF87171),
-            rotation = 14f,
             icon = {
                 Icon(
                     imageVector = Icons.Outlined.SmartDisplay,
@@ -412,45 +410,6 @@ private fun SearchBackdrop(
                 )
             },
         )
-        SearchBackdropCard(
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = 28.dp, top = 12.dp),
-            containerColor = Color(0xFF7C3AED).copy(alpha = 0.22f),
-            accentColor = Color(0xFFC084FC),
-            rotation = 18f,
-            icon = {
-                Icon(
-                    imageVector = Icons.Outlined.Download,
-                    contentDescription = null,
-                    tint = Color(0xAAD8B4FE),
-                    modifier = Modifier.size(34.dp),
-                )
-            },
-        )
-        SearchBackdropCard(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 34.dp, top = 18.dp),
-            containerColor = Color(0xFF15803D).copy(alpha = 0.24f),
-            accentColor = Color(0xFF4ADE80),
-            rotation = -12f,
-            icon = {
-                Icon(
-                    imageVector = Icons.Outlined.Link,
-                    contentDescription = null,
-                    tint = Color(0xAA86EFAC),
-                    modifier = Modifier.size(34.dp),
-                )
-            },
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .size(260.dp)
-                .clip(CircleShape)
-                .background(Color(0x18FF3B30)),
-        )
     }
 }
 
@@ -459,15 +418,13 @@ private fun SearchBackdropCard(
     modifier: Modifier = Modifier,
     containerColor: Color,
     accentColor: Color,
-    rotation: Float,
     icon: @Composable () -> Unit,
 ) {
     Surface(
         modifier = modifier
-            .size(126.dp)
-            .rotate(rotation),
+            .size(96.dp),
         color = containerColor,
-        shape = RoundedCornerShape(30.dp),
+        shape = RoundedCornerShape(24.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.16f)),
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
