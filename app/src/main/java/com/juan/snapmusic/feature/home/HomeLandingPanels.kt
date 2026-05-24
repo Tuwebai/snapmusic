@@ -81,15 +81,6 @@ internal fun HomeSearchLanding(
     onSelectYouTube: () -> Unit,
     onSelectConvert: () -> Unit,
 ) {
-    val overlayBrush = remember {
-        Brush.verticalGradient(
-            colors = listOf(
-                Color(0xAA0B0B0E),
-                Color(0xCC0C0C10),
-                SearchBackground,
-            ),
-        )
-    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -105,7 +96,7 @@ internal fun HomeSearchLanding(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(overlayBrush),
+                    .background(Color(0xD40C0C10)),
             )
             Column(
                 modifier = Modifier
@@ -385,27 +376,9 @@ private fun SearchCommandBar(
 private fun SearchBackdrop(
     modifier: Modifier = Modifier,
 ) {
-    val backgroundBrush = remember {
-        Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFF11111A),
-                Color(0xFF0D0D12),
-                Color(0xFF09090D),
-            ),
-        )
-    }
-    val topGlowBrush = remember {
-        Brush.radialGradient(
-            colors = listOf(
-                Color(0x55FF3B30),
-                Color(0x22C2185B),
-                Color.Transparent,
-            ),
-        )
-    }
     Box(
         modifier = modifier
-            .background(backgroundBrush),
+            .background(Color(0xFF0D0D12)),
     ) {
         SearchBackdropCard(
             modifier = Modifier
@@ -476,7 +449,7 @@ private fun SearchBackdrop(
                 .align(Alignment.TopEnd)
                 .size(260.dp)
                 .clip(CircleShape)
-                .background(topGlowBrush),
+                .background(Color(0x18FF3B30)),
         )
     }
 }

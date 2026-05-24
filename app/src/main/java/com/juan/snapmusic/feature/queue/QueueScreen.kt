@@ -131,7 +131,11 @@ fun QueueScreen(
                             item {
                                 SectionTitle("Descargas activas", "${activeItems.size} en curso")
                             }
-                            items(activeItems, key = { it.id }) { item ->
+                            items(
+                                items = activeItems,
+                                key = { it.id },
+                                contentType = { "active_queue_item" },
+                            ) { item ->
                                 ActiveQueueCard(
                                     item = item,
                                     onCancel = { viewModel.cancelQueue(item.id) },
@@ -168,7 +172,11 @@ fun QueueScreen(
                         item {
                             SectionTitle("Historial", "Las canciones y videos más recientes quedan arriba.")
                         }
-                        items(archivedItems, key = { it.id }) { item ->
+                        items(
+                            items = archivedItems,
+                            key = { it.id },
+                            contentType = { "archived_queue_item" },
+                        ) { item ->
                             ArchivedQueueCard(
                                 item = item,
                                 onOpenPreview = { onOpenPreview(item) },

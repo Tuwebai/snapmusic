@@ -39,6 +39,7 @@ fun HistoryScreen(
         items(
             items = items,
             key = { item -> item.id },
+            contentType = { "history_item" },
         ) { item ->
             Column(
                 modifier = Modifier
