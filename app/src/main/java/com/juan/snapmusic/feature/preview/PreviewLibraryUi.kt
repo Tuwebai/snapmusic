@@ -1,5 +1,7 @@
 package com.juan.snapmusic.feature.preview
 
+import android.graphics.Bitmap
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -315,8 +317,10 @@ private fun PreviewLibraryArtwork(
             .data(item.thumbnailUrl)
             .memoryCacheKey("preview-library:${item.id}:${item.thumbnailUrl}")
             .crossfade(false)
+            .allowHardware(false)
+            .bitmapConfig(Bitmap.Config.RGB_565)
             .precision(Precision.INEXACT)
-            .size(72, 72)
+            .size(64, 64)
             .build()
     }
     if (item.thumbnailUrl.isNotBlank()) {
@@ -328,7 +332,7 @@ private fun PreviewLibraryArtwork(
             modifier = Modifier
                 .size(54.dp)
                 .clip(RoundedCornerShape(14.dp)),
-            filterQuality = FilterQuality.Low,
+            filterQuality = FilterQuality.None,
             contentScale = ContentScale.Crop,
         )
         return

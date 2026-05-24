@@ -2,6 +2,7 @@ package com.juan.snapmusic.feature.queue
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -53,11 +54,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.size.Precision
 import com.juan.snapmusic.core.designsystem.AccentRed
 import com.juan.snapmusic.core.designsystem.SurfaceElevated
 import com.juan.snapmusic.core.designsystem.SurfacePrimary
@@ -404,12 +409,23 @@ private fun ActiveQueueCard(
 ) {
     val progress = item.progress.coerceIn(0, 100)
     val isResuming = item.status == QueueStatus.PENDING && progress > 0
+    val context = LocalContext.current
     val statusLabel = when {
         isResuming -> "Reanudando la descarga donde había quedado..."
         item.status == QueueStatus.PENDING -> "Preparando descarga..."
         else -> "Descargando ahora"
     }
     var menuExpanded by remember { mutableStateOf(false) }
+    val thumbnailModel = remember(item.id, item.thumbnailUrl) {
+        ImageRequest.Builder(context)
+            .data(item.thumbnailUrl)
+            .crossfade(false)
+            .allowHardware(false)
+            .bitmapConfig(Bitmap.Config.RGB_565)
+            .precision(Precision.INEXACT)
+            .size(192, 114)
+            .build()
+    }
 
     Row(
         modifier = Modifier
@@ -421,11 +437,13 @@ private fun ActiveQueueCard(
         verticalAlignment = Alignment.Top,
     ) {
         AsyncImage(
-            model = item.thumbnailUrl,
+            model = thumbnailModel,
             contentDescription = item.title,
             modifier = Modifier
                 .size(width = 108.dp, height = 64.dp)
                 .clip(RoundedCornerShape(12.dp)),
+            filterQuality = FilterQuality.None,
+            contentScale = ContentScale.Crop,
         )
         Column(
             modifier = Modifier.weight(1f),
@@ -503,6 +521,17 @@ private fun ArchivedQueueCard(
 ) {
     val statusVisual = archivedVisual(item.status)
     val canPreview = item.outputUri != null && item.status == QueueStatus.SUCCESS
+    val context = LocalContext.current
+    val thumbnailModel = remember(item.id, item.thumbnailUrl) {
+        ImageRequest.Builder(context)
+            .data(item.thumbnailUrl)
+            .crossfade(false)
+            .allowHardware(false)
+            .bitmapConfig(Bitmap.Config.RGB_565)
+            .precision(Precision.INEXACT)
+            .size(176, 108)
+            .build()
+    }
     Row(
         modifier = Modifier
             .padding(horizontal = 20.dp)
@@ -514,11 +543,13 @@ private fun ArchivedQueueCard(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AsyncImage(
-            model = item.thumbnailUrl,
+            model = thumbnailModel,
             contentDescription = item.title,
             modifier = Modifier
                 .size(width = 92.dp, height = 56.dp)
                 .clip(RoundedCornerShape(10.dp)),
+            filterQuality = FilterQuality.None,
+            contentScale = ContentScale.Crop,
         )
         Column(
             modifier = Modifier.weight(1f),
@@ -555,6 +586,17 @@ private fun ArchivedActionsSheet(
     onRetry: () -> Unit,
     onDelete: (() -> Unit)?,
 ) {
+    val context = LocalContext.current
+    val thumbnailModel = remember(item.id, item.thumbnailUrl) {
+        ImageRequest.Builder(context)
+            .data(item.thumbnailUrl)
+            .crossfade(false)
+            .allowHardware(false)
+            .bitmapConfig(Bitmap.Config.RGB_565)
+            .precision(Precision.INEXACT)
+            .size(128, 128)
+            .build()
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = SurfacePrimary,
@@ -571,11 +613,13 @@ private fun ArchivedActionsSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 AsyncImage(
-                    model = item.thumbnailUrl,
+                    model = thumbnailModel,
                     contentDescription = item.title,
                     modifier = Modifier
                         .size(72.dp)
                         .clip(RoundedCornerShape(18.dp)),
+                    filterQuality = FilterQuality.None,
+                    contentScale = ContentScale.Crop,
                 )
                 Column(
                     modifier = Modifier.weight(1f),
