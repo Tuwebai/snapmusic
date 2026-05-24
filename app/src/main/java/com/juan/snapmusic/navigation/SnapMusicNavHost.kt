@@ -179,9 +179,13 @@ private fun NotificationRouteEffectHost(
     onNotificationRouteConsumed: () -> Unit,
     onNavigate: (String) -> Unit,
 ) {
-    val playbackState by viewModel.navHostPlaybackState.collectAsStateWithLifecycle()
+    val youtubeVisibility by viewModel.youtubeRouteVisibility.collectAsStateWithLifecycle()
+    val previewRestore by viewModel.previewRestoreState.collectAsStateWithLifecycle()
+    val youtubeCanRestore = youtubeVisibility.hasActiveItem &&
+        (youtubeVisibility.showMiniPlayer || youtubeVisibility.showPlayer)
+    val previewCanRestore = previewRestore.canRestore
 
-    LaunchedEffect(notificationRoute, currentRoute, playbackState) {
+    LaunchedEffect(notificationRoute, currentRoute, youtubeCanRestore, previewCanRestore) {
         if (notificationRoute != null) {
             if (notificationRoute == SnapMusicDestination.Queue.route) {
                 viewModel.requestOpenPreviewDownloads()
@@ -191,7 +195,7 @@ private fun NotificationRouteEffectHost(
             } else if (notificationRoute == MainActivity.ROUTE_PLAYBACK) {
                 when (viewModel.resolvePlaybackNotificationTarget()) {
                     PlaybackNotificationTarget.PREVIEW -> {
-                        if (playbackState.previewCanRestore) {
+                        if (previewCanRestore) {
                             viewModel.restorePreviewPlaybackShell()
                         } else {
                             viewModel.restorePreviewPlaybackSnapshot(showDetail = true)
@@ -201,7 +205,7 @@ private fun NotificationRouteEffectHost(
                         }
                     }
                     PlaybackNotificationTarget.YOUTUBE -> {
-                        if (playbackState.youtubeCanRestore) {
+                        if (youtubeCanRestore) {
                             viewModel.restoreYouTubePlaybackShell()
                         } else {
                             viewModel.restoreYouTubePlaybackSnapshot()
@@ -228,27 +232,30 @@ private fun NavHostVisibilityEffects(
     onNavigateHome: () -> Unit,
     onNavigatePreview: () -> Unit,
 ) {
-    val playbackState by viewModel.navHostPlaybackState.collectAsStateWithLifecycle()
+    val youtubeVisibility by viewModel.youtubeRouteVisibility.collectAsStateWithLifecycle()
+    val previewVisibility by viewModel.previewRouteVisibility.collectAsStateWithLifecycle()
+    val youtubePip by viewModel.youtubePictureInPictureEligibility.collectAsStateWithLifecycle()
+    val previewPip by viewModel.previewPictureInPictureEligibility.collectAsStateWithLifecycle()
     val wasInPictureInPictureMode = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
-    LaunchedEffect(currentRoute, playbackState.youtubeShowPlayer, playbackState.youtubeReady) {
+    LaunchedEffect(currentRoute, youtubeVisibility.showPlayer, youtubeVisibility.isReady) {
         if (
             currentRoute != null &&
             currentRoute != SnapMusicDestination.Home.route &&
             currentRoute != SnapMusicDestination.History.route &&
-            playbackState.youtubeShowPlayer &&
-            playbackState.youtubeReady
+            youtubeVisibility.showPlayer &&
+            youtubeVisibility.isReady
         ) {
             viewModel.minimizeYouTubePlayer()
         }
     }
 
-    LaunchedEffect(currentRoute, playbackState.previewDetailVisible, playbackState.previewReady) {
+    LaunchedEffect(currentRoute, previewVisibility.detailVisible, previewVisibility.isReady) {
         if (
             currentRoute != null &&
             currentRoute != SnapMusicDestination.Preview.route &&
-            playbackState.previewDetailVisible &&
-            playbackState.previewReady
+            previewVisibility.detailVisible &&
+            previewVisibility.isReady
         ) {
             viewModel.minimizePreviewPlayer()
         }
@@ -256,20 +263,20 @@ private fun NavHostVisibilityEffects(
 
     LaunchedEffect(
         isInPictureInPictureMode,
-        playbackState.youtubePipEligible,
-        playbackState.previewPipEligible,
+        youtubePip.eligible,
+        previewPip.eligible,
     ) {
         if (
             wasInPictureInPictureMode.value &&
             !isInPictureInPictureMode &&
-            playbackState.previewPipEligible
+            previewPip.eligible
         ) {
             viewModel.restorePreviewPlaybackShell()
             onNavigatePreview()
         } else if (
             wasInPictureInPictureMode.value &&
             !isInPictureInPictureMode &&
-            playbackState.youtubePipEligible
+            youtubePip.eligible
         ) {
             viewModel.restoreYouTubePlaybackShell()
             onNavigateHome()
@@ -286,13 +293,14 @@ private fun PictureInPictureGate(
     youTubePlayer: Player?,
     content: @Composable () -> Unit,
 ) {
-    val playbackState by viewModel.navHostPlaybackState.collectAsStateWithLifecycle()
+    val youtubePip by viewModel.youtubePictureInPictureEligibility.collectAsStateWithLifecycle()
+    val previewPip by viewModel.previewPictureInPictureEligibility.collectAsStateWithLifecycle()
 
     when {
-        isInPictureInPictureMode && playbackState.previewPipEligible -> {
+        isInPictureInPictureMode && previewPip.eligible -> {
             PreviewPictureInPictureHost(viewModel = viewModel, player = previewPlayer)
         }
-        isInPictureInPictureMode && playbackState.youtubePipEligible -> {
+        isInPictureInPictureMode && youtubePip.eligible -> {
             YouTubePictureInPictureHost(viewModel = viewModel, player = youTubePlayer)
         }
         else -> content()
@@ -579,7 +587,7 @@ private fun rememberManagedPreviewPlayer(
     return rememberPreviewPlayer(
         preview = previewState.preview,
         playlist = previewState.playlist,
-        currentPositionMs = previewState.currentPositionMs,
+        resumePositionMs = previewState.resumePositionMs,
         autoPlayRequestId = previewState.autoPlayRequestId,
         onAutoPlayRequestConsumed = viewModel::consumePreviewAutoplayRequest,
         onPlaybackEnded = viewModel::playNextPreviewInLibrary,

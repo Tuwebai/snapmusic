@@ -359,6 +359,7 @@ class SnapMusicViewModel(
     private var hasLoadedPopularDownloadQueries = false
     private val _previewAutoPlayRequestId = MutableStateFlow(0L)
     private val _previewCurrentPositionMs = MutableStateFlow(0L)
+    private val _previewResumePositionMs = MutableStateFlow(0L)
     private val _previewPlaybackQueueOverride = MutableStateFlow<List<PreviewPlaybackQueueItem>>(emptyList())
     private val _previewDownloadsRequestId = MutableStateFlow(0L)
     private val _queueFeedback = MutableStateFlow<String?>(null)
@@ -1078,8 +1079,8 @@ class SnapMusicViewModel(
         previewState,
         _previewAutoPlayRequestId,
         _previewLibrary,
-        _previewCurrentPositionMs,
-    ) { preview, autoPlayRequestId, previewLibrary, currentPositionMs ->
+        _previewResumePositionMs,
+    ) { preview, autoPlayRequestId, previewLibrary, resumePositionMs ->
         PreviewPlaybackRenderState(
             preview = preview,
             autoPlayRequestId = autoPlayRequestId,
@@ -1087,7 +1088,7 @@ class SnapMusicViewModel(
                 preview = preview,
                 library = previewLibrary,
             ),
-            currentPositionMs = currentPositionMs,
+            resumePositionMs = resumePositionMs,
         )
     }
         .distinctUntilChanged()
@@ -1095,6 +1096,15 @@ class SnapMusicViewModel(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = PreviewPlaybackRenderState(),
+        )
+
+    val previewActiveFileUri = previewState
+        .map { it.fileUri.orEmpty() }
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = "",
         )
 
     init {
@@ -2795,6 +2805,7 @@ class SnapMusicViewModel(
         dismissYouTubePlayer()
         requestPreviewAutoplay()
         _previewCurrentPositionMs.value = 0L
+        _previewResumePositionMs.value = 0L
         _previewPlaybackQueueOverride.value = listOf(
             PreviewPlaybackQueueItem(
                 title = item.title,
@@ -2819,6 +2830,7 @@ class SnapMusicViewModel(
         dismissYouTubePlayer()
         requestPreviewAutoplay()
         _previewCurrentPositionMs.value = 0L
+        _previewResumePositionMs.value = 0L
         _previewPlaybackQueueOverride.value = _previewLibrary.value
             .ifEmpty { listOf(item) }
             .map(LocalMediaItem::toPreviewPlaybackQueueItem)
@@ -2848,6 +2860,7 @@ class SnapMusicViewModel(
             ?: _previewPlaybackQueueOverride.value.firstOrNull { it.fileUri == fileUri }
             ?: return
         _previewCurrentPositionMs.value = positionMs.coerceAtLeast(0L)
+        _previewResumePositionMs.value = positionMs.coerceAtLeast(0L)
         _selectedPreview.value = PreviewState(
             title = nextItem.title,
             subtitle = nextItem.subtitle,
@@ -2882,6 +2895,7 @@ class SnapMusicViewModel(
         _previewDetailVisible.value = false
         _previewMiniPlayerVisible.value = false
         _previewCurrentPositionMs.value = 0L
+        _previewResumePositionMs.value = 0L
         _previewPlaybackQueueOverride.value = emptyList()
         viewModelScope.launch {
             graph.preferencesRepository.clearPreviewPlaybackSnapshot()
@@ -3029,6 +3043,7 @@ class SnapMusicViewModel(
     ) {
         val currentItem = snapshot.queue.getOrNull(snapshot.currentQueueIndex) ?: return
         _previewCurrentPositionMs.value = snapshot.lastPositionMs.coerceAtLeast(0L)
+        _previewResumePositionMs.value = snapshot.lastPositionMs.coerceAtLeast(0L)
         _previewPlaybackQueueOverride.value = snapshot.queue
         _selectedPreview.value = PreviewState(
             title = currentItem.title,

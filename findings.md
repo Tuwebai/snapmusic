@@ -447,3 +447,18 @@
   - `loadMoreWatchNextQueue()` ya no pide lotes tan grandes
   - `preResolveNextQueueItem()` solo usa red cuando el playback ya está asentado
   - `prefetchFeedItems()` pasó de resolver hasta `2` items siempre a prefetchar solo `1` item y solo cuando el usuario realmente está navegando la tab YouTube sin player abierto
+
+## Slice 4 V4 aplicada 2026-05-23
+- `SnapMusicNavHost` dejó de observar `navHostPlaybackState` en varios hosts altos.
+- Ahora cada host raíz observa solo lo que necesita:
+  - restore por notificación usa `youtubeRouteVisibility` + `previewRestoreState`
+  - efectos de visibilidad usan `youtubeRouteVisibility` + `previewRouteVisibility`
+  - gate de PiP usa solo elegibilidad de PiP
+- En Preview:
+  - `PreviewDetailHost` ya no colecta `detailState` y `libraryState` juntos
+  - el card de reproducción se movió a `PreviewPlaybackCardHost`
+  - la lista usa un flow fino `previewActiveFileUri` para marcar el item activo
+  - `PreviewLibraryRoot` ya no recalcula todo por el contador de descargas; el resumen activo se aisló en `PreviewDownloadsSummaryVisibilityHost`
+- El player local dejó de depender del progreso persistido de cada checkpoint:
+  - `PreviewPlaybackRenderState` ahora lleva `resumePositionMs`, no el `currentPositionMs` caliente
+  - se agregó `_previewResumePositionMs` para cambios de item/restore, separado del progreso normal

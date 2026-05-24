@@ -325,7 +325,7 @@ data class PreviewPlaybackRenderState(
     val preview: PreviewState = PreviewState(),
     val autoPlayRequestId: Long = 0L,
     val playlist: List<PreviewPlaybackQueueItem> = emptyList(),
-    val currentPositionMs: Long = 0L,
+    val resumePositionMs: Long = 0L,
 )
 
 @Immutable

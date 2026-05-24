@@ -29,7 +29,7 @@ import com.juan.snapmusic.core.platform.SnapMusicPlaybackService
 internal fun rememberPreviewPlayer(
     preview: PreviewState,
     playlist: List<PreviewPlaybackQueueItem>,
-    currentPositionMs: Long,
+    resumePositionMs: Long,
     autoPlayRequestId: Long,
     onAutoPlayRequestConsumed: (Long) -> Unit,
     onPlaybackEnded: () -> Unit,
@@ -182,7 +182,7 @@ internal fun rememberPreviewPlayer(
         mediaController.setMediaItems(
             queueItems,
             queueIndex,
-            currentPositionMs.takeIf { it > 0L }?.coerceAtLeast(0L) ?: C.TIME_UNSET,
+            resumePositionMs.takeIf { it > 0L }?.coerceAtLeast(0L) ?: C.TIME_UNSET,
         )
         mediaController.prepare()
         if (shouldAutoPlay) {

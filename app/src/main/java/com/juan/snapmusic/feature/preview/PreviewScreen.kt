@@ -151,8 +151,8 @@ private fun PreviewDetailHost(
     padding: PaddingValues,
     player: Player?,
 ) {
-    val detailState = viewModel.previewDetailScreen.collectAsStateWithLifecycle().value
     val libraryState = viewModel.previewLibraryScreen.collectAsStateWithLifecycle().value
+    val activePreviewUri = viewModel.previewActiveFileUri.collectAsStateWithLifecycle().value
     val context = LocalContext.current
     var renameTarget by remember { mutableStateOf<LocalMediaItem?>(null) }
     var infoTarget by remember { mutableStateOf<LocalMediaItem?>(null) }
@@ -174,20 +174,7 @@ private fun PreviewDetailHost(
         contentPadding = PaddingValues(bottom = 28.dp),
     ) {
         item {
-            if (player != null) {
-                PreviewPlaybackCard(
-                    preview = detailState.preview,
-                    player = player,
-                    canGoPrevious = detailState.canGoPrevious,
-                    canGoNext = detailState.canGoNext,
-                    onBack = viewModel::closePreviewDetail,
-                    onMinimize = viewModel::minimizePreviewPlayer,
-                    onPrevious = viewModel::playPreviousPreviewInLibrary,
-                    onNext = viewModel::playNextPreviewInLibrary,
-                )
-            } else {
-                PreviewEmptyState()
-            }
+            PreviewPlaybackCardHost(viewModel = viewModel, player = player)
         }
         if (libraryState.items.isNotEmpty()) {
             item {
@@ -216,7 +203,7 @@ private fun PreviewDetailHost(
             ) { item ->
                 PreviewLibraryRow(
                     item = item,
-                    isActive = item.contentUri == detailState.preview.fileUri,
+                    isActive = item.contentUri == activePreviewUri,
                     selectionMode = selectionMode,
                     selected = item.id in selectedIds,
                     onClick = {
@@ -255,6 +242,28 @@ private fun PreviewDetailHost(
 }
 
 @Composable
+private fun PreviewPlaybackCardHost(
+    viewModel: SnapMusicViewModel,
+    player: Player?,
+) {
+    val detailState = viewModel.previewDetailScreen.collectAsStateWithLifecycle().value
+    if (player != null) {
+        PreviewPlaybackCard(
+            preview = detailState.preview,
+            player = player,
+            canGoPrevious = detailState.canGoPrevious,
+            canGoNext = detailState.canGoNext,
+            onBack = viewModel::closePreviewDetail,
+            onMinimize = viewModel::minimizePreviewPlayer,
+            onPrevious = viewModel::playPreviousPreviewInLibrary,
+            onNext = viewModel::playNextPreviewInLibrary,
+        )
+    } else {
+        PreviewEmptyState()
+    }
+}
+
+@Composable
 private fun PreviewDownloadsDetailHost(
     viewModel: SnapMusicViewModel,
     padding: PaddingValues,
@@ -287,7 +296,6 @@ private fun PreviewLibraryRoot(
     onOpenDownloads: () -> Unit,
 ) {
     val libraryState = viewModel.previewLibraryScreen.collectAsStateWithLifecycle().value
-    val activeDownloadCount = viewModel.previewActiveDownloadCount.collectAsStateWithLifecycle().value
     val context = LocalContext.current
     var renameTarget by remember { mutableStateOf<LocalMediaItem?>(null) }
     var infoTarget by remember { mutableStateOf<LocalMediaItem?>(null) }
@@ -308,9 +316,9 @@ private fun PreviewLibraryRoot(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(bottom = 28.dp),
     ) {
-        if (activeDownloadCount > 0) {
+        if (hasPermission) {
             item {
-                PreviewDownloadsSummaryHost(viewModel = viewModel, onOpenDownloads = onOpenDownloads)
+                PreviewDownloadsSummaryVisibilityHost(viewModel = viewModel, onOpenDownloads = onOpenDownloads)
             }
         }
         when {
@@ -571,6 +579,16 @@ private fun LocalMediaSearchDialog(
             }
         },
     )
+}
+
+@Composable
+private fun PreviewDownloadsSummaryVisibilityHost(
+    viewModel: SnapMusicViewModel,
+    onOpenDownloads: () -> Unit,
+) {
+    val activeDownloadCount = viewModel.previewActiveDownloadCount.collectAsStateWithLifecycle().value
+    if (activeDownloadCount <= 0) return
+    PreviewDownloadsSummaryHost(viewModel = viewModel, onOpenDownloads = onOpenDownloads)
 }
 
 @Composable

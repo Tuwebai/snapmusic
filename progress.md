@@ -687,3 +687,15 @@
 - Validación ejecutada:
   - `:app:compileDebugKotlin`
   - `:app:testDebugUnitTest`
+
+## 2026-05-23 — Slice 4 V4: bajar collectors altos en Nav y Preview
+
+- Se aplicó la cuarta slice del plan V4 sin tocar UI.
+- Cambios:
+  - `SnapMusicNavHost` dejó de depender de `navHostPlaybackState` para restore, visibilidad y PiP
+  - `PreviewDetailHost` separó el card de playback del listado de biblioteca
+  - `PreviewLibraryRoot` aisló el resumen de descargas activo en un host hoja
+  - el player local dejó de usar el `currentPositionMs` caliente en su estado de montaje y pasó a `resumePositionMs`
+- Validación ejecutada:
+  - `:app:compileDebugKotlin`
+  - `:app:testDebugUnitTest`
