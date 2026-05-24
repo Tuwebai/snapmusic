@@ -1,6 +1,5 @@
 package com.juan.snapmusic.feature.youtube
 
-import android.graphics.Bitmap
 
 import android.graphics.Color
 import android.view.View
@@ -942,8 +941,6 @@ fun YouTubeFeedRow(
         ImageRequest.Builder(context)
             .data(item.thumbnailUrl)
             .crossfade(false)
-            .allowHardware(false)
-            .bitmapConfig(Bitmap.Config.RGB_565)
             .precision(Precision.INEXACT)
             .size(224, 126)
             .build()

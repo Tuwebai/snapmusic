@@ -2,7 +2,6 @@ package com.juan.snapmusic.feature.queue
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.graphics.Bitmap
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -420,8 +419,6 @@ private fun ActiveQueueCard(
         ImageRequest.Builder(context)
             .data(item.thumbnailUrl)
             .crossfade(false)
-            .allowHardware(false)
-            .bitmapConfig(Bitmap.Config.RGB_565)
             .precision(Precision.INEXACT)
             .size(192, 114)
             .build()
@@ -526,8 +523,6 @@ private fun ArchivedQueueCard(
         ImageRequest.Builder(context)
             .data(item.thumbnailUrl)
             .crossfade(false)
-            .allowHardware(false)
-            .bitmapConfig(Bitmap.Config.RGB_565)
             .precision(Precision.INEXACT)
             .size(176, 108)
             .build()
@@ -591,8 +586,6 @@ private fun ArchivedActionsSheet(
         ImageRequest.Builder(context)
             .data(item.thumbnailUrl)
             .crossfade(false)
-            .allowHardware(false)
-            .bitmapConfig(Bitmap.Config.RGB_565)
             .precision(Precision.INEXACT)
             .size(128, 128)
             .build()

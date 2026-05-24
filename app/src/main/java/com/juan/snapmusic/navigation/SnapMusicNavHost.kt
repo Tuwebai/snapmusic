@@ -70,6 +70,7 @@ fun SnapMusicNavHost(
     )
     val mountYouTubePlayer by viewModel.youtubePlayerMountEnabled.collectAsStateWithLifecycle()
     val mountPreviewPlayer by viewModel.previewPlayerMountEnabled.collectAsStateWithLifecycle()
+    val navHostPlaybackState by viewModel.navHostPlaybackState.collectAsStateWithLifecycle()
     val youTubePlayer = rememberManagedYouTubePlayer(viewModel, enabled = mountYouTubePlayer)
     val previewPlayer = rememberManagedPreviewPlayer(viewModel, enabled = mountPreviewPlayer)
     val backStack by navController.currentBackStackEntryAsState()
@@ -86,6 +87,7 @@ fun SnapMusicNavHost(
 
     NotificationRouteEffectHost(
         viewModel = viewModel,
+        state = navHostPlaybackState,
         currentRoute = currentRoute,
         notificationRoute = notificationRoute,
         onNotificationRouteConsumed = onNotificationRouteConsumed,
@@ -94,6 +96,7 @@ fun SnapMusicNavHost(
 
     NavHostVisibilityEffects(
         viewModel = viewModel,
+        state = navHostPlaybackState,
         currentRoute = currentRoute,
         isInPictureInPictureMode = isInPictureInPictureMode,
         onNavigateHome = { navigateTo(SnapMusicDestination.Home.route) },
@@ -102,6 +105,7 @@ fun SnapMusicNavHost(
 
     PictureInPictureGate(
         viewModel = viewModel,
+        state = navHostPlaybackState,
         isInPictureInPictureMode = isInPictureInPictureMode,
         previewPlayer = previewPlayer,
         youTubePlayer = youTubePlayer,
@@ -175,18 +179,13 @@ fun SnapMusicNavHost(
 @Composable
 private fun NotificationRouteEffectHost(
     viewModel: SnapMusicViewModel,
+    state: NavHostPlaybackState,
     currentRoute: String?,
     notificationRoute: String?,
     onNotificationRouteConsumed: () -> Unit,
     onNavigate: (String) -> Unit,
 ) {
-    val youtubeVisibility by viewModel.youtubeRouteVisibility.collectAsStateWithLifecycle()
-    val previewRestore by viewModel.previewRestoreState.collectAsStateWithLifecycle()
-    val youtubeCanRestore = youtubeVisibility.hasActiveItem &&
-        (youtubeVisibility.showMiniPlayer || youtubeVisibility.showPlayer)
-    val previewCanRestore = previewRestore.canRestore
-
-    LaunchedEffect(notificationRoute, currentRoute, youtubeCanRestore, previewCanRestore) {
+    LaunchedEffect(notificationRoute, currentRoute, state) {
         if (notificationRoute != null) {
             if (notificationRoute == SnapMusicDestination.Queue.route) {
                 viewModel.requestOpenPreviewDownloads()
@@ -196,7 +195,7 @@ private fun NotificationRouteEffectHost(
             } else if (notificationRoute == MainActivity.ROUTE_PLAYBACK) {
                 when (viewModel.resolvePlaybackNotificationTarget()) {
                     PlaybackNotificationTarget.PREVIEW -> {
-                        if (previewCanRestore) {
+                        if (state.previewCanRestore) {
                             viewModel.restorePreviewPlaybackShell()
                         } else {
                             viewModel.restorePreviewPlaybackSnapshot(showDetail = true)
@@ -206,7 +205,7 @@ private fun NotificationRouteEffectHost(
                         }
                     }
                     PlaybackNotificationTarget.YOUTUBE -> {
-                        if (youtubeCanRestore) {
+                        if (state.youtubeCanRestore) {
                             viewModel.restoreYouTubePlaybackShell()
                         } else {
                             viewModel.restoreYouTubePlaybackSnapshot()
@@ -228,35 +227,32 @@ private fun NotificationRouteEffectHost(
 @Composable
 private fun NavHostVisibilityEffects(
     viewModel: SnapMusicViewModel,
+    state: NavHostPlaybackState,
     currentRoute: String?,
     isInPictureInPictureMode: Boolean,
     onNavigateHome: () -> Unit,
     onNavigatePreview: () -> Unit,
 ) {
-    val youtubeVisibility by viewModel.youtubeRouteVisibility.collectAsStateWithLifecycle()
-    val previewVisibility by viewModel.previewRouteVisibility.collectAsStateWithLifecycle()
-    val youtubePip by viewModel.youtubePictureInPictureEligibility.collectAsStateWithLifecycle()
-    val previewPip by viewModel.previewPictureInPictureEligibility.collectAsStateWithLifecycle()
     val wasInPictureInPictureMode = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
-    LaunchedEffect(currentRoute, youtubeVisibility.showPlayer, youtubeVisibility.isReady) {
+    LaunchedEffect(currentRoute, state.youtubeShowPlayer, state.youtubeReady) {
         if (
             currentRoute != null &&
             currentRoute != SnapMusicDestination.Home.route &&
             currentRoute != SnapMusicDestination.History.route &&
-            youtubeVisibility.showPlayer &&
-            youtubeVisibility.isReady
+            state.youtubeShowPlayer &&
+            state.youtubeReady
         ) {
             viewModel.minimizeYouTubePlayer()
         }
     }
 
-    LaunchedEffect(currentRoute, previewVisibility.detailVisible, previewVisibility.isReady) {
+    LaunchedEffect(currentRoute, state.previewDetailVisible, state.previewReady) {
         if (
             currentRoute != null &&
             currentRoute != SnapMusicDestination.Preview.route &&
-            previewVisibility.detailVisible &&
-            previewVisibility.isReady
+            state.previewDetailVisible &&
+            state.previewReady
         ) {
             viewModel.minimizePreviewPlayer()
         }
@@ -264,20 +260,20 @@ private fun NavHostVisibilityEffects(
 
     LaunchedEffect(
         isInPictureInPictureMode,
-        youtubePip.eligible,
-        previewPip.eligible,
+        state.youtubePipEligible,
+        state.previewPipEligible,
     ) {
         if (
             wasInPictureInPictureMode.value &&
             !isInPictureInPictureMode &&
-            previewPip.eligible
+            state.previewPipEligible
         ) {
             viewModel.restorePreviewPlaybackShell()
             onNavigatePreview()
         } else if (
             wasInPictureInPictureMode.value &&
             !isInPictureInPictureMode &&
-            youtubePip.eligible
+            state.youtubePipEligible
         ) {
             viewModel.restoreYouTubePlaybackShell()
             onNavigateHome()
@@ -289,19 +285,17 @@ private fun NavHostVisibilityEffects(
 @Composable
 private fun PictureInPictureGate(
     viewModel: SnapMusicViewModel,
+    state: NavHostPlaybackState,
     isInPictureInPictureMode: Boolean,
     previewPlayer: Player?,
     youTubePlayer: Player?,
     content: @Composable () -> Unit,
 ) {
-    val youtubePip by viewModel.youtubePictureInPictureEligibility.collectAsStateWithLifecycle()
-    val previewPip by viewModel.previewPictureInPictureEligibility.collectAsStateWithLifecycle()
-
     when {
-        isInPictureInPictureMode && previewPip.eligible -> {
+        isInPictureInPictureMode && state.previewPipEligible -> {
             PreviewPictureInPictureHost(viewModel = viewModel, player = previewPlayer)
         }
-        isInPictureInPictureMode && youtubePip.eligible -> {
+        isInPictureInPictureMode && state.youtubePipEligible -> {
             YouTubePictureInPictureHost(viewModel = viewModel, player = youTubePlayer)
         }
         else -> content()

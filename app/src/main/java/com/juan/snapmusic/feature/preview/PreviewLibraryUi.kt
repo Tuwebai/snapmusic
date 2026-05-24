@@ -1,6 +1,5 @@
 package com.juan.snapmusic.feature.preview
 
-import android.graphics.Bitmap
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -317,8 +316,6 @@ private fun PreviewLibraryArtwork(
             .data(item.thumbnailUrl)
             .memoryCacheKey("preview-library:${item.id}:${item.thumbnailUrl}")
             .crossfade(false)
-            .allowHardware(false)
-            .bitmapConfig(Bitmap.Config.RGB_565)
             .precision(Precision.INEXACT)
             .size(64, 64)
             .build()

@@ -1,23 +1,24 @@
 package com.juan.snapmusic.feature.home
 
 import android.content.ClipboardManager
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -27,7 +28,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import com.juan.snapmusic.core.performance.ReportPerformanceScene
 import com.juan.snapmusic.feature.youtube.YouTubeTabContent
-import kotlin.math.abs
 import kotlinx.coroutines.delay
 
 private const val HOME_TAB_SEARCH = 0
@@ -49,6 +49,10 @@ fun HomeScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val clipboardManager = context.getSystemService(ClipboardManager::class.java)
     val saveableStateHolder = rememberSaveableStateHolder()
+    val pagerState = rememberPagerState(
+        initialPage = requestedTab,
+        pageCount = { HOME_TAB_CONVERT + 1 },
+    )
     var clipboardInspectionToken by rememberSaveable { mutableStateOf(0L) }
     HomePerformanceTelemetry(viewModel = viewModel, selectedTab = requestedTab)
     HomeYouTubeVisibilityEffects(viewModel = viewModel, selectedTab = requestedTab)
@@ -69,35 +73,29 @@ fun HomeScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    LaunchedEffect(requestedTab) {
+        if (pagerState.currentPage != requestedTab) {
+            pagerState.animateScrollToPage(requestedTab)
+        }
+    }
+
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+            if (page != requestedTab) {
+                viewModel.selectHomeTab(page)
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(requestedTab) {
-                    var totalDrag = 0f
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            val thresholdPx = size.width * 0.18f
-                            when {
-                                totalDrag <= -thresholdPx && requestedTab < HOME_TAB_CONVERT -> {
-                                    viewModel.selectHomeTab(requestedTab + 1)
-                                }
-                                totalDrag >= thresholdPx && requestedTab > HOME_TAB_SEARCH -> {
-                                    viewModel.selectHomeTab(requestedTab - 1)
-                                }
-                            }
-                            totalDrag = 0f
-                        },
-                        onDragCancel = {
-                            totalDrag = 0f
-                        },
-                    ) { _, dragAmount ->
-                        totalDrag += dragAmount
-                    }
-                },
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 0,
         ) {
-            saveableStateHolder.SaveableStateProvider(requestedTab) {
-                when (requestedTab) {
+            page ->
+            saveableStateHolder.SaveableStateProvider(page) {
+                when (page) {
                     HOME_TAB_SEARCH -> HomeSearchLandingRoute(
                         viewModel = viewModel,
                         padding = padding,
