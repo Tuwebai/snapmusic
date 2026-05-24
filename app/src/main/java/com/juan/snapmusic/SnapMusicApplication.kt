@@ -7,7 +7,7 @@ import java.util.concurrent.Executors
 class SnapMusicApplication : Application(), Configuration.Provider {
     lateinit var appGraph: SnapMusicGraph
         private set
-    private val workExecutor by lazy { Executors.newFixedThreadPool(6) }
+    private val workExecutor by lazy { Executors.newFixedThreadPool(4) }
 
     override fun onCreate() {
         super.onCreate()

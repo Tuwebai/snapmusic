@@ -326,6 +326,8 @@ class SnapMusicViewModel(
         const val YOUTUBE_WATCH_NEXT_PAGE_SIZE = 18
         const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 2_500L
         const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 20_000L
+        const val HOME_TAB_YOUTUBE_INDEX = 1
+        const val HOME_TAB_CONVERT_INDEX = 2
         const val PRESET_MP3_320 = "preset_mp3_320"
         const val PRESET_M4A = "preset_m4a"
         const val PRESET_MP4_720 = "preset_mp4_720"
@@ -350,6 +352,10 @@ class SnapMusicViewModel(
     private var watchNextEnrichmentJob: Job? = null
     private var nextQueuePreResolveJob: Job? = null
     private var downloadSearchSuggestionJob: Job? = null
+    private var popularDownloadSearchesJob: Job? = null
+    private var cachedYouTubePrefetchJob: Job? = null
+    private var hasOpenedYouTubeHomeTab = false
+    private var hasLoadedPopularDownloadQueries = false
     private val _previewAutoPlayRequestId = MutableStateFlow(0L)
     private val _previewCurrentPositionMs = MutableStateFlow(0L)
     private val _previewPlaybackQueueOverride = MutableStateFlow<List<PreviewPlaybackQueueItem>>(emptyList())
@@ -1104,11 +1110,15 @@ class SnapMusicViewModel(
         }
         restoreYouTubeHomeFeedCache()
         restoreYouTubePlaybackSnapshot()
-        refreshPopularDownloadSearches()
     }
 
     fun selectHomeTab(index: Int) {
-        _homeSelectedTab.value = index.coerceIn(0, 2)
+        val normalizedIndex = index.coerceIn(0, 2)
+        _homeSelectedTab.value = normalizedIndex
+        when (normalizedIndex) {
+            HOME_TAB_YOUTUBE_INDEX -> onHomeYouTubeTabOpened()
+            HOME_TAB_CONVERT_INDEX -> ensurePopularDownloadSearchesLoaded()
+        }
     }
 
     fun selectHomeSearchTab() {
@@ -1123,7 +1133,7 @@ class SnapMusicViewModel(
     }
 
     fun selectHomeConvertTab() {
-        selectHomeTab(2)
+        selectHomeTab(HOME_TAB_CONVERT_INDEX)
     }
 
     fun openDownloadSearchOverlay() {
@@ -1508,6 +1518,7 @@ class SnapMusicViewModel(
     }
 
     fun ensureYoutubeLoaded() {
+        onHomeYouTubeTabOpened()
         val state = _youtubeState.value
         if (state.isLoading) return
         if (state.items.isEmpty()) {
@@ -1857,10 +1868,29 @@ class SnapMusicViewModel(
         }
     }
 
-    private fun refreshPopularDownloadSearches() {
-        viewModelScope.launch(Dispatchers.IO) {
+    private fun ensurePopularDownloadSearchesLoaded() {
+        if (_downloadSearchState.value.popularQueries.isNotEmpty()) {
+            hasLoadedPopularDownloadQueries = true
+            return
+        }
+        refreshPopularDownloadSearches()
+    }
+
+    private fun refreshPopularDownloadSearches(force: Boolean = false) {
+        if (!force) {
+            if (_downloadSearchState.value.popularQueries.isNotEmpty()) {
+                hasLoadedPopularDownloadQueries = true
+                return
+            }
+            if (hasLoadedPopularDownloadQueries || popularDownloadSearchesJob?.isActive == true) {
+                return
+            }
+        }
+        popularDownloadSearchesJob?.cancel()
+        popularDownloadSearchesJob = viewModelScope.launch(Dispatchers.IO) {
             val popular = runCatching { graph.musicHomeFeedRepository.loadPopularMusicQueries(limit = 8) }.getOrDefault(defaultPopularDownloadQueries())
             _downloadSearchState.value = _downloadSearchState.value.copy(popularQueries = popular)
+            hasLoadedPopularDownloadQueries = true
         }
     }
 
@@ -3008,9 +3038,33 @@ class SnapMusicViewModel(
             val current = _youtubeState.value
             if (current.items.isEmpty() && current.playbackQueue.isEmpty()) {
                 _youtubeState.value = current.copy(items = cachedItems)
-                delay(3_000L)
-                prefetchFeedItems(cachedItems)
+                scheduleCachedYouTubePrefetchIfVisible()
             }
+        }
+    }
+
+    private fun onHomeYouTubeTabOpened() {
+        hasOpenedYouTubeHomeTab = true
+        scheduleCachedYouTubePrefetchIfVisible()
+    }
+
+    private fun scheduleCachedYouTubePrefetchIfVisible() {
+        cachedYouTubePrefetchJob?.cancel()
+        if (!hasOpenedYouTubeHomeTab) return
+        val cachedItems = cachedYouTubeHomeFeed
+        val current = _youtubeState.value
+        if (cachedItems.isEmpty()) return
+        if (current.query.isNotBlank()) return
+        if (current.playbackQueue.isNotEmpty()) return
+        if (current.items != cachedItems) return
+        cachedYouTubePrefetchJob = viewModelScope.launch {
+            delay(700L)
+            val latest = _youtubeState.value
+            if (!hasOpenedYouTubeHomeTab) return@launch
+            if (latest.query.isNotBlank()) return@launch
+            if (latest.playbackQueue.isNotEmpty()) return@launch
+            if (latest.items != cachedItems) return@launch
+            prefetchFeedItems(cachedItems)
         }
     }
 

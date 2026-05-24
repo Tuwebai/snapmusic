@@ -419,3 +419,13 @@
 - Esos flags solo permiten crear `MediaController` cuando hay playback realmente visible/restaurable y listo.
 - `rememberManagedYouTubePlayer(...)` y `rememberManagedPreviewPlayer(...)` ahora devuelven `null` sin subscribirse a estado ancho cuando no están habilitados.
 - `SnapMusicPlaybackService` pasó a inicializar `MediaSession` de forma lazy en `onGetSession()` en vez de construir todo en `onCreate()`.
+
+## Slice 2 V4 aplicada 2026-05-23
+- `SnapMusicViewModel.init` ya no dispara `refreshPopularDownloadSearches()` en cada arranque.
+- Las queries populares de Descargar/Convertir ahora se cargan bajo demanda al entrar a esa tab o al abrir el overlay con lista vacía.
+- `restoreYouTubeHomeFeedCache()` dejó de prefetchar automáticamente a los `3s`.
+- El prefetch del cache de YouTube ahora solo arranca si el usuario realmente abrió la tab YouTube.
+- `HomeScreen` dejó de inspeccionar el portapapeles dos veces al inicio:
+  - ya no hace lectura inmediata en `LaunchedEffect(Unit)`
+  - la lectura pasa a correr con debounce corto sobre `ON_RESUME`
+- `SnapMusicApplication` redujo el `workExecutor` fijo de `6` a `4` hilos para bajar churn base del arranque.

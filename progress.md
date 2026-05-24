@@ -659,3 +659,16 @@
 - Validación ejecutada:
   - `:app:compileDebugKotlin`
   - `:app:testDebugUnitTest`
+
+## 2026-05-23 — Slice 2 V4: startup silencioso y trabajo bajo demanda
+
+- Se aplicó la segunda slice del plan V4 sin tocar UI.
+- Cambios:
+  - popular queries de Descargar/Convertir movidas fuera del arranque global
+  - cache de YouTube restaurada sin prefetch automático a los `3s`
+  - prefetch de cache condicionado a que el usuario abra YouTube
+  - inspección de portapapeles pasada a `ON_RESUME` con debounce para sacar trabajo duplicado del startup
+  - `workExecutor` base reducido de `6` a `4`
+- Validación ejecutada:
+  - `:app:compileDebugKotlin`
+  - `:app:testDebugUnitTest`

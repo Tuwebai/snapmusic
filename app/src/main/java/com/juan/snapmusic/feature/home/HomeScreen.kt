@@ -27,6 +27,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import com.juan.snapmusic.core.performance.ReportPerformanceScene
 import com.juan.snapmusic.feature.youtube.YouTubeTabContent
+import kotlinx.coroutines.delay
 
 private const val HOME_TAB_SEARCH = 0
 private const val HOME_TAB_YOUTUBE = 1
@@ -47,10 +48,13 @@ fun HomeScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val clipboardManager = context.getSystemService(ClipboardManager::class.java)
     val pagerState = rememberPagerState(initialPage = requestedTab, pageCount = { 3 })
+    var clipboardInspectionToken by rememberSaveable { mutableStateOf(0L) }
     HomePerformanceTelemetry(viewModel = viewModel, pagerState = pagerState)
     HomeYouTubeVisibilityEffects(viewModel = viewModel, pagerState = pagerState)
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(clipboardInspectionToken) {
+        if (clipboardInspectionToken <= 0L) return@LaunchedEffect
+        delay(350L)
         viewModel.inspectClipboardCandidate(readClipboardText(clipboardManager))
     }
 
@@ -68,7 +72,7 @@ fun HomeScreen(
     DisposableEffect(lifecycleOwner, clipboardManager) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.inspectClipboardCandidate(readClipboardText(clipboardManager))
+                clipboardInspectionToken += 1L
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
