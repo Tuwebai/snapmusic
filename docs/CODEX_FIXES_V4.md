@@ -171,6 +171,13 @@ Mantener controles fluidos sin loops periódicos agresivos en rutas calientes.
 ### Check de cierre
 - Video watch/fullscreen y preview video deben mantener controles fluidos sin loops sobrantes.
 
+### Estado 2026-05-23
+- Aplicado.
+- `PlaybackOverlayState` dejó de pollinear en idle:
+  - ahora espera eventos del `Player.Listener` cuando no hace falta progreso vivo
+  - solo mantiene ticker mientras el player reproduce y el overlay realmente necesita posición
+- Se conserva el mismo contrato visual; no hubo cambios de UI.
+
 ---
 
 ## Slice 6 — Revalidación dura con métricas y smoke

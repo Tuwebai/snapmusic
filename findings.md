@@ -462,3 +462,15 @@
 - El player local dejó de depender del progreso persistido de cada checkpoint:
   - `PreviewPlaybackRenderState` ahora lleva `resumePositionMs`, no el `currentPositionMs` caliente
   - se agregó `_previewResumePositionMs` para cambios de item/restore, separado del progreso normal
+
+## Slice 5 V4 aplicada 2026-05-23
+- `PlaybackOverlayState` dejó de correr un loop periódico constante cuando el overlay no necesita progreso vivo.
+- El snapshot del overlay ahora entra en modo event-driven para:
+  - pausado
+  - idle
+  - overlays ocultos o sin tracking de posición
+- El ticker queda limitado al caso realmente caliente:
+  - media activa
+  - player reproduciendo
+  - overlay visible con `trackProgress`
+- Con esto, watch/fullscreen y preview video dejan de sumar wakeups periódicos sobrantes fuera del caso activo.

@@ -166,6 +166,10 @@
 
 **Veredicto**
 - Confirmado como amplificador, no como raíz única.
+- Estado 2026-05-23:
+  - mitigado en `PlaybackOverlayState`
+  - el overlay ahora queda event-driven cuando está idle/pausado o sin necesidad de progreso vivo
+  - el ticker se limita al caso activo de reproducción + overlay que consume posición
 
 ## Hallazgos importantes 🟡
 

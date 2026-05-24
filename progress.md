@@ -699,3 +699,14 @@
 - Validación ejecutada:
   - `:app:compileDebugKotlin`
   - `:app:testDebugUnitTest`
+
+## 2026-05-23 — Slice 5 V4: overlay/progreso sin polling caro
+
+- Se aplicó la quinta slice del plan V4 sin tocar UI.
+- Cambios:
+  - `PlaybackOverlayState` ahora usa eventos del `Player.Listener` como ruta principal cuando no hace falta progreso vivo
+  - el ticker quedó restringido a reproducción activa + overlay que realmente consume posición
+  - se eliminó el polling sobrante de estados pausados/idle y de overlays sin tracking
+- Validación ejecutada:
+  - `:app:compileDebugKotlin`
+  - `:app:testDebugUnitTest`

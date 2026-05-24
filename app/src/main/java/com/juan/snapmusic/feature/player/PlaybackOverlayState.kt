@@ -5,6 +5,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.produceState
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.isActive
@@ -78,9 +79,17 @@ internal fun rememberPlaybackOverlayState(
             }
         }
 
+        fun shouldPollProgress(state: PlaybackOverlayState): Boolean {
+            return trackProgress &&
+                isTargetMediaActive() &&
+                state.isPlaying
+        }
+
+        val refreshSignals = Channel<Unit>(Channel.CONFLATED)
         val listener = object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) {
                 publishSnapshot()
+                refreshSignals.trySend(Unit)
             }
         }
 
@@ -90,19 +99,19 @@ internal fun rememberPlaybackOverlayState(
             if (!trackProgress) {
                 awaitCancellation()
             } else {
+                refreshSignals.trySend(Unit)
                 while (isActive) {
-                    publishSnapshot()
-                    delay(
-                        if (value.isPlaying) {
-                            playingPollIntervalMs
-                        } else {
-                            idlePollIntervalMs
-                        },
-                    )
+                    if (shouldPollProgress(value)) {
+                        delay(playingPollIntervalMs)
+                        publishSnapshot()
+                    } else {
+                        refreshSignals.receive()
+                    }
                 }
             }
         } finally {
             currentPlayer.removeListener(listener)
+            refreshSignals.close()
         }
     }.value
 }
