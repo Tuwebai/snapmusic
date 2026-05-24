@@ -324,7 +324,7 @@ class SnapMusicViewModel(
         const val YOUTUBE_HOME_FEED_LIMIT = 24
         const val YOUTUBE_HOME_FEED_PAGE_SIZE = 24
         const val YOUTUBE_WATCH_NEXT_PAGE_SIZE = 18
-        const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 2_500L
+        const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 4_500L
         const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 20_000L
         const val HOME_TAB_YOUTUBE_INDEX = 1
         const val HOME_TAB_CONVERT_INDEX = 2
@@ -354,6 +354,7 @@ class SnapMusicViewModel(
     private var downloadSearchSuggestionJob: Job? = null
     private var popularDownloadSearchesJob: Job? = null
     private var cachedYouTubePrefetchJob: Job? = null
+    private var youtubeFeedPrefetchJob: Job? = null
     private var hasOpenedYouTubeHomeTab = false
     private var hasLoadedPopularDownloadQueries = false
     private val _previewAutoPlayRequestId = MutableStateFlow(0L)
@@ -2532,6 +2533,16 @@ class SnapMusicViewModel(
         watchNextEnrichmentJob?.cancel()
         watchNextEnrichmentJob = viewModelScope.launch {
             delay(YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS)
+            val startupState = _youtubeState.value
+            if (
+                startupState.featured.sourceUrl != item.url ||
+                !startupState.showPlayer ||
+                startupState.isRefreshingVideo ||
+                startupState.pendingTransition ||
+                startupState.currentPositionMs < 10_000L
+            ) {
+                return@launch
+            }
             val related = runCatching {
                 graph.musicHomeFeedRepository.recommendWatchNext(
                     currentItem = item,
@@ -2583,7 +2594,9 @@ class SnapMusicViewModel(
         _youtubeState.value = current.copy(isLoadingMore = true)
         viewModelScope.launch {
             val currentRelatedCount = existingWatchNext.size
-            val requestLimit = (currentRelatedCount + YOUTUBE_WATCH_NEXT_PAGE_SIZE).coerceAtLeast(YOUTUBE_WATCH_NEXT_PAGE_SIZE)
+            val requestLimit = (currentRelatedCount + 8)
+                .coerceAtLeast(YOUTUBE_WATCH_NEXT_PAGE_SIZE)
+                .coerceAtMost(YOUTUBE_WATCH_NEXT_PAGE_SIZE + 12)
             runCatching {
                 graph.musicHomeFeedRepository.recommendWatchNext(
                     currentItem = featuredItem,
@@ -2719,7 +2732,16 @@ class SnapMusicViewModel(
             return
         }
         if (!allowNetwork) return
-        nextQueuePreResolveJob = viewModelScope.launch {
+        val warmState = _youtubeState.value
+        if (
+            warmState.currentPositionMs < YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS ||
+            warmState.isRefreshingVideo ||
+            warmState.pendingTransition ||
+            (!warmState.showPlayer && !warmState.showMiniPlayer)
+        ) {
+            return
+        }
+        nextQueuePreResolveJob = viewModelScope.launch(Dispatchers.IO) {
             val latest = _youtubeState.value
             if (latest.nextUpItem?.url != nextItem.url) return@launch
             runCatching { resolveFeaturedVideo(nextItem) }
@@ -3020,14 +3042,20 @@ class SnapMusicViewModel(
     }
 
     private fun prefetchFeedItems(items: List<YouTubeFeedItem>) {
-        items.asSequence()
-            .filterNot { youTubeResolveCache.containsKey(it.url) }
-            .take(2)
-            .forEach { item ->
-                viewModelScope.launch(Dispatchers.IO) {
-                    runCatching { resolveFeaturedVideo(item) }
-                }
-            }
+        youtubeFeedPrefetchJob?.cancel()
+        if (!shouldRunYouTubeFeedPrefetch()) return
+        val candidate = items.firstOrNull { !youTubeResolveCache.containsKey(it.url) } ?: return
+        youtubeFeedPrefetchJob = viewModelScope.launch(Dispatchers.IO) {
+            runCatching { resolveFeaturedVideo(candidate) }
+        }
+    }
+
+    private fun shouldRunYouTubeFeedPrefetch(): Boolean {
+        val current = _youtubeState.value
+        return _homeSelectedTab.value == HOME_TAB_YOUTUBE_INDEX &&
+            !current.showPlayer &&
+            !current.showMiniPlayer &&
+            !current.isRefreshingVideo
     }
 
     private fun restoreYouTubeHomeFeedCache() {

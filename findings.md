@@ -429,3 +429,21 @@
   - ya no hace lectura inmediata en `LaunchedEffect(Unit)`
   - la lectura pasa a correr con debounce corto sobre `ON_RESUME`
 - `SnapMusicApplication` redujo el `workExecutor` fijo de `6` a `4` hilos para bajar churn base del arranque.
+
+## Slice 3 V4 aplicada 2026-05-23
+- `MusicHomeFeedRepository.loadMusicHomeFeed()` quedó recortado:
+  - menor `targetCount`
+  - menos queries
+  - menos `queryVideoLimit`
+  - `trendingLimit` más bajo
+  - concurrencia limitada a `4`
+- `recommendWatchNext()` también quedó endurecido:
+  - `relatedLimit` más chico
+  - menos queries auxiliares
+  - menos tags derivadas
+  - concurrencia limitada a `2`
+- `SnapMusicViewModel` ahora frena calentamiento extra cuando la sesión todavía no está estable:
+  - `enrichWatchNextQueue()` espera más y no corre mientras el watch recién arranca o está inestable
+  - `loadMoreWatchNextQueue()` ya no pide lotes tan grandes
+  - `preResolveNextQueueItem()` solo usa red cuando el playback ya está asentado
+  - `prefetchFeedItems()` pasó de resolver hasta `2` items siempre a prefetchar solo `1` item y solo cuando el usuario realmente está navegando la tab YouTube sin player abierto

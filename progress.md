@@ -672,3 +672,18 @@
 - Validación ejecutada:
   - `:app:compileDebugKotlin`
   - `:app:testDebugUnitTest`
+
+## 2026-05-23 — Slice 3 V4: recorte de fan-out en Home y Watch Next
+
+- Se aplicó la tercera slice del plan V4 sin tocar UI.
+- Cambios:
+  - `MusicHomeFeedRepository` quedó con menos fan-out y concurrencia acotada para Home
+  - `recommendWatchNext()` quedó con menos related/query load y menos búsquedas auxiliares
+  - `SnapMusicViewModel` ahora atrasa y condiciona mejor:
+    - enriquecimiento de Watch Next
+    - pre-resolve del siguiente item
+    - prefetch de feed
+  - el prefetch de YouTube quedó reducido a un solo item y solo en navegación real de feed, no encima del playback
+- Validación ejecutada:
+  - `:app:compileDebugKotlin`
+  - `:app:testDebugUnitTest`

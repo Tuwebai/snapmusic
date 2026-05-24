@@ -21,6 +21,11 @@ class MusicHomeFeedRepository(
     private val historyRepository: HistoryRepository,
     private val engine: MusicRecommendationEngine,
 ) {
+    private companion object {
+        const val HOME_SEARCH_CONCURRENCY = 4
+        const val WATCH_NEXT_SEARCH_CONCURRENCY = 2
+    }
+
     suspend fun loadMusicHomeFeed(
         sessionSeed: Long,
         cursor: String? = null,
@@ -30,29 +35,29 @@ class MusicHomeFeedRepository(
         val impressions = recentImpressions()
         val strongProfile = engine.hasStrongHomeProfile(profile)
         val offset = cursor?.toIntOrNull()?.coerceAtLeast(0) ?: 0
-        val targetCount = (offset + limit + 240).coerceAtLeast(limit + 240)
+        val targetCount = (offset + limit + 120).coerceAtLeast(limit + 120)
         val queryCount = if (strongProfile) {
-            ((targetCount / 12) + 6).coerceIn(10, 48)
+            ((targetCount / 18) + 4).coerceIn(6, 18)
         } else {
-            ((targetCount / 10) + 8).coerceIn(14, 64)
+            ((targetCount / 16) + 5).coerceIn(8, 22)
         }
         val queryVideoLimit = if (strongProfile) {
-            ((targetCount / queryCount) + 10).coerceIn(18, 42)
+            ((targetCount / queryCount) + 4).coerceIn(12, 20)
         } else {
-            ((targetCount / queryCount) + 12).coerceIn(22, 56)
+            ((targetCount / queryCount) + 6).coerceIn(14, 24)
         }
         val candidates = coroutineScope {
             val trending = async {
                 val trendingLimit = if (strongProfile) {
-                    (targetCount / 3).coerceIn(32, 160)
+                    (targetCount / 4).coerceIn(24, 72)
                 } else {
-                    targetCount.coerceIn(96, 320)
+                    (targetCount / 2).coerceIn(48, 120)
                 }
                 runCatching { resolverRepository.loadTrending(limit = trendingLimit) }.getOrDefault(emptyList())
             }
             val homeQueries = engine.buildHomeQueries(profile)
-            val fixedHeadCount = if (strongProfile) (queryCount / 2).coerceAtLeast(4) else (queryCount / 3).coerceAtLeast(3)
-            val searches = buildList<String> {
+            val fixedHeadCount = if (strongProfile) (queryCount / 2).coerceAtLeast(3) else (queryCount / 3).coerceAtLeast(2)
+            val searchQueries = buildList<String> {
                 addAll(homeQueries.take(fixedHeadCount))
                 addAll(
                     homeQueries
@@ -62,12 +67,13 @@ class MusicHomeFeedRepository(
                 )
             }
                 .take(queryCount)
-                .map { query ->
-                    async {
-                        runCatching { resolverRepository.searchVideos(query = query, limit = queryVideoLimit) }.getOrDefault(emptyList())
-                    }
-                }
-            (searches.flatMap { it.await() } + trending.await())
+            val searched = limitedSearch(
+                queries = searchQueries,
+                concurrency = HOME_SEARCH_CONCURRENCY,
+            ) { query ->
+                runCatching { resolverRepository.searchVideos(query = query, limit = queryVideoLimit) }.getOrDefault(emptyList())
+            }
+            (searched + trending.await())
                 .distinctBy(YouTubeFeedItem::url)
         }
         val ranked = engine.rankHomeCandidates(candidates, profile, impressions, sessionSeed, limit = targetCount)
@@ -110,16 +116,16 @@ class MusicHomeFeedRepository(
         val profile = buildProfile()
         val impressions = recentImpressions()
         val classification = engine.classify(currentItem)
-        val relatedLimit = (limit * 4).coerceIn(48, 360)
+        val relatedLimit = (limit * 2).coerceIn(24, 96)
         val directRelated = runCatching {
             resolverRepository.loadRelatedVideos(currentItem.url, limit = relatedLimit)
         }.getOrDefault(emptyList())
             .distinctBy(YouTubeFeedItem::url)
         val directRelatedUrls = directRelated.mapTo(linkedSetOf()) { it.url }
-        val shouldAugment = true
+        val shouldAugment = directRelated.size < limit
         val queryLimit = when {
-            directRelated.size >= limit -> (limit + 16).coerceIn(24, 48)
-            else -> (limit + 24).coerceIn(32, 64)
+            directRelated.size >= limit -> (limit + 6).coerceIn(16, 24)
+            else -> (limit + 10).coerceIn(18, 30)
         }
         val styleQueries = if (!shouldAugment) {
             emptyList()
@@ -129,7 +135,7 @@ class MusicHomeFeedRepository(
                 add("${currentItem.author} ${currentItem.title}".trim())
                 classification.tags
                     .filterNot { it == "mix" || it == "enganchado" || it == "remix" }
-                    .take(3)
+                    .take(2)
                     .forEach { tag -> add("${currentItem.author} $tag".trim()) }
                 if (classification.tags.none { it == "mix" || it == "enganchado" || it == "remix" }) {
                     add(currentItem.author)
@@ -138,17 +144,32 @@ class MusicHomeFeedRepository(
                 .map(String::trim)
                 .filter(String::isNotBlank)
                 .distinct()
+                .take(3)
         }
         val candidates = coroutineScope {
-            val searchBuckets = styleQueries.map { query ->
-                async {
-                    runCatching { resolverRepository.searchVideos(query, limit = queryLimit) }.getOrDefault(emptyList())
-                }
+            val searchBuckets = limitedSearch(
+                queries = styleQueries,
+                concurrency = WATCH_NEXT_SEARCH_CONCURRENCY,
+            ) { query ->
+                runCatching { resolverRepository.searchVideos(query, limit = queryLimit) }.getOrDefault(emptyList())
             }
-            (directRelated + searchBuckets.flatMap { it.await() })
+            (directRelated + searchBuckets)
                 .distinctBy(YouTubeFeedItem::url)
         }
         engine.rankRelatedCandidates(currentItem, candidates, profile, impressions, limit, primaryUrls = directRelatedUrls)
+    }
+
+    private suspend fun limitedSearch(
+        queries: List<String>,
+        concurrency: Int,
+        block: suspend (String) -> List<YouTubeFeedItem>,
+    ): List<YouTubeFeedItem> = coroutineScope {
+        queries
+            .chunked(concurrency.coerceAtLeast(1))
+            .flatMap { batch ->
+                batch.map { query -> async { block(query) } }
+                    .flatMap { it.await() }
+            }
     }
 
     suspend fun recordSearch(query: String) {
