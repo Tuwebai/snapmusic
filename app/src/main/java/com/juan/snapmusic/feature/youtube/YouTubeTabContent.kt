@@ -31,7 +31,7 @@ import com.juan.snapmusic.feature.home.DownloadFormatSheet
 import com.juan.snapmusic.feature.home.SnapMusicViewModel
 import com.juan.snapmusic.feature.home.YouTubeSuggestionsUiState
 
-private const val INITIAL_YOUTUBE_SUGGESTION_RENDER_COUNT = 6
+private const val INITIAL_YOUTUBE_SUGGESTION_RENDER_COUNT = 4
 
 @OptIn(ExperimentalMaterial3Api::class)
 @androidx.media3.common.util.UnstableApi
@@ -40,6 +40,7 @@ fun YouTubeTabContent(
     viewModel: SnapMusicViewModel,
     player: Player?,
     isActive: Boolean,
+    renderSuggestions: Boolean = true,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     onDownloadQueued: () -> Unit,
 ) {
@@ -62,12 +63,26 @@ fun YouTubeTabContent(
 
         YouTubeCommentHost(viewModel = viewModel)
 
-        YouTubeSuggestionsHost(
-            modifier = Modifier.weight(1f),
-            viewModel = viewModel,
-            isActive = isActive,
-            onItemDownload = viewModel::prepareYouTubeDownload,
-        )
+        if (renderSuggestions) {
+            YouTubeSuggestionsHost(
+                modifier = Modifier.weight(1f),
+                viewModel = viewModel,
+                isActive = isActive,
+                onItemDownload = viewModel::prepareYouTubeDownload,
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                )
+            }
+        }
     }
 
     YouTubeDownloadSheetHost(

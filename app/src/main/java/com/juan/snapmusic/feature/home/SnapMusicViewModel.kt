@@ -323,13 +323,12 @@ class SnapMusicViewModel(
     private val graph: SnapMusicGraph,
 ) : ViewModel() {
     private companion object {
-        const val YOUTUBE_HOME_FEED_LIMIT = 16
-        const val YOUTUBE_HOME_FEED_PAGE_SIZE = 16
+        const val YOUTUBE_HOME_FEED_LIMIT = 8
+        const val YOUTUBE_HOME_FEED_PAGE_SIZE = 12
         const val YOUTUBE_HOME_CACHE_PRIME_COUNT = 4
         const val YOUTUBE_WATCH_NEXT_PAGE_SIZE = 18
         const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 4_500L
         const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 20_000L
-        const val STARTUP_PERSISTENCE_WARMUP_DELAY_MS = 3_000L
         const val HOME_TAB_YOUTUBE_INDEX = 1
         const val HOME_TAB_CONVERT_INDEX = 2
         const val PRESET_MP3_320 = "preset_mp3_320"
@@ -384,6 +383,7 @@ class SnapMusicViewModel(
     private var cachedYouTubeHomeFeed: List<YouTubeFeedItem> = emptyList()
     private var queueObservationStarted = false
     private var historyObservationStarted = false
+    private var interruptedDownloadRestoreStarted = false
 
     val queueFeedback: StateFlow<String?> = _queueFeedback.asStateFlow()
     val previewDownloadsRequestId: StateFlow<Long> = _previewDownloadsRequestId.asStateFlow()
@@ -1108,12 +1108,6 @@ class SnapMusicViewModel(
         )
 
     init {
-        viewModelScope.launch(Dispatchers.IO) {
-            delay(STARTUP_PERSISTENCE_WARMUP_DELAY_MS)
-            ensureQueueObservationStarted()
-            ensureHistoryObservationStarted()
-            graph.queueRepository.restoreInterruptedDownloads()
-        }
         viewModelScope.launch {
             graph.preferencesRepository.preferences.collect { prefs ->
                 val current = _youtubeState.value
@@ -1132,6 +1126,12 @@ class SnapMusicViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             graph.queueRepository.observeQueue().collectLatest { items ->
                 _queue.value = items
+            }
+        }
+        if (!interruptedDownloadRestoreStarted) {
+            interruptedDownloadRestoreStarted = true
+            viewModelScope.launch(Dispatchers.IO) {
+                graph.queueRepository.restoreInterruptedDownloads()
             }
         }
     }
