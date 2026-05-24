@@ -17,8 +17,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
@@ -29,16 +31,20 @@ import com.juan.snapmusic.feature.home.DownloadFormatSheet
 import com.juan.snapmusic.feature.home.SnapMusicViewModel
 import com.juan.snapmusic.feature.home.YouTubeSuggestionsUiState
 
+private const val INITIAL_YOUTUBE_SUGGESTION_RENDER_COUNT = 6
+
 @OptIn(ExperimentalMaterial3Api::class)
 @androidx.media3.common.util.UnstableApi
 @Composable
 fun YouTubeTabContent(
     viewModel: SnapMusicViewModel,
     player: Player?,
+    isActive: Boolean,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     onDownloadQueued: () -> Unit,
 ) {
-    LaunchedEffect(Unit) {
+    LaunchedEffect(isActive) {
+        if (!isActive) return@LaunchedEffect
         viewModel.ensureYoutubeLoaded()
     }
 
@@ -59,6 +65,7 @@ fun YouTubeTabContent(
         YouTubeSuggestionsHost(
             modifier = Modifier.weight(1f),
             viewModel = viewModel,
+            isActive = isActive,
             onItemDownload = viewModel::prepareYouTubeDownload,
         )
     }
@@ -109,21 +116,66 @@ private fun YouTubeCommentHost(
 private fun YouTubeSuggestionsHost(
     modifier: Modifier,
     viewModel: SnapMusicViewModel,
+    isActive: Boolean,
     onItemDownload: (YouTubeFeedItem) -> Unit,
 ) {
     val suggestionsState by viewModel.youtubeSuggestionsScreen.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    val renderedItemCountState = remember(
+        suggestionsState.items,
+        suggestionsState.isPlayerVisible,
+    ) {
+        mutableIntStateOf(
+            when {
+                suggestionsState.isPlayerVisible -> suggestionsState.items.size
+                suggestionsState.items.size <= INITIAL_YOUTUBE_SUGGESTION_RENDER_COUNT -> suggestionsState.items.size
+                else -> INITIAL_YOUTUBE_SUGGESTION_RENDER_COUNT
+            },
+        )
+    }
+    val renderedItemCount = renderedItemCountState.intValue
+    val visibleItems = if (renderedItemCount >= suggestionsState.items.size) {
+        suggestionsState.items
+    } else {
+        suggestionsState.items.take(renderedItemCount)
+    }
 
     LaunchedEffect(
+        isActive,
+        suggestionsState.items,
+        suggestionsState.isPlayerVisible,
+    ) {
+        if (!isActive) return@LaunchedEffect
+        renderedItemCountState.intValue = when {
+            suggestionsState.isPlayerVisible -> suggestionsState.items.size
+            suggestionsState.items.size <= INITIAL_YOUTUBE_SUGGESTION_RENDER_COUNT -> suggestionsState.items.size
+            else -> INITIAL_YOUTUBE_SUGGESTION_RENDER_COUNT
+        }
+    }
+
+    LaunchedEffect(
+        isActive,
         listState,
-        suggestionsState.items.size,
+        visibleItems.size,
         suggestionsState.canLoadMore,
         suggestionsState.isLoadingMore,
     ) {
-        if (!suggestionsState.canLoadMore) return@LaunchedEffect
+        if (!isActive) return@LaunchedEffect
+        if (visibleItems.isEmpty()) return@LaunchedEffect
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
             .collect { lastVisibleIndex ->
-                val triggerIndex = (suggestionsState.items.lastIndex - 4).coerceAtLeast(0)
+                if (!suggestionsState.isPlayerVisible && renderedItemCountState.intValue < suggestionsState.items.size) {
+                    val expandTriggerIndex = (visibleItems.lastIndex - 2).coerceAtLeast(0)
+                    if (lastVisibleIndex >= expandTriggerIndex) {
+                        renderedItemCountState.intValue = minOf(
+                            renderedItemCountState.intValue + INITIAL_YOUTUBE_SUGGESTION_RENDER_COUNT,
+                            suggestionsState.items.size,
+                        )
+                    }
+                    return@collect
+                }
+                if (!suggestionsState.canLoadMore) return@collect
+                val triggerIndex = (visibleItems.lastIndex - 4).coerceAtLeast(0)
                 if (!suggestionsState.isLoadingMore && lastVisibleIndex >= triggerIndex) {
                     viewModel.loadMoreYoutubeSuggestions()
                 }
@@ -134,6 +186,7 @@ private fun YouTubeSuggestionsHost(
         modifier = if (suggestionsState.isPlayerVisible) modifier.fillMaxWidth() else Modifier.fillMaxSize(),
         listState = listState,
         suggestionsState = suggestionsState,
+        visibleItems = visibleItems,
         onItemClick = viewModel::selectYouTubeItem,
         onItemDownload = onItemDownload,
         onRefresh = viewModel::refreshYoutubeByPull,
@@ -166,6 +219,7 @@ private fun YouTubeSuggestionsList(
     modifier: Modifier,
     listState: androidx.compose.foundation.lazy.LazyListState,
     suggestionsState: YouTubeSuggestionsUiState,
+    visibleItems: List<YouTubeFeedItem>,
     onItemClick: (YouTubeFeedItem) -> Unit,
     onItemDownload: (YouTubeFeedItem) -> Unit,
     onRefresh: () -> Unit,
@@ -186,9 +240,9 @@ private fun YouTubeSuggestionsList(
                 }
             }
 
-            if (suggestionsState.items.isNotEmpty()) {
+            if (visibleItems.isNotEmpty()) {
                 items(
-                    items = suggestionsState.items,
+                    items = visibleItems,
                     key = YouTubeFeedItem::url,
                     contentType = { "youtube_feed_item" },
                 ) { item ->

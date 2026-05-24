@@ -6,17 +6,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
@@ -50,33 +45,17 @@ fun HomeScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val clipboardManager = context.getSystemService(ClipboardManager::class.java)
-    val pagerState = rememberPagerState(initialPage = requestedTab, pageCount = { 3 })
     val saveableStateHolder = rememberSaveableStateHolder()
-    val mountedPages = remember { mutableStateListOf(requestedTab) }
     var clipboardInspectionToken by rememberSaveable { mutableStateOf(0L) }
-    HomePerformanceTelemetry(viewModel = viewModel, pagerState = pagerState)
-    HomeYouTubeVisibilityEffects(viewModel = viewModel, pagerState = pagerState)
+    HomePerformanceTelemetry(viewModel = viewModel, selectedTab = requestedTab)
+    HomeYouTubeVisibilityEffects(viewModel = viewModel, selectedTab = requestedTab)
 
-    LaunchedEffect(clipboardInspectionToken) {
-        if (clipboardInspectionToken <= 0L) return@LaunchedEffect
+    LaunchedEffect(requestedTab, clipboardInspectionToken) {
+        if (requestedTab != HOME_TAB_CONVERT) return@LaunchedEffect
         delay(350L)
         viewModel.inspectClipboardCandidate(readClipboardText(clipboardManager))
     }
 
-    LaunchedEffect(requestedTab) {
-        if (!mountedPages.contains(requestedTab)) {
-            mountedPages += requestedTab
-        }
-        if (requestedTab != pagerState.currentPage) {
-            pagerState.scrollToPage(requestedTab)
-        }
-    }
-
-    LaunchedEffect(pagerState.settledPage) {
-        if (requestedTab != pagerState.settledPage) {
-            viewModel.selectHomeTab(pagerState.settledPage)
-        }
-    }
     DisposableEffect(lifecycleOwner, clipboardManager) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -87,48 +66,38 @@ fun HomeScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    HorizontalPager(
-        state = pagerState,
-        modifier = Modifier.fillMaxSize(),
-        beyondViewportPageCount = 0,
-    ) { page ->
-        val shouldMountPage = page == pagerState.currentPage ||
-            page == pagerState.targetPage ||
-            mountedPages.contains(page)
-        if (!shouldMountPage) {
-            Box(modifier = Modifier.fillMaxSize())
-            return@HorizontalPager
+    Box(modifier = Modifier.fillMaxSize()) {
+        saveableStateHolder.SaveableStateProvider(requestedTab) {
+            when (requestedTab) {
+            HOME_TAB_SEARCH -> HomeSearchLandingRoute(
+                viewModel = viewModel,
+                padding = padding,
+                onSelectSearch = { viewModel.selectHomeSearchTab() },
+                onSelectYouTube = { viewModel.selectHomeYouTubeTab() },
+                onSelectConvert = { viewModel.selectHomeConvertTab() },
+            )
+
+            HOME_TAB_YOUTUBE -> HomeYouTubeLanding(
+                padding = padding,
+                player = player,
+                isActive = true,
+                viewModel = viewModel,
+                onDownloadQueued = onDownloadQueued,
+                onSelectSearch = viewModel::selectHomeSearchTab,
+                onSelectYouTube = viewModel::selectHomeYouTubeTab,
+                onSelectConvert = viewModel::selectHomeConvertTab,
+            )
+
+            else -> HomeConvertLandingRoute(
+                viewModel = viewModel,
+                padding = padding,
+                clipboardManager = clipboardManager,
+                onDownloadQueued = onDownloadQueued,
+                onSelectSearch = viewModel::selectHomeSearchTab,
+                onSelectYouTube = viewModel::selectHomeYouTubeTab,
+                onSelectConvert = viewModel::selectHomeConvertTab,
+            )
         }
-        saveableStateHolder.SaveableStateProvider(page) {
-            when (page) {
-                HOME_TAB_SEARCH -> HomeSearchLandingRoute(
-                    viewModel = viewModel,
-                    padding = padding,
-                    onSelectSearch = { viewModel.selectHomeSearchTab() },
-                    onSelectYouTube = { viewModel.selectHomeYouTubeTab() },
-                    onSelectConvert = { viewModel.selectHomeConvertTab() },
-                )
-
-                HOME_TAB_YOUTUBE -> HomeYouTubeLanding(
-                    padding = padding,
-                    player = player,
-                    viewModel = viewModel,
-                    onDownloadQueued = onDownloadQueued,
-                    onSelectSearch = viewModel::selectHomeSearchTab,
-                    onSelectYouTube = viewModel::selectHomeYouTubeTab,
-                    onSelectConvert = viewModel::selectHomeConvertTab,
-                )
-
-                else -> HomeConvertLandingRoute(
-                    viewModel = viewModel,
-                    padding = padding,
-                    clipboardManager = clipboardManager,
-                    onDownloadQueued = onDownloadQueued,
-                    onSelectSearch = viewModel::selectHomeSearchTab,
-                    onSelectYouTube = viewModel::selectHomeYouTubeTab,
-                    onSelectConvert = viewModel::selectHomeConvertTab,
-                )
-            }
         }
     }
 
@@ -144,15 +113,15 @@ fun HomeScreen(
 @Composable
 private fun HomePerformanceTelemetry(
     viewModel: SnapMusicViewModel,
-    pagerState: PagerState,
+    selectedTab: Int,
 ) {
     val youtubeRouteVisibility by viewModel.youtubeRouteVisibility.collectAsStateWithLifecycle()
     ReportPerformanceScene(
         screen = "home",
         detail = when {
             youtubeRouteVisibility.showPlayer -> "youtube-watch"
-            pagerState.currentPage == HOME_TAB_YOUTUBE -> "home-youtube-feed"
-            pagerState.currentPage == HOME_TAB_CONVERT -> "home-convert"
+            selectedTab == HOME_TAB_YOUTUBE -> "home-youtube-feed"
+            selectedTab == HOME_TAB_CONVERT -> "home-convert"
             else -> "home-search"
         },
     )
@@ -161,16 +130,16 @@ private fun HomePerformanceTelemetry(
 @Composable
 private fun HomeYouTubeVisibilityEffects(
     viewModel: SnapMusicViewModel,
-    pagerState: PagerState,
+    selectedTab: Int,
 ) {
     val youtubeRouteVisibility by viewModel.youtubeRouteVisibility.collectAsStateWithLifecycle()
     LaunchedEffect(
-        pagerState.settledPage,
+        selectedTab,
         youtubeRouteVisibility.showPlayer,
         youtubeRouteVisibility.isReady,
     ) {
         if (!youtubeRouteVisibility.isReady) return@LaunchedEffect
-        if (pagerState.settledPage != HOME_TAB_YOUTUBE && youtubeRouteVisibility.showPlayer) {
+        if (selectedTab != HOME_TAB_YOUTUBE && youtubeRouteVisibility.showPlayer) {
             viewModel.minimizeYouTubePlayer()
         }
     }
@@ -181,6 +150,7 @@ private fun HomeYouTubeVisibilityEffects(
 private fun HomeYouTubeLanding(
     padding: PaddingValues,
     player: Player?,
+    isActive: Boolean,
     viewModel: SnapMusicViewModel,
     onDownloadQueued: () -> Unit,
     onSelectSearch: () -> Unit,
@@ -203,6 +173,7 @@ private fun HomeYouTubeLanding(
             YouTubeTabContent(
                 viewModel = viewModel,
                 player = player,
+                isActive = isActive,
                 contentPadding = PaddingValues(bottom = padding.calculateBottomPadding()),
                 onDownloadQueued = onDownloadQueued,
             )

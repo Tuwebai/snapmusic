@@ -43,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
@@ -406,48 +407,67 @@ private fun SearchBackdrop(
         modifier = modifier
             .background(backgroundBrush),
     ) {
-        SearchBackdropAccent(
+        SearchBackdropCard(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(start = 18.dp, top = 28.dp),
+                .padding(start = 12.dp, top = 24.dp),
             containerColor = Color(0xFF1D4ED8).copy(alpha = 0.28f),
             accentColor = Color(0xFF60A5FA),
+            rotation = -16f,
             icon = {
                 Icon(
                     imageVector = Icons.Filled.MusicNote,
                     contentDescription = null,
                     tint = Color(0xAA93C5FD),
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(38.dp),
                 )
             },
         )
-        SearchBackdropAccent(
+        SearchBackdropCard(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 12.dp),
+                .padding(top = 6.dp),
             containerColor = Color(0xFFDC2626).copy(alpha = 0.32f),
             accentColor = Color(0xFFF87171),
+            rotation = 14f,
             icon = {
                 Icon(
                     imageVector = Icons.Outlined.SmartDisplay,
                     contentDescription = null,
                     tint = Color(0xAAFCA5A5),
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(38.dp),
                 )
             },
         )
-        SearchBackdropAccent(
+        SearchBackdropCard(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 28.dp, top = 12.dp),
+            containerColor = Color(0xFF7C3AED).copy(alpha = 0.22f),
+            accentColor = Color(0xFFC084FC),
+            rotation = 18f,
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.Download,
+                    contentDescription = null,
+                    tint = Color(0xAAD8B4FE),
+                    modifier = Modifier.size(34.dp),
+                )
+            },
+        )
+        SearchBackdropCard(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = 30.dp, top = 24.dp),
+                .padding(end = 34.dp, top = 18.dp),
             containerColor = Color(0xFF15803D).copy(alpha = 0.24f),
             accentColor = Color(0xFF4ADE80),
+            rotation = -12f,
             icon = {
                 Icon(
                     imageVector = Icons.Outlined.Link,
                     contentDescription = null,
                     tint = Color(0xAA86EFAC),
-                    modifier = Modifier.size(30.dp),
+                    modifier = Modifier.size(34.dp),
                 )
             },
         )
@@ -462,18 +482,22 @@ private fun SearchBackdrop(
 }
 
 @Composable
-private fun SearchBackdropAccent(
+private fun SearchBackdropCard(
     modifier: Modifier = Modifier,
     containerColor: Color,
     accentColor: Color,
+    rotation: Float,
     icon: @Composable () -> Unit,
 ) {
-    Box(
+    Surface(
         modifier = modifier
-            .size(104.dp)
-            .clip(RoundedCornerShape(28.dp))
-            .background(containerColor)
-            .border(1.dp, accentColor.copy(alpha = 0.16f), RoundedCornerShape(28.dp)),
+            .size(126.dp)
+            .rotate(rotation),
+        color = containerColor,
+        shape = RoundedCornerShape(30.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.16f)),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
     ) {
         Box(contentAlignment = Alignment.Center) {
             icon()

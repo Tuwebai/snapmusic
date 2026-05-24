@@ -137,6 +137,7 @@ fun SnapMusicNavHost(
                         YouTubeTabContent(
                             viewModel = viewModel,
                             player = youTubePlayer,
+                            isActive = true,
                             contentPadding = padding,
                             onDownloadQueued = {
                                 viewModel.requestOpenPreviewDownloads()

@@ -323,8 +323,9 @@ class SnapMusicViewModel(
     private val graph: SnapMusicGraph,
 ) : ViewModel() {
     private companion object {
-        const val YOUTUBE_HOME_FEED_LIMIT = 24
-        const val YOUTUBE_HOME_FEED_PAGE_SIZE = 24
+        const val YOUTUBE_HOME_FEED_LIMIT = 16
+        const val YOUTUBE_HOME_FEED_PAGE_SIZE = 16
+        const val YOUTUBE_HOME_CACHE_PRIME_COUNT = 4
         const val YOUTUBE_WATCH_NEXT_PAGE_SIZE = 18
         const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 4_500L
         const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 20_000L
@@ -3106,8 +3107,8 @@ class SnapMusicViewModel(
             if (cachedItems.isEmpty()) return@launch
             cachedYouTubeHomeFeed = cachedItems
             val current = _youtubeState.value
-            if (current.items.isEmpty() && current.playbackQueue.isEmpty()) {
-                _youtubeState.value = current.copy(items = cachedItems)
+            if (hasOpenedYouTubeHomeTab && current.items.isEmpty() && current.playbackQueue.isEmpty()) {
+                _youtubeState.value = current.copy(items = cachedItems.take(YOUTUBE_HOME_CACHE_PRIME_COUNT))
                 scheduleCachedYouTubePrefetchIfVisible()
             }
         }
@@ -3115,7 +3116,43 @@ class SnapMusicViewModel(
 
     private fun onHomeYouTubeTabOpened() {
         hasOpenedYouTubeHomeTab = true
+        primeYouTubeHomeFeedFromCacheIfNeeded()
+        refreshYouTubeHomeFromCachePrimeIfNeeded()
         scheduleCachedYouTubePrefetchIfVisible()
+    }
+
+    private fun primeYouTubeHomeFeedFromCacheIfNeeded() {
+        val cachedItems = cachedYouTubeHomeFeed
+        if (cachedItems.isEmpty()) return
+        val current = _youtubeState.value
+        if (current.query.isNotBlank()) return
+        if (current.playbackQueue.isNotEmpty()) return
+        if (current.items.isNotEmpty()) return
+        _youtubeState.value = current.copy(
+            items = cachedItems.take(YOUTUBE_HOME_CACHE_PRIME_COUNT),
+            isLoading = false,
+            isLoadingMore = false,
+            nextCursor = null,
+            hasMoreSearchResults = false,
+            errorMessage = null,
+        )
+    }
+
+    private fun refreshYouTubeHomeFromCachePrimeIfNeeded() {
+        val cachedItems = cachedYouTubeHomeFeed
+        if (cachedItems.size <= YOUTUBE_HOME_CACHE_PRIME_COUNT) return
+        val current = _youtubeState.value
+        val primedItems = cachedItems.take(YOUTUBE_HOME_CACHE_PRIME_COUNT)
+        if (current.items != primedItems) return
+        if (current.isLoading || current.isLoadingMore) return
+        viewModelScope.launch {
+            delay(900L)
+            val latest = _youtubeState.value
+            if (_homeSelectedTab.value != HOME_TAB_YOUTUBE_INDEX) return@launch
+            if (latest.items != primedItems) return@launch
+            if (latest.query.isNotBlank()) return@launch
+            refreshYoutubeHome(silent = true)
+        }
     }
 
     private fun scheduleCachedYouTubePrefetchIfVisible() {

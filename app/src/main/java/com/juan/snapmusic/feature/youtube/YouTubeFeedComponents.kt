@@ -941,7 +941,7 @@ fun YouTubeFeedRow(
             .data(item.thumbnailUrl)
             .crossfade(false)
             .precision(Precision.INEXACT)
-            .size(308, 176)
+            .size(280, 158)
             .build()
     }
     Row(
@@ -956,7 +956,6 @@ fun YouTubeFeedRow(
         Row(
             modifier = Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(18.dp))
                 .clickable(onClick = onClick),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -967,7 +966,7 @@ fun YouTubeFeedRow(
                 modifier = Modifier
                     .size(width = 154.dp, height = 88.dp)
                     .clip(RoundedCornerShape(14.dp)),
-                filterQuality = FilterQuality.Low,
+                filterQuality = FilterQuality.None,
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
