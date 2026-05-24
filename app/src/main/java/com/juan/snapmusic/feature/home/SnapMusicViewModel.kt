@@ -57,6 +57,7 @@ import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Immutable
 data class YouTubeChromeState(
@@ -363,6 +364,8 @@ class SnapMusicViewModel(
     private var deferredYoutubeHomeRefreshJob: Job? = null
     private var hasOpenedYouTubeHomeTab = false
     private var hasLoadedPopularDownloadQueries = false
+    private var youTubeHomeFeedCacheRestoreStarted = false
+    private var youTubePlaybackSnapshotRestoreStarted = false
     private val _previewAutoPlayRequestId = MutableStateFlow(0L)
     private val _previewCurrentPositionMs = MutableStateFlow(0L)
     private val _previewResumePositionMs = MutableStateFlow(0L)
@@ -1117,8 +1120,6 @@ class SnapMusicViewModel(
                 }
             }
         }
-        restoreYouTubeHomeFeedCache()
-        restoreYouTubePlaybackSnapshot()
     }
 
     private fun ensureQueueObservationStarted() {
@@ -2383,6 +2384,7 @@ class SnapMusicViewModel(
     }
 
     fun restoreYouTubePlaybackSnapshot() {
+        youTubePlaybackSnapshotRestoreStarted = true
         viewModelScope.launch {
             val snapshot = graph.preferencesRepository.readYouTubePlaybackSnapshot() ?: return@launch
             if (snapshot.queue.isEmpty()) return@launch
@@ -3098,8 +3100,16 @@ class SnapMusicViewModel(
         youtubeFeedPrefetchJob?.cancel()
         if (!shouldRunYouTubeFeedPrefetch()) return
         val candidate = items.firstOrNull { !youTubeResolveCache.containsKey(it.url) } ?: return
-        youtubeFeedPrefetchJob = viewModelScope.launch(Dispatchers.IO) {
-            runCatching { resolveFeaturedVideo(candidate) }
+        youtubeFeedPrefetchJob = viewModelScope.launch {
+            delay(1_800L)
+            if (!shouldRunYouTubeFeedPrefetch()) return@launch
+            val latest = _youtubeState.value
+            if (latest.isLoading || latest.isLoadingMore) return@launch
+            if (latest.query.isNotBlank()) return@launch
+            if (latest.items.none { it.url == candidate.url }) return@launch
+            withContext(Dispatchers.IO) {
+                runCatching { resolveFeaturedVideo(candidate) }
+            }
         }
     }
 
@@ -3112,6 +3122,7 @@ class SnapMusicViewModel(
     }
 
     private fun restoreYouTubeHomeFeedCache() {
+        youTubeHomeFeedCacheRestoreStarted = true
         viewModelScope.launch(Dispatchers.IO) {
             val cachedItems = graph.preferencesRepository.readYouTubeHomeFeedCache()
             if (cachedItems.isEmpty()) return@launch
@@ -3123,11 +3134,24 @@ class SnapMusicViewModel(
         }
     }
 
+    private fun ensureYouTubeHomeFeedCacheRestored() {
+        if (youTubeHomeFeedCacheRestoreStarted) return
+        youTubeHomeFeedCacheRestoreStarted = true
+        restoreYouTubeHomeFeedCache()
+    }
+
+    private fun ensureYouTubePlaybackSnapshotRestored() {
+        if (youTubePlaybackSnapshotRestoreStarted) return
+        youTubePlaybackSnapshotRestoreStarted = true
+        restoreYouTubePlaybackSnapshot()
+    }
+
     private fun onHomeYouTubeTabOpened() {
         hasOpenedYouTubeHomeTab = true
+        ensureYouTubeHomeFeedCacheRestored()
+        ensureYouTubePlaybackSnapshotRestored()
         primeYouTubeHomeFeedFromCacheIfNeeded()
         refreshYouTubeHomeFromCachePrimeIfNeeded()
-        scheduleCachedYouTubePrefetchIfVisible()
     }
 
     private fun primeYouTubeHomeFeedFromCacheIfNeeded() {

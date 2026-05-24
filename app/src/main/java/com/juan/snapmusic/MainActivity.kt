@@ -83,7 +83,6 @@ class MainActivity : ComponentActivity() {
         if (incomingShareOverride.value != null && routeOverride.value == null) {
             routeOverride.value = ROUTE_HOME
         }
-        requestRuntimePermissionsIfNeeded()
         val app = application as SnapMusicApplication
         setContent {
             val themeMode by app.appGraph.preferencesRepository.preferences
@@ -100,6 +99,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+        window.decorView.post { requestRuntimePermissionsIfNeeded() }
     }
 
     override fun onNewIntent(intent: Intent) {
