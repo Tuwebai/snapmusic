@@ -360,6 +360,7 @@ class SnapMusicViewModel(
     private var popularDownloadSearchesJob: Job? = null
     private var cachedYouTubePrefetchJob: Job? = null
     private var youtubeFeedPrefetchJob: Job? = null
+    private var deferredYoutubeHomeRefreshJob: Job? = null
     private var hasOpenedYouTubeHomeTab = false
     private var hasLoadedPopularDownloadQueries = false
     private val _previewAutoPlayRequestId = MutableStateFlow(0L)
@@ -1559,7 +1560,14 @@ class SnapMusicViewModel(
         val state = _youtubeState.value
         if (state.isLoading) return
         if (state.items.isEmpty()) {
-            refreshYoutubeHome()
+            deferredYoutubeHomeRefreshJob?.cancel()
+            deferredYoutubeHomeRefreshJob = viewModelScope.launch {
+                delay(180L)
+                val latest = _youtubeState.value
+                if (_homeSelectedTab.value != HOME_TAB_YOUTUBE_INDEX) return@launch
+                if (latest.isLoading || latest.items.isNotEmpty()) return@launch
+                refreshYoutubeHome()
+            }
         }
     }
 
@@ -1693,7 +1701,9 @@ class SnapMusicViewModel(
                         hasMoreSearchResults = false,
                         errorMessage = if (items.isEmpty()) "No encontramos videos para mostrar ahora mismo." else null,
                     )
-                    graph.preferencesRepository.saveYouTubeHomeFeedCache(items)
+                    viewModelScope.launch(Dispatchers.IO) {
+                        graph.preferencesRepository.saveYouTubeHomeFeedCache(items)
+                    }
                     prefetchFeedItems(items)
                 }
                 .onFailure {
@@ -3107,9 +3117,8 @@ class SnapMusicViewModel(
             if (cachedItems.isEmpty()) return@launch
             cachedYouTubeHomeFeed = cachedItems
             val current = _youtubeState.value
-            if (hasOpenedYouTubeHomeTab && current.items.isEmpty() && current.playbackQueue.isEmpty()) {
+            if (current.items.isEmpty() && current.playbackQueue.isEmpty()) {
                 _youtubeState.value = current.copy(items = cachedItems.take(YOUTUBE_HOME_CACHE_PRIME_COUNT))
-                scheduleCachedYouTubePrefetchIfVisible()
             }
         }
     }

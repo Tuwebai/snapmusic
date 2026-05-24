@@ -1,24 +1,23 @@
 package com.juan.snapmusic.feature.home
 
 import android.content.ClipboardManager
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -28,8 +27,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import com.juan.snapmusic.core.performance.ReportPerformanceScene
 import com.juan.snapmusic.feature.youtube.YouTubeTabContent
+import kotlin.math.abs
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 private const val HOME_TAB_SEARCH = 0
 private const val HOME_TAB_YOUTUBE = 1
@@ -50,25 +49,9 @@ fun HomeScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val clipboardManager = context.getSystemService(ClipboardManager::class.java)
     val saveableStateHolder = rememberSaveableStateHolder()
-    val coroutineScope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(
-        initialPage = requestedTab,
-        pageCount = { 3 },
-    )
     var clipboardInspectionToken by rememberSaveable { mutableStateOf(0L) }
     HomePerformanceTelemetry(viewModel = viewModel, selectedTab = requestedTab)
     HomeYouTubeVisibilityEffects(viewModel = viewModel, selectedTab = requestedTab)
-
-    LaunchedEffect(requestedTab) {
-        if (pagerState.settledPage == requestedTab) return@LaunchedEffect
-        pagerState.animateScrollToPage(requestedTab)
-    }
-
-    LaunchedEffect(pagerState.settledPage) {
-        if (pagerState.settledPage != requestedTab) {
-            viewModel.selectHomeTab(pagerState.settledPage)
-        }
-    }
 
     LaunchedEffect(requestedTab, clipboardInspectionToken) {
         if (requestedTab != HOME_TAB_CONVERT) return@LaunchedEffect
@@ -87,34 +70,52 @@ fun HomeScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        HorizontalPager(
-            modifier = Modifier.fillMaxSize(),
-            state = pagerState,
-            beyondViewportPageCount = 0,
-            key = { page -> page },
-        ) { page ->
-            val isActivePage = page == pagerState.currentPage || page == pagerState.settledPage
-            val isSettledPage = page == pagerState.settledPage
-            saveableStateHolder.SaveableStateProvider(page) {
-                when (page) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(requestedTab) {
+                    var totalDrag = 0f
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            val thresholdPx = size.width * 0.18f
+                            when {
+                                totalDrag <= -thresholdPx && requestedTab < HOME_TAB_CONVERT -> {
+                                    viewModel.selectHomeTab(requestedTab + 1)
+                                }
+                                totalDrag >= thresholdPx && requestedTab > HOME_TAB_SEARCH -> {
+                                    viewModel.selectHomeTab(requestedTab - 1)
+                                }
+                            }
+                            totalDrag = 0f
+                        },
+                        onDragCancel = {
+                            totalDrag = 0f
+                        },
+                    ) { _, dragAmount ->
+                        totalDrag += dragAmount
+                    }
+                },
+        ) {
+            saveableStateHolder.SaveableStateProvider(requestedTab) {
+                when (requestedTab) {
                     HOME_TAB_SEARCH -> HomeSearchLandingRoute(
                         viewModel = viewModel,
                         padding = padding,
-                        onSelectSearch = { if (requestedTab != HOME_TAB_SEARCH) coroutineScope.launch { pagerState.animateScrollToPage(HOME_TAB_SEARCH) } else viewModel.selectHomeSearchTab() },
-                        onSelectYouTube = { if (requestedTab != HOME_TAB_YOUTUBE) coroutineScope.launch { pagerState.animateScrollToPage(HOME_TAB_YOUTUBE) } else viewModel.selectHomeYouTubeTab() },
-                        onSelectConvert = { if (requestedTab != HOME_TAB_CONVERT) coroutineScope.launch { pagerState.animateScrollToPage(HOME_TAB_CONVERT) } else viewModel.selectHomeConvertTab() },
+                        onSelectSearch = viewModel::selectHomeSearchTab,
+                        onSelectYouTube = viewModel::selectHomeYouTubeTab,
+                        onSelectConvert = viewModel::selectHomeConvertTab,
                     )
 
                     HOME_TAB_YOUTUBE -> HomeYouTubeLanding(
                         padding = padding,
                         player = player,
-                        isActive = isActivePage,
-                        renderSuggestions = isSettledPage,
+                        isActive = true,
+                        renderSuggestions = true,
                         viewModel = viewModel,
                         onDownloadQueued = onDownloadQueued,
-                        onSelectSearch = { if (requestedTab != HOME_TAB_SEARCH) coroutineScope.launch { pagerState.animateScrollToPage(HOME_TAB_SEARCH) } else viewModel.selectHomeSearchTab() },
-                        onSelectYouTube = { if (requestedTab != HOME_TAB_YOUTUBE) coroutineScope.launch { pagerState.animateScrollToPage(HOME_TAB_YOUTUBE) } else viewModel.selectHomeYouTubeTab() },
-                        onSelectConvert = { if (requestedTab != HOME_TAB_CONVERT) coroutineScope.launch { pagerState.animateScrollToPage(HOME_TAB_CONVERT) } else viewModel.selectHomeConvertTab() },
+                        onSelectSearch = viewModel::selectHomeSearchTab,
+                        onSelectYouTube = viewModel::selectHomeYouTubeTab,
+                        onSelectConvert = viewModel::selectHomeConvertTab,
                     )
 
                     else -> HomeConvertLandingRoute(
@@ -122,9 +123,9 @@ fun HomeScreen(
                         padding = padding,
                         clipboardManager = clipboardManager,
                         onDownloadQueued = onDownloadQueued,
-                        onSelectSearch = { if (requestedTab != HOME_TAB_SEARCH) coroutineScope.launch { pagerState.animateScrollToPage(HOME_TAB_SEARCH) } else viewModel.selectHomeSearchTab() },
-                        onSelectYouTube = { if (requestedTab != HOME_TAB_YOUTUBE) coroutineScope.launch { pagerState.animateScrollToPage(HOME_TAB_YOUTUBE) } else viewModel.selectHomeYouTubeTab() },
-                        onSelectConvert = { if (requestedTab != HOME_TAB_CONVERT) coroutineScope.launch { pagerState.animateScrollToPage(HOME_TAB_CONVERT) } else viewModel.selectHomeConvertTab() },
+                        onSelectSearch = viewModel::selectHomeSearchTab,
+                        onSelectYouTube = viewModel::selectHomeYouTubeTab,
+                        onSelectConvert = viewModel::selectHomeConvertTab,
                     )
                 }
             }

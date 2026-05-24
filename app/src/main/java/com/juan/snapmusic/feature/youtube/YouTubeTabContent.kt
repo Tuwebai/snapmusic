@@ -246,6 +246,22 @@ private fun YouTubeSuggestionsList(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(bottom = 28.dp),
         ) {
+            if (visibleItems.isEmpty() && suggestionsState.isRefreshing) {
+                item(key = "youtube_feed_loading", contentType = "youtube_feed_loading") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 28.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                }
+            }
+
             suggestionsState.errorMessage?.let { message ->
                 item {
                     InlineStatusCard(
