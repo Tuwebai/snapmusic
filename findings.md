@@ -474,3 +474,21 @@
   - player reproduciendo
   - overlay visible con `trackProgress`
 - Con esto, watch/fullscreen y preview video dejan de sumar wakeups periódicos sobrantes fuera del caso activo.
+
+## Slice 6 V4 revalidada 2026-05-23
+- La revalidación se corrió en el dispositivo físico `23129RA5FL`.
+- Checks ejecutados:
+  - `:benchmark:assembleBenchmark`
+  - `:benchmark:connectedBenchmarkAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.juan.snapmusic.benchmark.SnapMusicMacrobenchmark`
+  - cold start por `adb shell am start -W -S`
+  - `gfxinfo`
+- Resultado:
+  - cold start observado entre `2515 ms` y `2676 ms`
+  - la captura fría de `gfxinfo` siguió muy mal: `6/6` frames janky, `p50 650 ms`, `p95 1150 ms`
+- Mitigaciones extra hechas dentro de la misma ola:
+  - `HomeScreen` dejó de montar contenido pesado de tabs no activas en el primer draw
+  - el home decorativo inicial quedó más liviano
+  - `queue/history` y `restoreInterruptedDownloads()` salieron del camino crítico inmediato del arranque
+- Conclusión:
+  - V4 **no quedó cerrada**
+  - el culpable residual dominante está en el primer frame del home y en el ancho del grafo de estado que nace en `SnapMusicViewModel`

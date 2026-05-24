@@ -14,8 +14,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -48,6 +51,8 @@ fun HomeScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val clipboardManager = context.getSystemService(ClipboardManager::class.java)
     val pagerState = rememberPagerState(initialPage = requestedTab, pageCount = { 3 })
+    val saveableStateHolder = rememberSaveableStateHolder()
+    val mountedPages = remember { mutableStateListOf(requestedTab) }
     var clipboardInspectionToken by rememberSaveable { mutableStateOf(0L) }
     HomePerformanceTelemetry(viewModel = viewModel, pagerState = pagerState)
     HomeYouTubeVisibilityEffects(viewModel = viewModel, pagerState = pagerState)
@@ -59,6 +64,9 @@ fun HomeScreen(
     }
 
     LaunchedEffect(requestedTab) {
+        if (!mountedPages.contains(requestedTab)) {
+            mountedPages += requestedTab
+        }
         if (requestedTab != pagerState.currentPage) {
             pagerState.scrollToPage(requestedTab)
         }
@@ -84,34 +92,43 @@ fun HomeScreen(
         modifier = Modifier.fillMaxSize(),
         beyondViewportPageCount = 0,
     ) { page ->
-        when (page) {
-            HOME_TAB_SEARCH -> HomeSearchLandingRoute(
-                viewModel = viewModel,
-                padding = padding,
-                onSelectSearch = { viewModel.selectHomeSearchTab() },
-                onSelectYouTube = { viewModel.selectHomeYouTubeTab() },
-                onSelectConvert = { viewModel.selectHomeConvertTab() },
-            )
+        val shouldMountPage = page == pagerState.currentPage ||
+            page == pagerState.targetPage ||
+            mountedPages.contains(page)
+        if (!shouldMountPage) {
+            Box(modifier = Modifier.fillMaxSize())
+            return@HorizontalPager
+        }
+        saveableStateHolder.SaveableStateProvider(page) {
+            when (page) {
+                HOME_TAB_SEARCH -> HomeSearchLandingRoute(
+                    viewModel = viewModel,
+                    padding = padding,
+                    onSelectSearch = { viewModel.selectHomeSearchTab() },
+                    onSelectYouTube = { viewModel.selectHomeYouTubeTab() },
+                    onSelectConvert = { viewModel.selectHomeConvertTab() },
+                )
 
-            HOME_TAB_YOUTUBE -> HomeYouTubeLanding(
-                padding = padding,
-                player = player,
-                viewModel = viewModel,
-                onDownloadQueued = onDownloadQueued,
-                onSelectSearch = viewModel::selectHomeSearchTab,
-                onSelectYouTube = viewModel::selectHomeYouTubeTab,
-                onSelectConvert = viewModel::selectHomeConvertTab,
-            )
+                HOME_TAB_YOUTUBE -> HomeYouTubeLanding(
+                    padding = padding,
+                    player = player,
+                    viewModel = viewModel,
+                    onDownloadQueued = onDownloadQueued,
+                    onSelectSearch = viewModel::selectHomeSearchTab,
+                    onSelectYouTube = viewModel::selectHomeYouTubeTab,
+                    onSelectConvert = viewModel::selectHomeConvertTab,
+                )
 
-            else -> HomeConvertLandingRoute(
-                viewModel = viewModel,
-                padding = padding,
-                clipboardManager = clipboardManager,
-                onDownloadQueued = onDownloadQueued,
-                onSelectSearch = viewModel::selectHomeSearchTab,
-                onSelectYouTube = viewModel::selectHomeYouTubeTab,
-                onSelectConvert = viewModel::selectHomeConvertTab,
-            )
+                else -> HomeConvertLandingRoute(
+                    viewModel = viewModel,
+                    padding = padding,
+                    clipboardManager = clipboardManager,
+                    onDownloadQueued = onDownloadQueued,
+                    onSelectSearch = viewModel::selectHomeSearchTab,
+                    onSelectYouTube = viewModel::selectHomeYouTubeTab,
+                    onSelectConvert = viewModel::selectHomeConvertTab,
+                )
+            }
         }
     }
 

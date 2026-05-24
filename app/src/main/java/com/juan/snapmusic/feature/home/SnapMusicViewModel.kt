@@ -10,6 +10,7 @@ import com.juan.snapmusic.core.model.AppThemeMode
 import com.juan.snapmusic.core.model.ContainerFormat
 import com.juan.snapmusic.core.model.ConversionRequest
 import com.juan.snapmusic.core.model.DownloadBadgeState
+import com.juan.snapmusic.core.model.HistoryEntry
 import com.juan.snapmusic.core.model.IncomingShareItem
 import com.juan.snapmusic.core.model.IncomingSharePayload
 import com.juan.snapmusic.core.model.LocalMediaItem
@@ -49,6 +50,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
@@ -326,6 +328,7 @@ class SnapMusicViewModel(
         const val YOUTUBE_WATCH_NEXT_PAGE_SIZE = 18
         const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 4_500L
         const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 20_000L
+        const val STARTUP_PERSISTENCE_WARMUP_DELAY_MS = 3_000L
         const val HOME_TAB_YOUTUBE_INDEX = 1
         const val HOME_TAB_CONVERT_INDEX = 2
         const val PRESET_MP3_320 = "preset_mp3_320"
@@ -347,6 +350,8 @@ class SnapMusicViewModel(
     private val _previewLibrary = MutableStateFlow<List<LocalMediaItem>>(emptyList())
     private val _previewDetailVisible = MutableStateFlow(false)
     private val _previewMiniPlayerVisible = MutableStateFlow(false)
+    private val _queue = MutableStateFlow<List<QueueEntry>>(emptyList())
+    private val _history = MutableStateFlow<List<HistoryEntry>>(emptyList())
     private var youTubeFeedSessionSeed = System.currentTimeMillis()
     private var youtubeSuggestionJob: Job? = null
     private var watchNextEnrichmentJob: Job? = null
@@ -376,6 +381,8 @@ class SnapMusicViewModel(
     private var lastFailureFallbackSourceUrl: String? = null
     private var lastExpiredStreamRetrySourceUrl: String? = null
     private var cachedYouTubeHomeFeed: List<YouTubeFeedItem> = emptyList()
+    private var queueObservationStarted = false
+    private var historyObservationStarted = false
 
     val queueFeedback: StateFlow<String?> = _queueFeedback.asStateFlow()
     val previewDownloadsRequestId: StateFlow<Long> = _previewDownloadsRequestId.asStateFlow()
@@ -398,17 +405,9 @@ class SnapMusicViewModel(
         initialValue = UserPreferences(),
     )
 
-    val queue = graph.queueRepository.observeQueue().stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyList(),
-    )
+    val queue: StateFlow<List<QueueEntry>> = _queue.asStateFlow()
 
-    val history = graph.historyRepository.observeHistory().stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyList(),
-    )
+    val history: StateFlow<List<HistoryEntry>> = _history.asStateFlow()
 
     val downloadBadgeState = queue
         .map { items ->
@@ -1108,7 +1107,10 @@ class SnapMusicViewModel(
         )
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
+            delay(STARTUP_PERSISTENCE_WARMUP_DELAY_MS)
+            ensureQueueObservationStarted()
+            ensureHistoryObservationStarted()
             graph.queueRepository.restoreInterruptedDownloads()
         }
         viewModelScope.launch {
@@ -1121,6 +1123,26 @@ class SnapMusicViewModel(
         }
         restoreYouTubeHomeFeedCache()
         restoreYouTubePlaybackSnapshot()
+    }
+
+    private fun ensureQueueObservationStarted() {
+        if (queueObservationStarted) return
+        queueObservationStarted = true
+        viewModelScope.launch(Dispatchers.IO) {
+            graph.queueRepository.observeQueue().collectLatest { items ->
+                _queue.value = items
+            }
+        }
+    }
+
+    private fun ensureHistoryObservationStarted() {
+        if (historyObservationStarted) return
+        historyObservationStarted = true
+        viewModelScope.launch(Dispatchers.IO) {
+            graph.historyRepository.observeHistory().collectLatest { items ->
+                _history.value = items
+            }
+        }
     }
 
     fun selectHomeTab(index: Int) {
@@ -1368,6 +1390,7 @@ class SnapMusicViewModel(
     }
 
     fun deleteDownloadedItem(item: QueueEntry) {
+        ensureHistoryObservationStarted()
         val outputUri = item.outputUri ?: return
         viewModelScope.launch {
             val deleted = graph.storageRepository.deleteOutput(outputUri)
@@ -1498,10 +1521,12 @@ class SnapMusicViewModel(
     }
 
     fun requestOpenPreviewDownloads() {
+        ensureQueueObservationStarted()
         _previewDownloadsRequestId.value = _previewDownloadsRequestId.value + 1L
     }
 
     fun cancelActiveDownloads() {
+        ensureQueueObservationStarted()
         queue.value
             .filter {
                 it.status == com.juan.snapmusic.core.model.QueueStatus.RUNNING ||
@@ -2951,12 +2976,14 @@ class SnapMusicViewModel(
     }
 
     fun ensureLocalPreviewLibraryLoaded() {
+        ensureHistoryObservationStarted()
         if (_previewLibrary.value.isEmpty()) {
             refreshLocalPreviewLibrary(forceRefresh = false)
         }
     }
 
     fun refreshLocalPreviewLibrary(forceRefresh: Boolean = false) {
+        ensureHistoryObservationStarted()
         viewModelScope.launch(Dispatchers.IO) {
             val rawLibrary = graph.storageRepository.listLocalMedia(forceRefresh = forceRefresh)
             val historyByOutputUri = history.value.associateBy { normalizeMediaLookupKey(it.outputUri) }
@@ -3293,6 +3320,7 @@ class SnapMusicViewModel(
         allowDuplicate: Boolean = false,
     ): Boolean {
         viewModelScope.launch {
+            ensureQueueObservationStarted()
             val queuedId = graph.downloadCoordinator.enqueue(request, allowDuplicate = allowDuplicate)
             if (queuedId == null) {
                 _queueFeedback.value = "Ese formato ya existe en la cola o ya se descargó en esa carpeta."

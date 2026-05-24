@@ -219,6 +219,24 @@ Cerrar la ola con números, no por percepción solamente.
   - descargas
   - audio/video local
 
+### Estado 2026-05-23
+- Ejecutado en dispositivo físico `23129RA5FL`.
+- Validaciones corridas:
+  - `:app:compileDebugKotlin`
+  - `:app:testDebugUnitTest`
+  - `:benchmark:assembleBenchmark`
+  - `:benchmark:connectedBenchmarkAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.juan.snapmusic.benchmark.SnapMusicMacrobenchmark`
+- Cold start real por `adb shell am start -W -S -n com.juan.snapmusic/.MainActivity`:
+  - `TotalTime` final entre `2515 ms` y `2676 ms`
+- Mitigaciones extra aplicadas durante la revalidación:
+  - `HomeScreen` ya no monta pesado las tabs no activas en el primer draw
+  - `queue/history` y `restoreInterruptedDownloads()` salieron del camino crítico inmediato del arranque
+  - el backdrop inicial del home quedó más barato
+- Resultado:
+  - **mejoró parte del arranque**, pero **no alcanzó el criterio de cierre**
+  - la captura fría de `gfxinfo` siguió fuera de presupuesto
+  - V4 queda abierta
+
 ---
 
 ## Regla de implementación

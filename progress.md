@@ -710,3 +710,22 @@
 - Validación ejecutada:
   - `:app:compileDebugKotlin`
   - `:app:testDebugUnitTest`
+
+## 2026-05-23 — Slice 6 V4: revalidación dura y mitigación extra de startup
+
+- Se ejecutó la revalidación real en el dispositivo `23129RA5FL`.
+- Validaciones corridas:
+  - `:app:compileDebugKotlin`
+  - `:app:testDebugUnitTest`
+  - `:benchmark:assembleBenchmark`
+  - `:benchmark:connectedBenchmarkAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.juan.snapmusic.benchmark.SnapMusicMacrobenchmark`
+- Medición fría por ADB:
+  - `am start -W -S` quedó entre `2515 ms` y `2676 ms` en la build final de esta ola
+  - `gfxinfo` frío siguió fuera de presupuesto (`6/6` frames janky, `p50 650 ms`, `p95 1150 ms`)
+- Mitigaciones extra aplicadas durante esta misma revalidación:
+  - `HomeScreen` monta pesado solo la tab activa al arrancar
+  - observación de `queue/history` y `restoreInterruptedDownloads()` movidas fuera del camino crítico inmediato
+  - backdrop inicial del home simplificado para bajar costo de composición
+- Estado:
+  - la ola V4 **no queda aceptada todavía**
+  - el siguiente foco ya quedó acotado al primer frame del home + ancho del estado inicial del `ViewModel`

@@ -234,3 +234,46 @@
 
 La app no está lenta por un detalle aislado: hoy el problema es una combinación de **boot prematuro del playback stack**, **trabajo automático que arranca sin que el usuario lo pida**, **demasiado fan-out de extractor/red en YouTube**, y **estado todavía demasiado ancho en la raíz**.  
 La próxima remediación tiene que atacar esos cuatro bloques en ese orden; si no, seguir parchando jank local no va a devolver un startup rápido ni una UI estable a 60fps.
+
+## Revalidación real en dispositivo — 2026-05-23
+
+### Dispositivo
+- Xiaomi `23129RA5FL`
+- Android 15
+
+### Comandos ejecutados
+- `:benchmark:assembleBenchmark`
+- `:benchmark:connectedBenchmarkAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.juan.snapmusic.benchmark.SnapMusicMacrobenchmark`
+- `adb shell am start -W -S -n com.juan.snapmusic/.MainActivity`
+- `adb shell dumpsys gfxinfo com.juan.snapmusic`
+
+### Resultado medido
+- Cold start real:
+  - `TotalTime` entre `2515 ms` y `2676 ms` en cinco arranques fríos consecutivos de la build final de esta ola
+- `gfxinfo` en captura fría inmediata:
+  - `Total frames rendered: 6`
+  - `Janky frames: 6 (100%)`
+  - `50th percentile: 650 ms`
+  - `95th percentile: 1150 ms`
+  - `Slow UI thread: 6`
+  - `Slow issue draw commands: 6`
+
+### Mitigaciones extra aplicadas en la misma revalidación
+- `HomeScreen` ahora evita montar contenido pesado de tabs no activas en el primer draw.
+- `queue/history` y `restoreInterruptedDownloads()` salieron del camino crítico inmediato del arranque.
+- El backdrop decorativo inicial del home quedó más barato.
+
+### Veredicto actualizado
+- La ola V4 **bajó trabajo estructural** en playback, collectors altos y fan-out.
+- Aun así, **no cerró el startup**.
+- El culpable residual dominante quedó acotado a:
+  1. **primera composición del home todavía demasiado cara**
+  2. **state graph inicial del `SnapMusicViewModel` todavía demasiado ancho**
+  3. **frames de arranque todavía caros antes de estabilizarse**
+
+### Estado de cierre
+- **No aceptado todavía.**
+- Hace falta una slice extra enfocada solo en:
+  - primer frame del home
+  - costo de composición inicial de la ruta Descargar
+  - ancho del estado que nace en `SnapMusicViewModel`
