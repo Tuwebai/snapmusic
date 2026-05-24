@@ -161,71 +161,68 @@ internal fun PreviewLibraryRow(
     var expanded by remember(item.contentUri) { mutableStateOf(false) }
     Row(
         modifier = Modifier
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = 20.dp, vertical = 4.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(SurfacePrimary)
-            .clickable(onClick = if (selectionMode) onSelectMultiple else onClick)
-            .padding(horizontal = 10.dp, vertical = 10.dp),
+            .clickable(onClick = if (selectionMode) onSelectMultiple else onClick),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(width = 3.dp, height = 42.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(if (isActive) AccentRed else Color.Transparent),
-        )
-        PreviewLibraryArtwork(item)
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.titleSmall,
-                color = if (isActive) AccentRed else TextPrimary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = if (item.isVideo) Icons.Outlined.SmartDisplay else Icons.Filled.MusicNote,
-                    contentDescription = null,
-                    tint = TextSecondary,
-                    modifier = Modifier.size(14.dp),
-                )
-                Text(
-                    text = normalizedPreviewSubtitle(item),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        if (selectionMode) {
             Box(
                 modifier = Modifier
-                    .size(22.dp)
+                    .size(width = 3.dp, height = 42.dp)
                     .clip(RoundedCornerShape(999.dp))
-                    .background(if (selected) AccentRed else BorderSubtle),
+                    .background(if (isActive) AccentRed else Color.Transparent),
             )
-        } else {
-            Box {
-                IconButton(
-                    onClick = { expanded = true },
+            PreviewLibraryArtwork(item)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (isActive) AccentRed else TextPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.MoreVert,
-                        contentDescription = "Más opciones",
+                        imageVector = if (item.isVideo) Icons.Outlined.SmartDisplay else Icons.Filled.MusicNote,
+                        contentDescription = null,
                         tint = TextSecondary,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Text(
+                        text = normalizedPreviewSubtitle(item),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-                DropdownMenu(
+            }
+            if (selectionMode) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(if (selected) AccentRed else BorderSubtle),
+                )
+            } else {
+                Box {
+                    IconButton(
+                        onClick = { expanded = true },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.MoreVert,
+                            contentDescription = "Más opciones",
+                            tint = TextSecondary,
+                        )
+                    }
+                    DropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
                 ) {
@@ -301,8 +298,8 @@ internal fun PreviewLibraryRow(
                     )
                 }
             }
-        }
     }
+}
 }
 
 @Composable
@@ -316,6 +313,7 @@ private fun PreviewLibraryArtwork(
             .data(item.thumbnailUrl)
             .memoryCacheKey("preview-library:${item.id}:${item.thumbnailUrl}")
             .crossfade(false)
+            .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
             .precision(Precision.INEXACT)
             .size(64, 64)
             .build()

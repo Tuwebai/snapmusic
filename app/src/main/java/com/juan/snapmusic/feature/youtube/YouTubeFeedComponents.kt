@@ -941,16 +941,13 @@ fun YouTubeFeedRow(
         ImageRequest.Builder(context)
             .data(item.thumbnailUrl)
             .crossfade(false)
+            .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
             .precision(Precision.INEXACT)
-            .size(224, 126)
+            .size(154, 88)
             .build()
     }
     Row(
-        modifier = Modifier
-            .padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .background(SurfacePrimary)
-            .padding(12.dp),
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -966,7 +963,7 @@ fun YouTubeFeedRow(
                 contentDescription = item.title,
                 modifier = Modifier
                     .size(width = 154.dp, height = 88.dp)
-                    .clip(RoundedCornerShape(14.dp)),
+                    .clip(RoundedCornerShape(10.dp)),
                 filterQuality = FilterQuality.None,
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {

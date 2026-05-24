@@ -94,6 +94,14 @@ fun HomeScreen(
             beyondViewportPageCount = 0,
         ) {
             page ->
+            val pageVisible =
+                page == requestedTab ||
+                    page == pagerState.currentPage ||
+                    page == pagerState.targetPage
+            if (!pageVisible) {
+                Box(modifier = Modifier.fillMaxSize())
+                return@HorizontalPager
+            }
             saveableStateHolder.SaveableStateProvider(page) {
                 when (page) {
                     HOME_TAB_SEARCH -> HomeSearchLandingRoute(
@@ -107,8 +115,8 @@ fun HomeScreen(
                     HOME_TAB_YOUTUBE -> HomeYouTubeLanding(
                         padding = padding,
                         player = player,
-                        isActive = true,
-                        renderSuggestions = true,
+                        isActive = page == requestedTab,
+                        renderSuggestions = page == requestedTab,
                         viewModel = viewModel,
                         onDownloadQueued = onDownloadQueued,
                         onSelectSearch = viewModel::selectHomeSearchTab,
