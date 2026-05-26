@@ -23,6 +23,8 @@ import com.juan.snapmusic.data.persistence.toDownloadSelection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import java.io.File
@@ -549,19 +551,22 @@ class DownloadWorker(
 }
 
 private class CombinedTransferProgress {
+    private val mutex = Mutex()
     private var video: DownloadProgressSnapshot = DownloadProgressSnapshot(0L, 0L)
     private var audio: DownloadProgressSnapshot = DownloadProgressSnapshot(0L, 0L)
 
-    @Synchronized
-    fun updateVideo(snapshot: DownloadProgressSnapshot): DownloadProgressSnapshot {
-        video = snapshot
-        return combined()
+    suspend fun updateVideo(snapshot: DownloadProgressSnapshot): DownloadProgressSnapshot {
+        return mutex.withLock {
+            video = snapshot
+            combined()
+        }
     }
 
-    @Synchronized
-    fun updateAudio(snapshot: DownloadProgressSnapshot): DownloadProgressSnapshot {
-        audio = snapshot
-        return combined()
+    suspend fun updateAudio(snapshot: DownloadProgressSnapshot): DownloadProgressSnapshot {
+        return mutex.withLock {
+            audio = snapshot
+            combined()
+        }
     }
 
     private fun combined(): DownloadProgressSnapshot {
