@@ -3145,6 +3145,8 @@ class SnapMusicViewModel(
             val current = _youtubeState.value
             if (current.items.isEmpty() && current.playbackQueue.isEmpty()) {
                 _youtubeState.value = current.copy(items = cachedItems.take(YOUTUBE_HOME_CACHE_PRIME_COUNT))
+                delay(3_000L)
+                prefetchFeedItems(cachedItems)
             }
         }
     }
