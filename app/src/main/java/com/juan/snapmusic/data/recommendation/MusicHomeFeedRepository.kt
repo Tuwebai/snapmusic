@@ -23,6 +23,7 @@ class MusicHomeFeedRepository(
 ) {
     private companion object {
         const val HOME_SEARCH_CONCURRENCY = 4
+        const val INITIAL_HOME_SEARCH_CONCURRENCY = 3
         const val WATCH_NEXT_SEARCH_CONCURRENCY = 2
     }
 
@@ -35,23 +36,54 @@ class MusicHomeFeedRepository(
         val impressions = recentImpressions()
         val strongProfile = engine.hasStrongHomeProfile(profile)
         val offset = cursor?.toIntOrNull()?.coerceAtLeast(0) ?: 0
-        val targetCount = (offset + limit + 120).coerceAtLeast(limit + 120)
-        val queryCount = if (strongProfile) {
-            ((targetCount / 12) + 6).coerceIn(4, 8)
+        val isInitialPage = offset == 0 && cursor == null
+        val extraCandidates = if (isInitialPage) {
+            if (strongProfile) 32 else 40
         } else {
-            ((targetCount / 10) + 8).coerceIn(4, 8)
+            120
+        }
+        val targetCount = (offset + limit + extraCandidates).coerceAtLeast(limit + extraCandidates)
+        val queryCount = if (strongProfile) {
+            if (isInitialPage) {
+                ((targetCount / 18) + 1).coerceIn(3, 4)
+            } else {
+                ((targetCount / 12) + 6).coerceIn(4, 8)
+            }
+        } else {
+            if (isInitialPage) {
+                ((targetCount / 16) + 2).coerceIn(3, 5)
+            } else {
+                ((targetCount / 10) + 8).coerceIn(4, 8)
+            }
         }
         val queryVideoLimit = if (strongProfile) {
-            ((targetCount / queryCount) + 10).coerceIn(18, 32)
+            if (isInitialPage) {
+                ((targetCount / queryCount) + 4).coerceIn(14, 20)
+            } else {
+                ((targetCount / queryCount) + 10).coerceIn(18, 32)
+            }
         } else {
-            ((targetCount / queryCount) + 12).coerceIn(22, 40)
+            if (isInitialPage) {
+                ((targetCount / queryCount) + 6).coerceIn(16, 24)
+            } else {
+                ((targetCount / queryCount) + 12).coerceIn(22, 40)
+            }
         }
+        val homeSearchConcurrency = if (isInitialPage) INITIAL_HOME_SEARCH_CONCURRENCY else HOME_SEARCH_CONCURRENCY
         val candidates = coroutineScope {
             val trending = async {
                 val trendingLimit = if (strongProfile) {
-                    (targetCount / 4).coerceIn(24, 72)
+                    if (isInitialPage) {
+                        (targetCount / 5).coerceIn(16, 28)
+                    } else {
+                        (targetCount / 4).coerceIn(24, 72)
+                    }
                 } else {
-                    (targetCount / 2).coerceIn(48, 120)
+                    if (isInitialPage) {
+                        (targetCount / 3).coerceIn(24, 40)
+                    } else {
+                        (targetCount / 2).coerceIn(48, 120)
+                    }
                 }
                 runCatching { resolverRepository.loadTrending(limit = trendingLimit) }.getOrDefault(emptyList())
             }
@@ -69,7 +101,7 @@ class MusicHomeFeedRepository(
                 .take(queryCount)
             val searched = limitedSearch(
                 queries = searchQueries,
-                concurrency = HOME_SEARCH_CONCURRENCY,
+                concurrency = homeSearchConcurrency,
             ) { query ->
                 runCatching { resolverRepository.searchVideos(query = query, limit = queryVideoLimit) }.getOrDefault(emptyList())
             }
