@@ -32,6 +32,22 @@ import java.util.LinkedHashMap
 class NewPipeStreamResolverRepository(
     private val downloader: OkHttpNewPipeDownloader,
 ) : StreamResolverRepository {
+    private companion object {
+        @Volatile
+        private var newPipeInitialized = false
+
+        private fun ensureInitialized(downloader: OkHttpNewPipeDownloader) {
+            if (!newPipeInitialized) {
+                synchronized(this) {
+                    if (!newPipeInitialized) {
+                        NewPipe.init(downloader, Localization("es", "AR"), ContentCountry("AR"))
+                        newPipeInitialized = true
+                    }
+                }
+            }
+        }
+    }
+
     private val pageCursorStore = linkedMapOf<String, Page>()
     private var pageCursorCounter = 0L
     private val transferHeaders = mapOf(
@@ -42,11 +58,8 @@ class NewPipeStreamResolverRepository(
         "Accept-Language" to "es-AR,es;q=0.9,en;q=0.8",
     )
 
-    init {
-        NewPipe.init(downloader, Localization("es", "AR"), ContentCountry("AR"))
-    }
-
     override suspend fun resolve(url: String): ResolvedMedia = withContext(Dispatchers.IO) {
+        ensureInitialized(downloader)
         val info = StreamInfo.getInfo(url)
         val audioCandidates = info.audioStreams.map(::toAudioCandidate) +
             info.videoStreams.mapNotNull(::toProgressiveAudioCandidate)
@@ -70,6 +83,7 @@ class NewPipeStreamResolverRepository(
     }
 
     override suspend fun resolveDownloadPlan(url: String, selection: DownloadSelection): DownloadExecutionPlan = withContext(Dispatchers.IO) {
+        ensureInitialized(downloader)
         val info = StreamInfo.getInfo(url)
         DownloadSourcePlanner.resolveDownloadPlan(
             selection = selection,
@@ -81,6 +95,7 @@ class NewPipeStreamResolverRepository(
     }
 
     override suspend fun loadTrendingPage(limit: Int, cursor: String?): YouTubeFeedPage = withContext(Dispatchers.IO) {
+        ensureInitialized(downloader)
         val extractor = ServiceList.YouTube.kioskList.defaultKioskExtractor
         collectFeedPage(
             limit = limit,
@@ -105,6 +120,7 @@ class NewPipeStreamResolverRepository(
     override suspend fun loadTrending(limit: Int): List<YouTubeFeedItem> = loadTrendingPage(limit = limit).items
 
     override suspend fun searchVideosPage(query: String, limit: Int, cursor: String?): YouTubeFeedPage = withContext(Dispatchers.IO) {
+        ensureInitialized(downloader)
         val handler = ServiceList.YouTube.searchQHFactory.fromQuery(query)
         collectFeedPage(
             limit = limit,
@@ -132,6 +148,7 @@ class NewPipeStreamResolverRepository(
     ).items
 
     override suspend fun loadRelatedVideos(url: String, limit: Int): List<YouTubeFeedItem> = withContext(Dispatchers.IO) {
+        ensureInitialized(downloader)
         StreamInfo.getInfo(url)
             .relatedItems
             .filterIsInstance<StreamInfoItem>()
@@ -140,6 +157,7 @@ class NewPipeStreamResolverRepository(
     }
 
     override suspend fun searchSuggestions(query: String, limit: Int): List<String> = withContext(Dispatchers.IO) {
+        ensureInitialized(downloader)
         val normalized = query.trim()
         if (normalized.isBlank()) return@withContext emptyList()
         val endpoint =
