@@ -9,6 +9,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.session.CommandButton
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionError
 import androidx.media3.session.SessionCommand
@@ -141,9 +142,26 @@ class SnapMusicPlaybackService : MediaSessionService() {
                             .add(SessionCommand(PlaybackCommandReceiver.ACTION_YOUTUBE_PLAY_PAUSE, Bundle.EMPTY))
                             .add(SessionCommand(PlaybackCommandReceiver.ACTION_YOUTUBE_NEXT, Bundle.EMPTY))
                             .build()
-                        return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                        val resultBuilder = MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                             .setAvailableSessionCommands(sessionCommands)
-                            .build()
+                        if (session.isMediaNotificationController(controller)) {
+                            val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
+                                .buildUpon()
+                                .remove(Player.COMMAND_SEEK_TO_PREVIOUS)
+                                .remove(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                                .remove(Player.COMMAND_SEEK_TO_NEXT)
+                                .remove(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                                .build()
+                            resultBuilder.setAvailablePlayerCommands(playerCommands)
+                            resultBuilder.setCustomLayout(
+                                if (PlaybackSessionStateStore.state.value.target == PlaybackSessionTarget.YOUTUBE) {
+                                    buildYouTubeNotificationButtons(PlaybackSessionStateStore.state.value)
+                                } else {
+                                    emptyList()
+                                },
+                            )
+                        }
+                        return resultBuilder.build()
                     }
 
                     override fun onCustomCommand(
@@ -196,6 +214,11 @@ class SnapMusicPlaybackService : MediaSessionService() {
                 add(
                     CommandButton.Builder(CommandButton.ICON_PREVIOUS)
                         .setDisplayName("Anterior")
+                        .setExtras(
+                            Bundle().apply {
+                                putInt(DefaultMediaNotificationProvider.COMMAND_KEY_COMPACT_VIEW_INDEX, 0)
+                            },
+                        )
                         .setSessionCommand(
                             SessionCommand(PlaybackCommandReceiver.ACTION_YOUTUBE_PREVIOUS, Bundle.EMPTY),
                         )
@@ -206,6 +229,11 @@ class SnapMusicPlaybackService : MediaSessionService() {
                 add(
                     CommandButton.Builder(CommandButton.ICON_NEXT)
                         .setDisplayName("Siguiente")
+                        .setExtras(
+                            Bundle().apply {
+                                putInt(DefaultMediaNotificationProvider.COMMAND_KEY_COMPACT_VIEW_INDEX, 2)
+                            },
+                        )
                         .setSessionCommand(
                             SessionCommand(PlaybackCommandReceiver.ACTION_YOUTUBE_NEXT, Bundle.EMPTY),
                         )
