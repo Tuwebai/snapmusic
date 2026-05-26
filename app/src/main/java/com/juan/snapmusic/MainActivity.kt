@@ -25,12 +25,14 @@ import com.juan.snapmusic.core.model.IncomingSharePayload
 import com.juan.snapmusic.core.model.IncomingShareSourceAction
 import com.juan.snapmusic.core.model.UserPreferences
 import com.juan.snapmusic.core.platform.PlaybackCommandReceiver
+import com.juan.snapmusic.core.platform.PlaybackSessionState
+import com.juan.snapmusic.core.platform.PlaybackSessionTarget
 import com.juan.snapmusic.core.platform.validateYouTubeUrl
 import kotlinx.coroutines.flow.map
 
 class MainActivity : ComponentActivity() {
     private var isYouTubePopupEligible = false
-    private var isYouTubePlaybackPlaying = true
+    private var playbackSessionState = PlaybackSessionState()
     private val isPictureInPictureModeState = mutableStateOf(false)
     private val mediaPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -136,10 +138,10 @@ class MainActivity : ComponentActivity() {
 
     fun updateYouTubePictureInPicture(
         isEligible: Boolean,
-        isPlaying: Boolean = true,
+        playbackSessionState: PlaybackSessionState = PlaybackSessionState(),
     ) {
         isYouTubePopupEligible = isEligible
-        isYouTubePlaybackPlaying = isPlaying
+        this.playbackSessionState = playbackSessionState
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             setPictureInPictureParams(buildPictureInPictureParams())
         }
@@ -175,29 +177,48 @@ class MainActivity : ComponentActivity() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun buildPictureInPictureParams(): PictureInPictureParams {
+        val isYouTubePlayback = playbackSessionState.target == PlaybackSessionTarget.YOUTUBE
         val builder = PictureInPictureParams.Builder()
             .setAspectRatio(Rational(16, 9))
             .setActions(
-                listOf(
-                    buildPlaybackRemoteAction(
-                        action = PlaybackCommandReceiver.ACTION_YOUTUBE_PREVIOUS,
-                        title = "Anterior",
-                        iconRes = android.R.drawable.ic_media_previous,
-                        requestCode = 3011,
-                    ),
-                    buildPlaybackRemoteAction(
-                        action = PlaybackCommandReceiver.ACTION_YOUTUBE_PLAY_PAUSE,
-                        title = if (isYouTubePlaybackPlaying) "Pausar" else "Reproducir",
-                        iconRes = if (isYouTubePlaybackPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
-                        requestCode = 3013,
-                    ),
-                    buildPlaybackRemoteAction(
-                        action = PlaybackCommandReceiver.ACTION_YOUTUBE_NEXT,
-                        title = "Siguiente",
-                        iconRes = android.R.drawable.ic_media_next,
-                        requestCode = 3012,
-                    ),
-                ),
+                if (isYouTubePlayback) {
+                    buildList {
+                        if (playbackSessionState.youtubeHasPrevious) {
+                            add(
+                                buildPlaybackRemoteAction(
+                                    action = PlaybackCommandReceiver.ACTION_YOUTUBE_PREVIOUS,
+                                    title = "Anterior",
+                                    iconRes = android.R.drawable.ic_media_previous,
+                                    requestCode = 3011,
+                                ),
+                            )
+                        }
+                        add(
+                            buildPlaybackRemoteAction(
+                                action = PlaybackCommandReceiver.ACTION_YOUTUBE_PLAY_PAUSE,
+                                title = if (playbackSessionState.showPauseButton) "Pausar" else "Reproducir",
+                                iconRes = if (playbackSessionState.showPauseButton) {
+                                    android.R.drawable.ic_media_pause
+                                } else {
+                                    android.R.drawable.ic_media_play
+                                },
+                                requestCode = 3013,
+                            ),
+                        )
+                        if (playbackSessionState.youtubeHasNext) {
+                            add(
+                                buildPlaybackRemoteAction(
+                                    action = PlaybackCommandReceiver.ACTION_YOUTUBE_NEXT,
+                                    title = "Siguiente",
+                                    iconRes = android.R.drawable.ic_media_next,
+                                    requestCode = 3012,
+                                ),
+                            )
+                        }
+                    }
+                } else {
+                    emptyList()
+                },
             )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

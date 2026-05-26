@@ -36,6 +36,7 @@ import com.juan.snapmusic.core.model.YouTubeUiState
 import com.juan.snapmusic.core.platform.MergedPlaybackUri
 import com.juan.snapmusic.core.platform.PlaybackNotificationRouteStore
 import com.juan.snapmusic.core.platform.PlaybackNotificationRouteTarget
+import com.juan.snapmusic.core.platform.PlaybackSessionStateStore
 import com.juan.snapmusic.core.platform.validateYouTubeUrl
 import com.juan.snapmusic.data.persistence.QueueEntity
 import com.juan.snapmusic.data.persistence.toDownloadSelection
@@ -1117,6 +1118,35 @@ class SnapMusicViewModel(
                 val current = _youtubeState.value
                 if (current.autoplayEnabled != prefs.youtubeAutoplayEnabled) {
                     _youtubeState.value = current.copy(autoplayEnabled = prefs.youtubeAutoplayEnabled)
+                }
+            }
+        }
+        viewModelScope.launch {
+            youtubeState.collect { state ->
+                val queueItems = state.playbackQueue.ifEmpty { state.items }
+                val hasActivePlayback =
+                    state.featured.isReady &&
+                        state.featured.sourceUrl.isNotBlank() &&
+                        (state.showPlayer || state.showMiniPlayer)
+                if (!hasActivePlayback || queueItems.isEmpty()) {
+                    PlaybackSessionStateStore.updateYouTubeTransport(
+                        hasPrevious = false,
+                        hasNext = false,
+                    )
+                } else {
+                    val currentIndex = resolveCurrentQueueIndex(state, queueItems)
+                    PlaybackSessionStateStore.updateYouTubeTransport(
+                        hasPrevious = previousQueueIndex(
+                            queueSize = queueItems.size,
+                            currentIndex = currentIndex,
+                            currentPositionMs = state.currentPositionMs,
+                        ) != null,
+                        hasNext = nextQueueIndex(
+                            queueSize = queueItems.size,
+                            currentIndex = currentIndex,
+                            continuationMode = state.continuationMode,
+                        ) != null,
+                    )
                 }
             }
         }
@@ -2224,8 +2254,9 @@ class SnapMusicViewModel(
             )
             return
         }
+        val isCurrentlyPlaying = PlaybackSessionStateStore.state.value.showPauseButton
         _youtubeState.value = current.copy(
-            shouldAutoPlayCurrent = !current.shouldAutoPlayCurrent,
+            shouldAutoPlayCurrent = !isCurrentlyPlaying,
         )
         persistCurrentYouTubeSnapshot()
     }
@@ -2349,7 +2380,7 @@ class SnapMusicViewModel(
         val current = _youtubeState.value
         if (!current.featured.isReady) return
         val safePosition = positionMs.coerceAtLeast(0L)
-        val shouldAutoPlay = if (playWhenReady) true else current.shouldAutoPlayCurrent
+        val shouldAutoPlay = playWhenReady
         val shouldCheckpoint = kotlin.math.abs(current.currentPositionMs - safePosition) >= 10_000L
         val shouldUpdateState =
             current.shouldAutoPlayCurrent != shouldAutoPlay ||
@@ -2476,7 +2507,7 @@ class SnapMusicViewModel(
             },
             preloadedNextFeatured = nextQueueItem(queueItems, nextIndex, current.continuationMode)?.let { youTubeResolveCache[it.url] },
             currentPositionMs = positionMs.coerceAtLeast(0L),
-            shouldAutoPlayCurrent = if (playWhenReady) true else current.shouldAutoPlayCurrent,
+            shouldAutoPlayCurrent = playWhenReady,
         )
         persistCurrentYouTubeSnapshot()
         preResolveNextQueueItem(queueItems, nextIndex, current.continuationMode)

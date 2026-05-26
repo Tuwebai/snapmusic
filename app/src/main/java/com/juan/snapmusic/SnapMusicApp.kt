@@ -9,7 +9,9 @@ import com.juan.snapmusic.feature.home.SnapMusicViewModel
 import com.juan.snapmusic.feature.home.SnapMusicViewModelFactory
 import com.juan.snapmusic.core.platform.PlaybackCommand
 import com.juan.snapmusic.core.platform.PlaybackCommandBus
+import com.juan.snapmusic.core.platform.PlaybackSessionStateStore
 import com.juan.snapmusic.navigation.SnapMusicNavHost
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 
 @androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,10 +29,15 @@ fun SnapMusicApp(
     val activity = LocalContext.current as? MainActivity
     LaunchedEffect(activity, viewModel) {
         val currentActivity = activity ?: return@LaunchedEffect
-        viewModel.appPictureInPictureConfig.collectLatest { pictureInPictureConfig ->
+        combine(
+            viewModel.appPictureInPictureConfig,
+            PlaybackSessionStateStore.state,
+        ) { pictureInPictureConfig, playbackSessionState ->
+            pictureInPictureConfig.eligible to playbackSessionState
+        }.collectLatest { (isEligible, playbackSessionState) ->
             currentActivity.updateYouTubePictureInPicture(
-                pictureInPictureConfig.eligible,
-                pictureInPictureConfig.shouldAutoPlay,
+                isEligible = isEligible,
+                playbackSessionState = playbackSessionState,
             )
         }
     }
