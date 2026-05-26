@@ -223,7 +223,6 @@ fun rememberYouTubePlayer(
         featured.playbackUrl,
         preloadedNextFeatured?.sourceUrl,
         preloadedNextFeatured?.playbackUrl,
-        artworkData,
     ) {
         val mediaController = controller ?: return@LaunchedEffect
         val playbackUrl = featured.playbackUrl
