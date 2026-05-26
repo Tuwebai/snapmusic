@@ -2420,19 +2420,23 @@ class SnapMusicViewModel(
             val snapshot = graph.preferencesRepository.readYouTubePlaybackSnapshot() ?: return@launch
             if (snapshot.queue.isEmpty()) return@launch
             val currentItem = snapshot.queue.getOrNull(snapshot.currentQueueIndex) ?: return@launch
-            val loadingFeatured = currentItem.toLoadingFeaturedVideo()
             lastFailureFallbackSourceUrl = null
             lastExpiredStreamRetrySourceUrl = null
             val restoredState = _youtubeState.value
             _youtubeState.value = restoredState.copy(
                 query = snapshot.query,
+                isLoading = false,
+                isLoadingMore = false,
+                isRefreshingVideo = false,
                 items = snapshot.queue,
+                nextCursor = null,
+                hasMoreSearchResults = false,
                 watchNextItems = initialWatchNextItems(snapshot.queue, snapshot.currentQueueIndex),
                 playbackQueue = snapshot.queue,
                 currentQueueIndex = snapshot.currentQueueIndex,
                 autoplayEnabled = snapshot.autoplayEnabled,
                 continuationMode = snapshot.continuationMode,
-                featured = loadingFeatured,
+                featured = currentItem.toLoadingFeaturedVideo(),
                 showPlayer = false,
                 showMiniPlayer = snapshot.showMiniPlayer,
                 canLoadMoreWatchNext = true,
@@ -2448,6 +2452,7 @@ class SnapMusicViewModel(
                 shouldAutoPlayCurrent = false,
                 queueOrigin = snapshot.origin,
                 compactMiniPlayer = snapshot.showMiniPlayer,
+                openDownloadSheet = false,
                 errorMessage = null,
             )
         }
