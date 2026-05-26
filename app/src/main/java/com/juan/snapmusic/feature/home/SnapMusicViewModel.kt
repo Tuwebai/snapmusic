@@ -363,6 +363,7 @@ class SnapMusicViewModel(
     private var cachedYouTubePrefetchJob: Job? = null
     private var youtubeFeedPrefetchJob: Job? = null
     private var deferredYoutubeHomeRefreshJob: Job? = null
+    private var startupPrefetchDone = false
     private var hasOpenedYouTubeHomeTab = false
     private var hasLoadedPopularDownloadQueries = false
     private var youTubeHomeFeedCacheRestoreStarted = false
@@ -1735,6 +1736,9 @@ class SnapMusicViewModel(
                     viewModelScope.launch(Dispatchers.IO) {
                         graph.preferencesRepository.saveYouTubeHomeFeedCache(items)
                     }
+                    if (!silent) {
+                        startupPrefetchDone = false
+                    }
                     prefetchFeedItems(items)
                 }
                 .onFailure {
@@ -1785,6 +1789,7 @@ class SnapMusicViewModel(
                     viewModelScope.launch(Dispatchers.IO) {
                         graph.musicHomeFeedRepository.recordSearch(query)
                     }
+                    startupPrefetchDone = false
                     prefetchFeedItems(items)
                 }
                 .onFailure { error ->
@@ -1827,6 +1832,7 @@ class SnapMusicViewModel(
                         isLoadingMore = false,
                         nextCursor = state.nextCursor,
                     )
+                    startupPrefetchDone = false
                     prefetchFeedItems(state.items)
                 }
                 .onFailure {
@@ -1859,6 +1865,7 @@ class SnapMusicViewModel(
                         hasMoreSearchResults = !page.nextCursor.isNullOrBlank() && page.items.isNotEmpty(),
                     )
                     if (page.items.isNotEmpty()) {
+                        startupPrefetchDone = false
                         prefetchFeedItems(page.items)
                     }
                 }
@@ -2718,6 +2725,7 @@ class SnapMusicViewModel(
                         canLoadMoreWatchNext = newRelated.isNotEmpty() || related.size >= requestLimit,
                     )
                     if (newRelated.isNotEmpty()) {
+                        startupPrefetchDone = false
                         prefetchFeedItems(newRelated)
                     }
                     persistCurrentYouTubeSnapshot()
@@ -3133,7 +3141,21 @@ class SnapMusicViewModel(
     }
 
     private fun prefetchFeedItems(items: List<YouTubeFeedItem>) {
+        if (startupPrefetchDone) return
+        startupPrefetchDone = true
         youtubeFeedPrefetchJob?.cancel()
+        val itemsToPrefetch = items.asSequence()
+            .filterNot { youTubeResolveCache.containsKey(it.url) }
+            .take(2)
+            .toList()
+        if (itemsToPrefetch.isEmpty()) return
+        youtubeFeedPrefetchJob = viewModelScope.launch {
+            itemsToPrefetch.forEach { item ->
+                launch(Dispatchers.IO) {
+                    runCatching { resolveFeaturedVideo(item) }
+                }
+            }
+        }
     }
 
     private fun restoreYouTubeHomeFeedCache() {
@@ -3239,6 +3261,7 @@ class SnapMusicViewModel(
                 canLoadMoreWatchNext = current.canLoadMoreWatchNext,
                 errorMessage = null,
             )
+            startupPrefetchDone = false
             prefetchFeedItems(cachedItems)
         } else {
             _youtubeState.value = current.copy(query = "", hasMoreSearchResults = false, errorMessage = null)

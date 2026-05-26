@@ -306,28 +306,6 @@ class NewPipeStreamResolverRepository(
         }
     }
 
-    private fun encodePageCursor(page: Page?): String? {
-        if (!Page.isValid(page)) return null
-        val safePage = page ?: return null
-        val payload = JSONObject().apply {
-            safePage.url?.let { put("url", it) }
-            safePage.id?.let { put("id", it) }
-            put("ids", JSONArray(safePage.ids ?: emptyList<String>()))
-            put(
-                "cookies",
-                JSONObject().apply {
-                    safePage.cookies?.forEach { (key, value) -> put(key, value) }
-                },
-            )
-            safePage.body?.takeIf { it.isNotEmpty() }?.let {
-                put("body", Base64.getEncoder().encodeToString(it))
-            }
-        }
-        return Base64.getUrlEncoder()
-            .withoutPadding()
-            .encodeToString(payload.toString().toByteArray(Charsets.UTF_8))
-    }
-
     private fun resolvePageCursor(cursor: String?): Page? {
         if (cursor.isNullOrBlank()) return null
         synchronized(pageCursorStore) {

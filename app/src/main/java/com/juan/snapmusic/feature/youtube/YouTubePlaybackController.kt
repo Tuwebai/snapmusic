@@ -423,8 +423,8 @@ private fun resolvePreferredAutomaticHeight(
         .distinct()
         .sortedDescending()
     return when {
-        720 in heights -> 720
         1080 in heights -> 1080
+        720 in heights -> 720
         480 in heights -> 480
         360 in heights -> 360
         else -> heights.firstOrNull()
