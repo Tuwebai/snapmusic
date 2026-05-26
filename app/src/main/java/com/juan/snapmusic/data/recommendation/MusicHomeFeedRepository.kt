@@ -37,14 +37,14 @@ class MusicHomeFeedRepository(
         val offset = cursor?.toIntOrNull()?.coerceAtLeast(0) ?: 0
         val targetCount = (offset + limit + 120).coerceAtLeast(limit + 120)
         val queryCount = if (strongProfile) {
-            ((targetCount / 18) + 4).coerceIn(6, 18)
+            ((targetCount / 12) + 6).coerceIn(4, 8)
         } else {
-            ((targetCount / 16) + 5).coerceIn(8, 22)
+            ((targetCount / 10) + 8).coerceIn(4, 8)
         }
         val queryVideoLimit = if (strongProfile) {
-            ((targetCount / queryCount) + 4).coerceIn(12, 20)
+            ((targetCount / queryCount) + 10).coerceIn(18, 32)
         } else {
-            ((targetCount / queryCount) + 6).coerceIn(14, 24)
+            ((targetCount / queryCount) + 12).coerceIn(22, 40)
         }
         val candidates = coroutineScope {
             val trending = async {
