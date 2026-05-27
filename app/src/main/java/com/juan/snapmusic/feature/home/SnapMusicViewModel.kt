@@ -3487,9 +3487,11 @@ class SnapMusicViewModel(
 
     private fun fallbackAutomaticPlaybackUrl(resolved: com.juan.snapmusic.core.model.ResolvedMedia): String? {
         val playbackCandidates = resolved.videoVariants.filter { !it.directUrl.isNullOrBlank() }
-        val fallbackVariant = resolveAutomaticPlaybackVariant(playbackCandidates)
+        val progressiveCandidates = playbackCandidates.filterNot { it.requiresMux }
+        val fallbackVariant = resolveAutomaticPlaybackVariant(progressiveCandidates)
+            ?: resolveAutomaticPlaybackVariant(playbackCandidates)
             ?: return resolved.playbackUrl
-            ?: playbackCandidates.firstOrNull { !it.requiresMux }?.directUrl
+            ?: progressiveCandidates.firstOrNull()?.directUrl
             ?: playbackCandidates.firstOrNull()?.directUrl
         return fallbackPlaybackUrl(fallbackVariant)
     }
@@ -3503,6 +3505,7 @@ class SnapMusicViewModel(
         media: com.juan.snapmusic.core.model.ResolvedMedia,
         requestedVariantId: String,
     ): PlaybackSelection? {
+        val adaptivePlaybackUrl = media.adaptivePlaybackUrl?.takeIf(::isAdaptivePlaybackUrl)
         val playbackCandidates = media.videoVariants
             .filter { !it.directUrl.isNullOrBlank() }
             .sortedWith(
@@ -3523,8 +3526,15 @@ class SnapMusicViewModel(
         if (requestedVariantId == "auto") {
             val automaticHeight = preferredAutomaticPlaybackHeight(media)
             return PlaybackSelection(
-                playbackUrl = fallbackAutomaticPlaybackUrl(media) ?: return null,
+                playbackUrl = adaptivePlaybackUrl ?: fallbackAutomaticPlaybackUrl(media) ?: return null,
                 expectedHeight = automaticHeight,
+            )
+        }
+
+        if (requestedVariantId.startsWith("adaptive-") && adaptivePlaybackUrl != null) {
+            return PlaybackSelection(
+                playbackUrl = adaptivePlaybackUrl,
+                expectedHeight = requestedHeight,
             )
         }
 

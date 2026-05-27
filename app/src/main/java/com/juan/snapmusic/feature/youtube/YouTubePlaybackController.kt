@@ -390,16 +390,8 @@ private fun applyYouTubePlaybackQuality(
         .clearVideoSizeConstraints()
 
     if (adaptivePlayback && featured.selectedVideoQualityId == "auto") {
-        val override = resolveVideoTrackOverride(
-            tracks = mediaController.currentTracks,
-            requestedHeight = preferredAutomaticHeight,
-        )
-        if (override != null) {
-            builder.setOverrideForType(override)
-        } else {
-            preferredAutomaticHeight?.let { targetHeight ->
-                builder.setMaxVideoSize(Int.MAX_VALUE, targetHeight)
-            }
+        preferredAutomaticHeight?.let { targetHeight ->
+            builder.setMaxVideoSize(Int.MAX_VALUE, targetHeight)
         }
     } else if (adaptivePlayback && featured.selectedVideoQualityId != "auto") {
         val targetHeight = selectedVariant?.resolution?.substringBefore('p')?.toIntOrNull()
@@ -423,10 +415,10 @@ private fun resolvePreferredAutomaticHeight(
         .distinct()
         .sortedDescending()
     return when {
-        1080 in heights -> 1080
         720 in heights -> 720
         480 in heights -> 480
         360 in heights -> 360
+        1080 in heights -> 1080
         else -> heights.firstOrNull()
     }
 }
