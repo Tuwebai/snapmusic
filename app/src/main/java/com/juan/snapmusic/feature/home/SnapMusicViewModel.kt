@@ -2423,45 +2423,47 @@ class SnapMusicViewModel(
 
     fun restoreYouTubePlaybackSnapshot() {
         youTubePlaybackSnapshotRestoreStarted = true
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val snapshot = graph.preferencesRepository.readYouTubePlaybackSnapshot() ?: return@launch
             if (snapshot.queue.isEmpty()) return@launch
             val currentItem = snapshot.queue.getOrNull(snapshot.currentQueueIndex) ?: return@launch
-            lastFailureFallbackSourceUrl = null
-            lastExpiredStreamRetrySourceUrl = null
-            val restoredState = _youtubeState.value
-            _youtubeState.value = restoredState.copy(
-                query = snapshot.query,
-                isLoading = false,
-                isLoadingMore = false,
-                isRefreshingVideo = false,
-                items = snapshot.queue,
-                nextCursor = null,
-                hasMoreSearchResults = false,
-                watchNextItems = initialWatchNextItems(snapshot.queue, snapshot.currentQueueIndex),
-                playbackQueue = snapshot.queue,
-                currentQueueIndex = snapshot.currentQueueIndex,
-                autoplayEnabled = snapshot.autoplayEnabled,
-                continuationMode = snapshot.continuationMode,
-                featured = currentItem.toLoadingFeaturedVideo(),
-                showPlayer = false,
-                showMiniPlayer = snapshot.showMiniPlayer,
-                canLoadMoreWatchNext = true,
-                nextUpItem = if (snapshot.autoplayEnabled) {
-                    nextQueueItem(snapshot.queue, snapshot.currentQueueIndex, snapshot.continuationMode)
-                } else {
-                    null
-                },
-                preloadedNextFeatured = null,
-                pendingTransition = false,
-                currentPositionMs = snapshot.lastPositionMs,
-                playbackSeekRequestId = nextYouTubePlaybackSeekRequestId(restoredState),
-                shouldAutoPlayCurrent = false,
-                queueOrigin = snapshot.origin,
-                compactMiniPlayer = snapshot.showMiniPlayer,
-                openDownloadSheet = false,
-                errorMessage = null,
-            )
+            withContext(Dispatchers.Main.immediate) {
+                lastFailureFallbackSourceUrl = null
+                lastExpiredStreamRetrySourceUrl = null
+                val restoredState = _youtubeState.value
+                _youtubeState.value = restoredState.copy(
+                    query = snapshot.query,
+                    isLoading = false,
+                    isLoadingMore = false,
+                    isRefreshingVideo = false,
+                    items = snapshot.queue,
+                    nextCursor = null,
+                    hasMoreSearchResults = false,
+                    watchNextItems = initialWatchNextItems(snapshot.queue, snapshot.currentQueueIndex),
+                    playbackQueue = snapshot.queue,
+                    currentQueueIndex = snapshot.currentQueueIndex,
+                    autoplayEnabled = snapshot.autoplayEnabled,
+                    continuationMode = snapshot.continuationMode,
+                    featured = currentItem.toLoadingFeaturedVideo(),
+                    showPlayer = false,
+                    showMiniPlayer = snapshot.showMiniPlayer,
+                    canLoadMoreWatchNext = true,
+                    nextUpItem = if (snapshot.autoplayEnabled) {
+                        nextQueueItem(snapshot.queue, snapshot.currentQueueIndex, snapshot.continuationMode)
+                    } else {
+                        null
+                    },
+                    preloadedNextFeatured = null,
+                    pendingTransition = false,
+                    currentPositionMs = snapshot.lastPositionMs,
+                    playbackSeekRequestId = nextYouTubePlaybackSeekRequestId(restoredState),
+                    shouldAutoPlayCurrent = false,
+                    queueOrigin = snapshot.origin,
+                    compactMiniPlayer = snapshot.showMiniPlayer,
+                    openDownloadSheet = false,
+                    errorMessage = null,
+                )
+            }
         }
     }
 
@@ -3016,10 +3018,10 @@ class SnapMusicViewModel(
         if (previewState.value.isReady && (_previewDetailVisible.value || _previewMiniPlayerVisible.value)) {
             return PlaybackNotificationTarget.PREVIEW
         }
-        if (graph.preferencesRepository.readYouTubePlaybackSnapshot() != null) {
+        if (withContext(Dispatchers.IO) { graph.preferencesRepository.readYouTubePlaybackSnapshot() } != null) {
             return PlaybackNotificationTarget.YOUTUBE
         }
-        if (graph.preferencesRepository.readPreviewPlaybackSnapshot() != null) {
+        if (withContext(Dispatchers.IO) { graph.preferencesRepository.readPreviewPlaybackSnapshot() } != null) {
             return PlaybackNotificationTarget.PREVIEW
         }
         return PlaybackNotificationTarget.NONE
@@ -3150,6 +3152,7 @@ class SnapMusicViewModel(
             .toList()
         if (itemsToPrefetch.isEmpty()) return
         youtubeFeedPrefetchJob = viewModelScope.launch {
+            delay(1_500L)
             itemsToPrefetch.forEach { item ->
                 launch(Dispatchers.IO) {
                     runCatching { resolveFeaturedVideo(item) }
@@ -3218,7 +3221,7 @@ class SnapMusicViewModel(
         if (current.items != primedItems) return
         if (current.isLoading || current.isLoadingMore) return
         viewModelScope.launch {
-            delay(900L)
+            delay(2_500L)
             val latest = _youtubeState.value
             if (_homeSelectedTab.value != HOME_TAB_YOUTUBE_INDEX) return@launch
             if (latest.items != primedItems) return@launch

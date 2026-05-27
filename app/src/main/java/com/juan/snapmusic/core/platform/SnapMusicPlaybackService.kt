@@ -145,8 +145,16 @@ class SnapMusicPlaybackService : MediaSessionService() {
             .also { session ->
                 mediaSession = session
                 serviceScope.launch {
+                    var lastNotificationTransportState: Triple<PlaybackSessionTarget, Boolean, Boolean>? = null
                     PlaybackSessionStateStore.state.collectLatest { state ->
                         val notificationController = session.mediaNotificationControllerInfo ?: return@collectLatest
+                        val transportState = Triple(
+                            state.target,
+                            state.youtubeHasPrevious,
+                            state.youtubeHasNext,
+                        )
+                        if (transportState == lastNotificationTransportState) return@collectLatest
+                        lastNotificationTransportState = transportState
                         session.setAvailableCommands(
                             notificationController,
                             MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS,

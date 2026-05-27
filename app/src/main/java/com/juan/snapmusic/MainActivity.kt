@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.map
 class MainActivity : ComponentActivity() {
     private var isYouTubePopupEligible = false
     private var playbackSessionState = PlaybackSessionState()
+    private var lastPictureInPictureSignature: Int? = null
     private val isPictureInPictureModeState = mutableStateOf(false)
     private val mediaPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -143,7 +144,11 @@ class MainActivity : ComponentActivity() {
         isYouTubePopupEligible = isEligible
         this.playbackSessionState = playbackSessionState
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            setPictureInPictureParams(buildPictureInPictureParams())
+            val signature = pictureInPictureSignature(isEligible, playbackSessionState)
+            if (signature != lastPictureInPictureSignature) {
+                lastPictureInPictureSignature = signature
+                setPictureInPictureParams(buildPictureInPictureParams())
+            }
         }
     }
 
@@ -161,6 +166,19 @@ class MainActivity : ComponentActivity() {
         if (missingPermissions.isNotEmpty()) {
             mediaPermissionLauncher.launch(missingPermissions.toTypedArray())
         }
+    }
+
+    private fun pictureInPictureSignature(
+        isEligible: Boolean,
+        state: PlaybackSessionState,
+    ): Int {
+        return arrayOf(
+            isEligible,
+            state.target,
+            state.showPauseButton,
+            state.youtubeHasPrevious,
+            state.youtubeHasNext,
+        ).contentHashCode()
     }
 
     private fun requiredRuntimePermissions(): List<String> {
