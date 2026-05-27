@@ -1,21 +1,15 @@
 package com.juan.snapmusic.core.platform
 
-import android.os.Bundle
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-import androidx.media3.session.CommandButton
-import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
-import androidx.media3.session.SessionError
-import androidx.media3.session.SessionCommand
 import androidx.media3.session.MediaSessionService
-import androidx.media3.session.SessionResult
-import com.google.common.util.concurrent.Futures
 import com.juan.snapmusic.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -84,6 +78,7 @@ class SnapMusicPlaybackService : MediaSessionService() {
                 )
                 setHandleAudioBecomingNoisy(true)
             }
+        val sessionPlayer = SessionTransportPlayer(player)
         val playbackRouteListener = object : Player.Listener {
             private fun publishCurrentTarget(currentItem: MediaItem?) {
                 PlaybackNotificationRouteStore.update(
@@ -128,7 +123,7 @@ class SnapMusicPlaybackService : MediaSessionService() {
             playbackState = player.playbackState,
         )
 
-        return MediaSession.Builder(this, player)
+        return MediaSession.Builder(this, sessionPlayer)
             .setSessionActivity(MainActivity.buildOpenPlaybackPendingIntent(this))
             .setCallback(
                 object : MediaSession.Callback {
@@ -136,59 +131,14 @@ class SnapMusicPlaybackService : MediaSessionService() {
                         session: MediaSession,
                         controller: MediaSession.ControllerInfo,
                     ): MediaSession.ConnectionResult {
-                        val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS
-                            .buildUpon()
-                            .add(SessionCommand(PlaybackCommandReceiver.ACTION_YOUTUBE_PREVIOUS, Bundle.EMPTY))
-                            .add(SessionCommand(PlaybackCommandReceiver.ACTION_YOUTUBE_PLAY_PAUSE, Bundle.EMPTY))
-                            .add(SessionCommand(PlaybackCommandReceiver.ACTION_YOUTUBE_NEXT, Bundle.EMPTY))
-                            .build()
                         val resultBuilder = MediaSession.ConnectionResult.AcceptedResultBuilder(session)
-                            .setAvailableSessionCommands(sessionCommands)
                         if (session.isMediaNotificationController(controller)) {
-                            val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
-                                .buildUpon()
-                                .remove(Player.COMMAND_SEEK_TO_PREVIOUS)
-                                .remove(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
-                                .remove(Player.COMMAND_SEEK_TO_NEXT)
-                                .remove(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
-                                .build()
-                            resultBuilder.setAvailablePlayerCommands(playerCommands)
-                            resultBuilder.setCustomLayout(
-                                if (PlaybackSessionStateStore.state.value.target == PlaybackSessionTarget.YOUTUBE) {
-                                    buildYouTubeNotificationButtons(PlaybackSessionStateStore.state.value)
-                                } else {
-                                    emptyList()
-                                },
+                            resultBuilder.setAvailablePlayerCommands(
+                                buildNotificationPlayerCommands(PlaybackSessionStateStore.state.value),
                             )
                         }
                         return resultBuilder.build()
                     }
-
-                    override fun onCustomCommand(
-                        session: MediaSession,
-                        controller: MediaSession.ControllerInfo,
-                        customCommand: androidx.media3.session.SessionCommand,
-                        args: Bundle,
-                    ) = Futures.immediateFuture(
-                        when (customCommand.customAction) {
-                            PlaybackCommandReceiver.ACTION_YOUTUBE_PREVIOUS -> {
-                                PlaybackCommandBus.dispatch(PlaybackCommand.YOUTUBE_PREVIOUS)
-                                SessionResult(SessionResult.RESULT_SUCCESS)
-                            }
-
-                            PlaybackCommandReceiver.ACTION_YOUTUBE_PLAY_PAUSE -> {
-                                PlaybackCommandBus.dispatch(PlaybackCommand.YOUTUBE_PLAY_PAUSE)
-                                SessionResult(SessionResult.RESULT_SUCCESS)
-                            }
-
-                            PlaybackCommandReceiver.ACTION_YOUTUBE_NEXT -> {
-                                PlaybackCommandBus.dispatch(PlaybackCommand.YOUTUBE_NEXT)
-                                SessionResult(SessionResult.RESULT_SUCCESS)
-                            }
-
-                            else -> SessionResult(SessionError.ERROR_NOT_SUPPORTED)
-                        },
-                    )
                 },
             )
             .build()
@@ -196,50 +146,118 @@ class SnapMusicPlaybackService : MediaSessionService() {
                 mediaSession = session
                 serviceScope.launch {
                     PlaybackSessionStateStore.state.collectLatest { state ->
-                        session.setCustomLayout(
-                            if (state.target == PlaybackSessionTarget.YOUTUBE) {
-                                buildYouTubeNotificationButtons(state)
-                            } else {
-                                emptyList()
-                            },
+                        val notificationController = session.mediaNotificationControllerInfo ?: return@collectLatest
+                        session.setAvailableCommands(
+                            notificationController,
+                            MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS,
+                            buildNotificationPlayerCommands(state),
                         )
                     }
                 }
             }
     }
 
-    private fun buildYouTubeNotificationButtons(state: PlaybackSessionState): List<CommandButton> {
-        return buildList {
-            if (state.youtubeHasPrevious) {
-                add(
-                    CommandButton.Builder(CommandButton.ICON_PREVIOUS)
-                        .setDisplayName("Anterior")
-                        .setExtras(
-                            Bundle().apply {
-                                putInt(DefaultMediaNotificationProvider.COMMAND_KEY_COMPACT_VIEW_INDEX, 0)
-                            },
-                        )
-                        .setSessionCommand(
-                            SessionCommand(PlaybackCommandReceiver.ACTION_YOUTUBE_PREVIOUS, Bundle.EMPTY),
-                        )
-                        .build(),
-                )
+    private fun buildNotificationPlayerCommands(state: PlaybackSessionState): Player.Commands {
+        if (state.target != PlaybackSessionTarget.YOUTUBE) {
+            return MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
+        }
+        return MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
+            .buildUpon()
+            .remove(Player.COMMAND_SEEK_BACK)
+            .remove(Player.COMMAND_SEEK_FORWARD)
+            .apply {
+                if (!state.youtubeHasPrevious) {
+                    remove(Player.COMMAND_SEEK_TO_PREVIOUS)
+                    remove(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                }
+                if (!state.youtubeHasNext) {
+                    remove(Player.COMMAND_SEEK_TO_NEXT)
+                    remove(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                }
             }
-            if (state.youtubeHasNext) {
-                add(
-                    CommandButton.Builder(CommandButton.ICON_NEXT)
-                        .setDisplayName("Siguiente")
-                        .setExtras(
-                            Bundle().apply {
-                                putInt(DefaultMediaNotificationProvider.COMMAND_KEY_COMPACT_VIEW_INDEX, 2)
-                            },
-                        )
-                        .setSessionCommand(
-                            SessionCommand(PlaybackCommandReceiver.ACTION_YOUTUBE_NEXT, Bundle.EMPTY),
-                        )
-                        .build(),
-                )
+            .build()
+    }
+
+    private class SessionTransportPlayer(
+        player: Player,
+    ) : ForwardingPlayer(player) {
+        override fun getAvailableCommands(): Player.Commands {
+            val state = PlaybackSessionStateStore.state.value
+            if (state.target != PlaybackSessionTarget.YOUTUBE) {
+                return super.getAvailableCommands()
             }
+            return super.getAvailableCommands()
+                .buildUpon()
+                .apply {
+                    if (state.youtubeHasPrevious) {
+                        add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                        add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                    }
+                    if (state.youtubeHasNext) {
+                        add(Player.COMMAND_SEEK_TO_NEXT)
+                        add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                    }
+                }
+                .build()
+        }
+
+        override fun isCommandAvailable(command: Int): Boolean {
+            return getAvailableCommands().contains(command)
+        }
+
+        override fun hasPreviousMediaItem(): Boolean {
+            val state = PlaybackSessionStateStore.state.value
+            return if (state.target == PlaybackSessionTarget.YOUTUBE) {
+                state.youtubeHasPrevious
+            } else {
+                super.hasPreviousMediaItem()
+            }
+        }
+
+        override fun hasNextMediaItem(): Boolean {
+            val state = PlaybackSessionStateStore.state.value
+            return if (state.target == PlaybackSessionTarget.YOUTUBE) {
+                state.youtubeHasNext
+            } else {
+                super.hasNextMediaItem()
+            }
+        }
+
+        override fun seekToPrevious() {
+            if (!dispatchYouTubeTransport(hasPrevious = true)) {
+                super.seekToPrevious()
+            }
+        }
+
+        override fun seekToPreviousMediaItem() {
+            if (!dispatchYouTubeTransport(hasPrevious = true)) {
+                super.seekToPreviousMediaItem()
+            }
+        }
+
+        override fun seekToNext() {
+            if (!dispatchYouTubeTransport(hasPrevious = false)) {
+                super.seekToNext()
+            }
+        }
+
+        override fun seekToNextMediaItem() {
+            if (!dispatchYouTubeTransport(hasPrevious = false)) {
+                super.seekToNextMediaItem()
+            }
+        }
+
+        private fun dispatchYouTubeTransport(hasPrevious: Boolean): Boolean {
+            val state = PlaybackSessionStateStore.state.value
+            if (state.target != PlaybackSessionTarget.YOUTUBE) return false
+            if (hasPrevious) {
+                if (!state.youtubeHasPrevious) return true
+                PlaybackCommandBus.dispatch(PlaybackCommand.YOUTUBE_PREVIOUS)
+            } else {
+                if (!state.youtubeHasNext) return true
+                PlaybackCommandBus.dispatch(PlaybackCommand.YOUTUBE_NEXT)
+            }
+            return true
         }
     }
 }
