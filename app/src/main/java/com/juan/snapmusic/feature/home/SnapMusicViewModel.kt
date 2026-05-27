@@ -327,7 +327,7 @@ class SnapMusicViewModel(
     private companion object {
         const val YOUTUBE_HOME_FEED_LIMIT = 18
         const val YOUTUBE_HOME_FEED_PAGE_SIZE = 18
-        const val YOUTUBE_HOME_CACHE_PRIME_COUNT = 8
+        const val YOUTUBE_HOME_CACHE_PRIME_COUNT = 4
         const val YOUTUBE_WATCH_NEXT_PAGE_SIZE = 18
         const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 4_500L
         const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 20_000L
@@ -3144,6 +3144,8 @@ class SnapMusicViewModel(
 
     private fun prefetchFeedItems(items: List<YouTubeFeedItem>) {
         if (startupPrefetchDone) return
+        val current = _youtubeState.value
+        if (!current.showPlayer && !current.showMiniPlayer) return
         startupPrefetchDone = true
         youtubeFeedPrefetchJob?.cancel()
         val itemsToPrefetch = items.asSequence()
@@ -3191,7 +3193,6 @@ class SnapMusicViewModel(
     private fun onHomeYouTubeTabOpened() {
         hasOpenedYouTubeHomeTab = true
         ensureYouTubeHomeFeedCacheRestored()
-        ensureYouTubePlaybackSnapshotRestored()
         primeYouTubeHomeFeedFromCacheIfNeeded()
         refreshYouTubeHomeFromCachePrimeIfNeeded()
     }
@@ -3221,7 +3222,7 @@ class SnapMusicViewModel(
         if (current.items != primedItems) return
         if (current.isLoading || current.isLoadingMore) return
         viewModelScope.launch {
-            delay(2_500L)
+            delay(6_000L)
             val latest = _youtubeState.value
             if (_homeSelectedTab.value != HOME_TAB_YOUTUBE_INDEX) return@launch
             if (latest.items != primedItems) return@launch

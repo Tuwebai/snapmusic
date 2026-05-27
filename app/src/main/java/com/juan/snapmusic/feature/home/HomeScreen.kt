@@ -14,6 +14,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -53,6 +54,7 @@ fun HomeScreen(
         initialPage = requestedTab,
         pageCount = { HOME_TAB_CONVERT + 1 },
     )
+    var pagerStateSynced by remember { mutableStateOf(false) }
     var clipboardInspectionToken by rememberSaveable { mutableStateOf(0L) }
     HomePerformanceTelemetry(viewModel = viewModel, selectedTab = requestedTab)
     HomeYouTubeVisibilityEffects(viewModel = viewModel, selectedTab = requestedTab)
@@ -74,12 +76,15 @@ fun HomeScreen(
     }
 
     LaunchedEffect(requestedTab) {
-        if (pagerState.currentPage != requestedTab) {
-            pagerState.animateScrollToPage(requestedTab)
+        pagerStateSynced = false
+        if (pagerState.currentPage != requestedTab || pagerState.targetPage != requestedTab) {
+            pagerState.scrollToPage(requestedTab)
         }
+        pagerStateSynced = true
     }
 
-    LaunchedEffect(pagerState) {
+    LaunchedEffect(pagerState, pagerStateSynced, requestedTab) {
+        if (!pagerStateSynced) return@LaunchedEffect
         snapshotFlow { pagerState.settledPage }.collect { page ->
             if (page != requestedTab) {
                 viewModel.selectHomeTab(page)
@@ -95,9 +100,13 @@ fun HomeScreen(
         ) {
             page ->
             val pageVisible =
-                page == requestedTab ||
-                    page == pagerState.currentPage ||
-                    page == pagerState.targetPage
+                if (!pagerStateSynced) {
+                    page == requestedTab
+                } else {
+                    page == requestedTab ||
+                        page == pagerState.currentPage ||
+                        page == pagerState.targetPage
+                }
             if (!pageVisible) {
                 Box(modifier = Modifier.fillMaxSize())
                 return@HorizontalPager

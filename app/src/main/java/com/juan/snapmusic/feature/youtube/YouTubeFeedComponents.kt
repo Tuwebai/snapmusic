@@ -732,7 +732,8 @@ fun YouTubeMiniPlayer(
         shape = RoundedCornerShape(18.dp),
         color = SurfacePrimary,
         border = BorderStroke(1.dp, BorderSubtle),
-        shadowElevation = 14.dp,
+        tonalElevation = 0.dp,
+        shadowElevation = 2.dp,
     ) {
         Column(
             modifier = Modifier

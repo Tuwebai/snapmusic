@@ -293,7 +293,8 @@ private fun SearchCommandBar(
         shape = RoundedCornerShape(999.dp),
         color = SearchFieldFill,
         border = androidx.compose.foundation.BorderStroke(1.dp, SearchFieldBorder),
-        shadowElevation = 14.dp,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
     ) {
         Row(
             modifier = Modifier
