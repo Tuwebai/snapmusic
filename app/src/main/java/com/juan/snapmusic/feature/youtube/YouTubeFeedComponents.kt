@@ -942,7 +942,6 @@ fun YouTubeFeedRow(
         ImageRequest.Builder(context)
             .data(item.thumbnailUrl)
             .crossfade(false)
-            .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
             .precision(Precision.INEXACT)
             .size(154, 88)
             .build()

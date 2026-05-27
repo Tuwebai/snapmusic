@@ -1,6 +1,7 @@
 package com.juan.snapmusic.feature.home
 
 import android.content.ClipboardManager
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,6 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -42,13 +44,21 @@ fun HomeScreen(
 ) {
     val requestedTab by viewModel.homeSelectedTab.collectAsStateWithLifecycle()
     val incomingShareSelection by viewModel.incomingShareSelectionState.collectAsStateWithLifecycle()
+    val youtubeRouteVisibility by viewModel.youtubeRouteVisibility.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val clipboardManager = context.getSystemService(ClipboardManager::class.java)
     val saveableStateHolder = rememberSaveableStateHolder()
     var clipboardInspectionToken by rememberSaveable { mutableStateOf(0L) }
-    HomePerformanceTelemetry(viewModel = viewModel, selectedTab = requestedTab)
-    HomeYouTubeVisibilityEffects(viewModel = viewModel, selectedTab = requestedTab)
+    HomePerformanceTelemetry(
+        selectedTab = requestedTab,
+        youtubeRouteVisibility = youtubeRouteVisibility,
+    )
+    HomeYouTubeVisibilityEffects(
+        viewModel = viewModel,
+        selectedTab = requestedTab,
+        youtubeRouteVisibility = youtubeRouteVisibility,
+    )
 
     LaunchedEffect(requestedTab, clipboardInspectionToken) {
         if (requestedTab != HOME_TAB_CONVERT) return@LaunchedEffect
@@ -66,7 +76,33 @@ fun HomeScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(requestedTab, youtubeRouteVisibility.showPlayer) {
+                if (youtubeRouteVisibility.showPlayer) return@pointerInput
+                var totalDrag = 0f
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        val thresholdPx = size.width * 0.18f
+                        when {
+                            totalDrag <= -thresholdPx && requestedTab < HOME_TAB_CONVERT -> {
+                                viewModel.selectHomeTab(requestedTab + 1)
+                            }
+                            totalDrag >= thresholdPx && requestedTab > HOME_TAB_SEARCH -> {
+                                viewModel.selectHomeTab(requestedTab - 1)
+                            }
+                        }
+                        totalDrag = 0f
+                    },
+                    onDragCancel = {
+                        totalDrag = 0f
+                    },
+                ) { _, dragAmount ->
+                    totalDrag += dragAmount
+                }
+            },
+    ) {
         saveableStateHolder.SaveableStateProvider(requestedTab) {
             when (requestedTab) {
                 HOME_TAB_SEARCH -> HomeSearchLandingRoute(
@@ -113,10 +149,9 @@ fun HomeScreen(
 
 @Composable
 private fun HomePerformanceTelemetry(
-    viewModel: SnapMusicViewModel,
     selectedTab: Int,
+    youtubeRouteVisibility: YouTubeRouteVisibilityState,
 ) {
-    val youtubeRouteVisibility by viewModel.youtubeRouteVisibility.collectAsStateWithLifecycle()
     ReportPerformanceScene(
         screen = "home",
         detail = when {
@@ -132,8 +167,8 @@ private fun HomePerformanceTelemetry(
 private fun HomeYouTubeVisibilityEffects(
     viewModel: SnapMusicViewModel,
     selectedTab: Int,
+    youtubeRouteVisibility: YouTubeRouteVisibilityState,
 ) {
-    val youtubeRouteVisibility by viewModel.youtubeRouteVisibility.collectAsStateWithLifecycle()
     LaunchedEffect(
         selectedTab,
         youtubeRouteVisibility.showPlayer,
