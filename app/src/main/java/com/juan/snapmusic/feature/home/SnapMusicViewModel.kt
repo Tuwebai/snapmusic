@@ -361,7 +361,6 @@ class SnapMusicViewModel(
     private var downloadSearchSuggestionJob: Job? = null
     private var popularDownloadSearchesJob: Job? = null
     private var cachedYouTubePrefetchJob: Job? = null
-    private var cachedYouTubeHomeRefreshJob: Job? = null
     private var youtubeFeedPrefetchJob: Job? = null
     private var deferredYoutubeHomeRefreshJob: Job? = null
     private var startupPrefetchDone = false
@@ -3181,7 +3180,6 @@ class SnapMusicViewModel(
                 _youtubeState.value = current.copy(items = cachedItems.take(YOUTUBE_HOME_CACHE_PRIME_COUNT))
                 delay(3_000L)
                 prefetchFeedItems(cachedItems)
-                scheduleCachedYouTubeHomeRefresh()
             }
         }
     }
@@ -3202,7 +3200,6 @@ class SnapMusicViewModel(
         hasOpenedYouTubeHomeTab = true
         ensureYouTubeHomeFeedCacheRestored()
         primeYouTubeHomeFeedFromCacheIfNeeded()
-        refreshYouTubeHomeFromCachePrimeIfNeeded()
     }
 
     private fun primeYouTubeHomeFeedFromCacheIfNeeded() {
@@ -3220,44 +3217,6 @@ class SnapMusicViewModel(
             hasMoreSearchResults = false,
             errorMessage = null,
         )
-        scheduleCachedYouTubeHomeRefresh()
-    }
-
-    private fun refreshYouTubeHomeFromCachePrimeIfNeeded() {
-        val cachedItems = cachedYouTubeHomeFeed
-        if (cachedItems.size <= YOUTUBE_HOME_CACHE_PRIME_COUNT) return
-        val current = _youtubeState.value
-        val primedItems = cachedItems.take(YOUTUBE_HOME_CACHE_PRIME_COUNT)
-        if (current.items != primedItems) return
-        if (current.isLoading || current.isLoadingMore) return
-        viewModelScope.launch {
-            delay(6_000L)
-            val latest = _youtubeState.value
-            if (_homeSelectedTab.value != HOME_TAB_YOUTUBE_INDEX) return@launch
-            if (latest.items != primedItems) return@launch
-            if (latest.query.isNotBlank()) return@launch
-            refreshYoutubeHome(silent = true)
-        }
-    }
-
-    private fun scheduleCachedYouTubePrefetchIfVisible() {
-        cachedYouTubePrefetchJob?.cancel()
-        if (!hasOpenedYouTubeHomeTab) return
-        val cachedItems = cachedYouTubeHomeFeed
-        val current = _youtubeState.value
-        if (cachedItems.isEmpty()) return
-        if (current.query.isNotBlank()) return
-        if (current.playbackQueue.isNotEmpty()) return
-        if (current.items != cachedItems) return
-        cachedYouTubePrefetchJob = viewModelScope.launch {
-            delay(700L)
-            val latest = _youtubeState.value
-            if (!hasOpenedYouTubeHomeTab) return@launch
-            if (latest.query.isNotBlank()) return@launch
-            if (latest.playbackQueue.isNotEmpty()) return@launch
-            if (latest.items != cachedItems) return@launch
-            prefetchFeedItems(cachedItems)
-        }
     }
 
     private fun restoreYoutubeHomeFeedAfterSearch() {
@@ -3276,21 +3235,9 @@ class SnapMusicViewModel(
             )
             startupPrefetchDone = false
             prefetchFeedItems(cachedItems)
-            scheduleCachedYouTubeHomeRefresh()
         } else {
             _youtubeState.value = current.copy(query = "", hasMoreSearchResults = false, errorMessage = null)
             refreshYoutubeHome()
-        }
-    }
-
-    private fun scheduleCachedYouTubeHomeRefresh() {
-        cachedYouTubeHomeRefreshJob?.cancel()
-        cachedYouTubeHomeRefreshJob = viewModelScope.launch {
-            delay(350L)
-            val latest = _youtubeState.value
-            if (_homeSelectedTab.value != HOME_TAB_YOUTUBE_INDEX) return@launch
-            if (latest.query.isNotBlank() || latest.isLoading || latest.isLoadingMore) return@launch
-            refreshYoutubeHome(silent = true)
         }
     }
 

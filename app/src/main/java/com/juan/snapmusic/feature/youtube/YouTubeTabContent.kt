@@ -14,14 +14,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
@@ -137,26 +134,6 @@ private fun YouTubeSuggestionsHost(
     val suggestionsState by viewModel.youtubeSuggestionsScreen.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val visibleItems = suggestionsState.items
-    val canLoadMore by rememberUpdatedState(suggestionsState.canLoadMore)
-    val isLoadingMore by rememberUpdatedState(suggestionsState.isLoadingMore)
-    val latestVisibleItems by rememberUpdatedState(visibleItems)
-    val loadMoreThreshold = remember(visibleItems.size) {
-        (visibleItems.lastIndex - 8).coerceAtLeast(0)
-    }
-
-    LaunchedEffect(isActive, listState) {
-        if (!isActive) return@LaunchedEffect
-        snapshotFlow { listState.firstVisibleItemIndex }
-            .distinctUntilChanged()
-            .collect { firstVisibleIndex ->
-                val items = latestVisibleItems
-                if (items.isEmpty()) return@collect
-                if (!canLoadMore || isLoadingMore) return@collect
-                if (firstVisibleIndex >= loadMoreThreshold) {
-                    viewModel.loadMoreYoutubeSuggestions()
-                }
-            }
-    }
 
     YouTubeSuggestionsList(
         modifier = modifier.fillMaxSize(),
@@ -166,6 +143,7 @@ private fun YouTubeSuggestionsHost(
         onItemClick = viewModel::selectYouTubeItem,
         onItemDownload = onItemDownload,
         onRefresh = viewModel::refreshYoutubeByPull,
+        onLoadMore = viewModel::loadMoreYoutubeSuggestions,
     )
 }
 
@@ -199,6 +177,7 @@ private fun YouTubeSuggestionsList(
     onItemClick: (YouTubeFeedItem) -> Unit,
     onItemDownload: (YouTubeFeedItem) -> Unit,
     onRefresh: () -> Unit,
+    onLoadMore: () -> Unit,
 ) {
     val listContent: @Composable () -> Unit = {
         LazyColumn(
@@ -246,6 +225,17 @@ private fun YouTubeSuggestionsList(
                 }
             }
 
+            if (visibleItems.isNotEmpty() && suggestionsState.canLoadMore) {
+                item(key = "youtube_feed_load_more_trigger", contentType = "youtube_feed_load_more_trigger") {
+                    LaunchedEffect(visibleItems.lastOrNull()?.url, suggestionsState.canLoadMore, suggestionsState.isLoadingMore) {
+                        if (suggestionsState.canLoadMore && !suggestionsState.isLoadingMore) {
+                            onLoadMore()
+                        }
+                    }
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp))
+                }
+            }
+
             if (suggestionsState.isLoadingMore) {
                 item(key = "youtube_feed_loading_more", contentType = "youtube_feed_loading_more") {
                     Box(
@@ -268,11 +258,7 @@ private fun YouTubeSuggestionsList(
             listContent()
         }
     } else {
-        PullToRefreshBox(
-            modifier = modifier,
-            isRefreshing = suggestionsState.isRefreshing,
-            onRefresh = onRefresh,
-        ) {
+        Box(modifier = modifier) {
             listContent()
         }
     }
