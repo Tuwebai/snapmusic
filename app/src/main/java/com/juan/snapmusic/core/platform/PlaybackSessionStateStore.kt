@@ -39,15 +39,27 @@ object PlaybackSessionStateStore {
         isPlaying: Boolean,
         playbackState: Int,
     ) {
+        val target = resolveTarget(mediaId, mediaUri)
         _state.update { current ->
-            current.copy(
-                target = resolveTarget(mediaId, mediaUri),
-                mediaId = mediaId,
-                mediaUri = mediaUri,
-                playWhenReady = playWhenReady,
-                isPlaying = isPlaying,
-                playbackState = playbackState,
-            )
+            if (
+                current.target == target &&
+                current.mediaId == mediaId &&
+                current.mediaUri == mediaUri &&
+                current.playWhenReady == playWhenReady &&
+                current.isPlaying == isPlaying &&
+                current.playbackState == playbackState
+            ) {
+                current
+            } else {
+                current.copy(
+                    target = target,
+                    mediaId = mediaId,
+                    mediaUri = mediaUri,
+                    playWhenReady = playWhenReady,
+                    isPlaying = isPlaying,
+                    playbackState = playbackState,
+                )
+            }
         }
     }
 
@@ -56,10 +68,14 @@ object PlaybackSessionStateStore {
         hasNext: Boolean,
     ) {
         _state.update { current ->
-            current.copy(
-                youtubeHasPrevious = hasPrevious,
-                youtubeHasNext = hasNext,
-            )
+            if (current.youtubeHasPrevious == hasPrevious && current.youtubeHasNext == hasNext) {
+                current
+            } else {
+                current.copy(
+                    youtubeHasPrevious = hasPrevious,
+                    youtubeHasNext = hasNext,
+                )
+            }
         }
     }
 

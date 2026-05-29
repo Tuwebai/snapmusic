@@ -15,8 +15,6 @@ import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
 import { VideoCard } from "@/components/video-card";
 import { DownloadModal } from "@/components/download-modal";
-import { VideoPlayer } from "@/components/video-player";
-import { AudioPlayer } from "@/components/audio-player";
 import { searchVideos, VideoResult } from "@/lib/youtube-service";
 import { router } from "expo-router";
 
@@ -38,9 +36,13 @@ export default function SearchScreen() {
   const [searched, setSearched] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<VideoResult | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [previewVisible, setPreviewVisible] = useState(false);
-  const [previewType, setPreviewType] = useState<"audio" | "video">("video");
   const inputRef = useRef<TextInput>(null);
+  const renderResultItem = useCallback(
+    ({ item }: { item: VideoResult }) => (
+      <VideoCard video={item} onDownload={handleDownload} onPreview={handlePreview} />
+    ),
+    [handleDownload, handlePreview],
+  );
 
   const handleSearch = useCallback(async (searchQuery?: string) => {
     const q = searchQuery ?? query;
@@ -148,12 +150,14 @@ export default function SearchScreen() {
         <FlatList
           data={results}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <VideoCard video={item} onDownload={handleDownload} onPreview={handlePreview} />
-          )}
+          renderItem={renderResultItem}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
+          initialNumToRender={5}
+          maxToRenderPerBatch={5}
+          windowSize={7}
+          removeClippedSubviews
         />
       ) : (
         // Empty state with popular searches

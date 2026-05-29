@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, Pressable, ActivityIndicator, ScrollView } from "react-native";
 import { useAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { useColors } from "@/hooks/use-colors";
@@ -23,10 +23,7 @@ export function AudioPlayer({ url, title, channel, onClose }: AudioPlayerProps) 
   useEffect(() => {
     // Enable playback in silent mode
     setAudioModeAsync({ playsInSilentMode: true });
-
-    // Set loading to false after a short delay
-    const timer = setTimeout(() => setIsLoading(false), 1000);
-    return () => clearTimeout(timer);
+    setIsLoading(false);
   }, [url]);
 
   useEffect(() => {

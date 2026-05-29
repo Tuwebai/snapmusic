@@ -1123,33 +1123,39 @@ class SnapMusicViewModel(
             }
         }
         viewModelScope.launch {
-            youtubeState.collect { state ->
-                val queueItems = state.playbackQueue.ifEmpty { state.items }
-                val hasActivePlayback =
-                    state.featured.isReady &&
-                        state.featured.sourceUrl.isNotBlank() &&
-                        (state.showPlayer || state.showMiniPlayer)
-                if (!hasActivePlayback || queueItems.isEmpty()) {
+            youtubeState
+                .map { state ->
+                    val queueItems = state.playbackQueue.ifEmpty { state.items }
+                    val hasActivePlayback =
+                        state.featured.isReady &&
+                            state.featured.sourceUrl.isNotBlank() &&
+                            (state.showPlayer || state.showMiniPlayer)
+                    if (!hasActivePlayback || queueItems.isEmpty()) {
+                        false to false
+                    } else {
+                        val currentIndex = resolveCurrentQueueIndex(state, queueItems)
+                        val hasPrevious =
+                            previousQueueIndex(
+                                queueSize = queueItems.size,
+                                currentIndex = currentIndex,
+                                currentPositionMs = state.currentPositionMs,
+                            ) != null
+                        val hasNext =
+                            nextQueueIndex(
+                                queueSize = queueItems.size,
+                                currentIndex = currentIndex,
+                                continuationMode = state.continuationMode,
+                            ) != null
+                        hasPrevious to hasNext
+                    }
+                }
+                .distinctUntilChanged()
+                .collectLatest { (hasPrevious, hasNext) ->
                     PlaybackSessionStateStore.updateYouTubeTransport(
-                        hasPrevious = false,
-                        hasNext = false,
-                    )
-                } else {
-                    val currentIndex = resolveCurrentQueueIndex(state, queueItems)
-                    PlaybackSessionStateStore.updateYouTubeTransport(
-                        hasPrevious = previousQueueIndex(
-                            queueSize = queueItems.size,
-                            currentIndex = currentIndex,
-                            currentPositionMs = state.currentPositionMs,
-                        ) != null,
-                        hasNext = nextQueueIndex(
-                            queueSize = queueItems.size,
-                            currentIndex = currentIndex,
-                            continuationMode = state.continuationMode,
-                        ) != null,
+                        hasPrevious = hasPrevious,
+                        hasNext = hasNext,
                     )
                 }
-            }
         }
     }
 

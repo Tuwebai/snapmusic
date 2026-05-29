@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useColors } from "@/hooks/use-colors";
@@ -33,9 +33,7 @@ export function VideoPlayer({ url, title, thumbnail, onClose }: VideoPlayerProps
   };
 
   useEffect(() => {
-    // Set loading to false after a short delay
-    const timer = setTimeout(() => setIsLoading(false), 1000);
-    return () => clearTimeout(timer);
+    setIsLoading(false);
   }, [url]);
 
   useEffect(() => {

@@ -9,7 +9,7 @@ interface VideoCardProps {
   onPreview?: (video: VideoResult) => void;
 }
 
-export function VideoCard({ video, onDownload, onPreview }: VideoCardProps) {
+function VideoCardBase({ video, onDownload, onPreview }: VideoCardProps) {
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
@@ -66,6 +66,8 @@ export function VideoCard({ video, onDownload, onPreview }: VideoCardProps) {
     </Pressable>
   );
 }
+
+export const VideoCard = React.memo(VideoCardBase);
 
 const styles = StyleSheet.create({
   card: {

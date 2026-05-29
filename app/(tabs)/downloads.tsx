@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,13 @@ import {
   Download,
 } from "@/lib/downloads-store";
 
-function DownloadItem({ item, onRemove }: { item: Download; onRemove: (id: string) => void }) {
+const DownloadItem = React.memo(function DownloadItem({
+  item,
+  onRemove,
+}: {
+  item: Download;
+  onRemove: (id: string) => void;
+}) {
   const isDownloading = item.status === "downloading";
   const isCompleted = item.status === "completed";
   const isError = item.status === "error";
@@ -104,14 +110,14 @@ function DownloadItem({ item, onRemove }: { item: Download; onRemove: (id: strin
       </View>
     </View>
   );
-}
+});
 
 export default function DownloadsScreen() {
   const [downloads, setDownloads] = useState<Download[]>(() => getDownloads());
 
   useEffect(() => {
     const unsubscribe = subscribe(() => {
-      setDownloads([...getDownloads()]);
+      setDownloads(getDownloads());
     });
     return unsubscribe;
   }, []);
@@ -138,8 +144,18 @@ export default function DownloadsScreen() {
     );
   }, []);
 
-  const activeDownloads = downloads.filter((d) => d.status === "downloading");
-  const completedDownloads = downloads.filter((d) => d.status !== "downloading");
+  const activeDownloads = useMemo(
+    () => downloads.filter((d) => d.status === "downloading"),
+    [downloads],
+  );
+  const completedDownloads = useMemo(
+    () => downloads.filter((d) => d.status !== "downloading"),
+    [downloads],
+  );
+  const renderItem = useCallback(
+    ({ item }: { item: Download }) => <DownloadItem item={item} onRemove={handleRemove} />,
+    [handleRemove],
+  );
 
   const renderEmpty = () => (
     <View style={styles.emptyState}>
@@ -181,11 +197,13 @@ export default function DownloadsScreen() {
         <FlatList
           data={downloads}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <DownloadItem item={item} onRemove={handleRemove} />
-          )}
+          renderItem={renderItem}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
+          initialNumToRender={6}
+          maxToRenderPerBatch={6}
+          windowSize={7}
+          removeClippedSubviews
           ListHeaderComponent={
             activeDownloads.length > 0 ? (
               <View style={styles.sectionHeader}>

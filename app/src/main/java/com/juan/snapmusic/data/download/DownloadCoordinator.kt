@@ -78,12 +78,14 @@ class DownloadCoordinator(
     }
 
     private suspend fun resolveParallelSlots(): Int {
-        val prefs = preferencesRepository.preferences.first()
-        val preferred = if (networkPolicy.isUnmeteredConnection()) {
-            prefs.downloadTasksWifi
-        } else {
-            prefs.downloadTasksMobile
+        return withContext(Dispatchers.IO) {
+            val prefs = preferencesRepository.preferences.first()
+            val preferred = if (networkPolicy.isUnmeteredConnection()) {
+                prefs.downloadTasksWifi
+            } else {
+                prefs.downloadTasksMobile
+            }
+            preferred.coerceIn(1, 4)
         }
-        return preferred.coerceIn(1, 4)
     }
 }
