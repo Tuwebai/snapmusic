@@ -16,9 +16,9 @@ import androidx.annotation.RequiresApi
 import androidx.activity.compose.setContent
 import androidx.media3.common.util.UnstableApi
 import androidx.compose.runtime.getValue
-import androidx.core.content.ContextCompat
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.collectAsState
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.juan.snapmusic.core.designsystem.SnapMusicTheme
 import com.juan.snapmusic.core.model.IncomingShareItem
 import com.juan.snapmusic.core.model.IncomingSharePayload
@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeMode by app.appGraph.preferencesRepository.preferences
                 .map { preferences -> preferences.themeMode }
-                .collectAsState(initial = UserPreferences().themeMode)
+                .collectAsStateWithLifecycle(initialValue = UserPreferences().themeMode)
             SnapMusicTheme(themeMode = themeMode) {
                 SnapMusicApp(
                     graph = app.appGraph,
