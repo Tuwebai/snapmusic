@@ -17,7 +17,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -66,42 +65,20 @@ fun HomeScreen(
         viewModel.inspectClipboardCandidate(readClipboardText(clipboardManager))
     }
 
-    DisposableEffect(lifecycleOwner, clipboardManager) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                clipboardInspectionToken += 1L
+    if (requestedTab == HOME_TAB_CONVERT) {
+        DisposableEffect(lifecycleOwner, clipboardManager) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    clipboardInspectionToken += 1L
+                }
             }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(requestedTab, youtubeRouteVisibility.showPlayer) {
-                if (youtubeRouteVisibility.showPlayer) return@pointerInput
-                var totalDrag = 0f
-                detectHorizontalDragGestures(
-                    onDragEnd = {
-                        val thresholdPx = size.width * 0.18f
-                        when {
-                            totalDrag <= -thresholdPx && requestedTab < HOME_TAB_CONVERT -> {
-                                viewModel.selectHomeTab(requestedTab + 1)
-                            }
-                            totalDrag >= thresholdPx && requestedTab > HOME_TAB_SEARCH -> {
-                                viewModel.selectHomeTab(requestedTab - 1)
-                            }
-                        }
-                        totalDrag = 0f
-                    },
-                    onDragCancel = {
-                        totalDrag = 0f
-                    },
-                ) { _, dragAmount ->
-                    totalDrag += dragAmount
-                }
-            },
+        modifier = Modifier.fillMaxSize(),
     ) {
         saveableStateHolder.SaveableStateProvider(requestedTab) {
             when (requestedTab) {

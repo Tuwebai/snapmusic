@@ -20,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
@@ -30,6 +31,7 @@ import com.juan.snapmusic.core.model.YouTubeFeedItem
 import com.juan.snapmusic.feature.home.DownloadFormatSheet
 import com.juan.snapmusic.feature.home.SnapMusicViewModel
 import com.juan.snapmusic.feature.home.YouTubeSuggestionsUiState
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 @OptIn(ExperimentalMaterial3Api::class)
 @androidx.media3.common.util.UnstableApi
@@ -135,21 +137,22 @@ private fun YouTubeSuggestionsHost(
     val suggestionsState by viewModel.youtubeSuggestionsScreen.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val visibleItems = suggestionsState.items
+    val canLoadMore by rememberUpdatedState(suggestionsState.canLoadMore)
+    val isLoadingMore by rememberUpdatedState(suggestionsState.isLoadingMore)
+    val latestVisibleItems by rememberUpdatedState(visibleItems)
+    val loadMoreThreshold = remember(visibleItems.size) {
+        (visibleItems.lastIndex - 8).coerceAtLeast(0)
+    }
 
-    LaunchedEffect(
-        isActive,
-        listState,
-        visibleItems.size,
-        suggestionsState.canLoadMore,
-        suggestionsState.isLoadingMore,
-    ) {
+    LaunchedEffect(isActive, listState) {
         if (!isActive) return@LaunchedEffect
-        if (visibleItems.isEmpty()) return@LaunchedEffect
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
-            .collect { lastVisibleIndex ->
-                if (!suggestionsState.canLoadMore) return@collect
-                val triggerIndex = (visibleItems.lastIndex - 4).coerceAtLeast(0)
-                if (!suggestionsState.isLoadingMore && lastVisibleIndex >= triggerIndex) {
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .distinctUntilChanged()
+            .collect { firstVisibleIndex ->
+                val items = latestVisibleItems
+                if (items.isEmpty()) return@collect
+                if (!canLoadMore || isLoadingMore) return@collect
+                if (firstVisibleIndex >= loadMoreThreshold) {
                     viewModel.loadMoreYoutubeSuggestions()
                 }
             }
