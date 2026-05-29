@@ -947,7 +947,7 @@ fun YouTubeFeedRow(
             .build()
     }
     Row(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -966,7 +966,7 @@ fun YouTubeFeedRow(
                     .clip(RoundedCornerShape(10.dp)),
                 filterQuality = FilterQuality.None,
             )
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
                 Text(item.author, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 1)
                 Text(metaLabel, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 1)

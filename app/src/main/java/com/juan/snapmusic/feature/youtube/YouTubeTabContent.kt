@@ -159,7 +159,7 @@ private fun YouTubeSuggestionsHost(
     }
 
     YouTubeSuggestionsList(
-        modifier = if (suggestionsState.isPlayerVisible) modifier.fillMaxWidth() else Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         listState = listState,
         suggestionsState = suggestionsState,
         visibleItems = visibleItems,

@@ -327,7 +327,7 @@ class SnapMusicViewModel(
     private companion object {
         const val YOUTUBE_HOME_FEED_LIMIT = 18
         const val YOUTUBE_HOME_FEED_PAGE_SIZE = 18
-        const val YOUTUBE_HOME_CACHE_PRIME_COUNT = 4
+        const val YOUTUBE_HOME_CACHE_PRIME_COUNT = YOUTUBE_HOME_FEED_PAGE_SIZE
         const val YOUTUBE_WATCH_NEXT_PAGE_SIZE = 18
         const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 4_500L
         const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 20_000L
@@ -361,6 +361,7 @@ class SnapMusicViewModel(
     private var downloadSearchSuggestionJob: Job? = null
     private var popularDownloadSearchesJob: Job? = null
     private var cachedYouTubePrefetchJob: Job? = null
+    private var cachedYouTubeHomeRefreshJob: Job? = null
     private var youtubeFeedPrefetchJob: Job? = null
     private var deferredYoutubeHomeRefreshJob: Job? = null
     private var startupPrefetchDone = false
@@ -3180,6 +3181,7 @@ class SnapMusicViewModel(
                 _youtubeState.value = current.copy(items = cachedItems.take(YOUTUBE_HOME_CACHE_PRIME_COUNT))
                 delay(3_000L)
                 prefetchFeedItems(cachedItems)
+                scheduleCachedYouTubeHomeRefresh()
             }
         }
     }
@@ -3218,6 +3220,7 @@ class SnapMusicViewModel(
             hasMoreSearchResults = false,
             errorMessage = null,
         )
+        scheduleCachedYouTubeHomeRefresh()
     }
 
     private fun refreshYouTubeHomeFromCachePrimeIfNeeded() {
@@ -3273,9 +3276,21 @@ class SnapMusicViewModel(
             )
             startupPrefetchDone = false
             prefetchFeedItems(cachedItems)
+            scheduleCachedYouTubeHomeRefresh()
         } else {
             _youtubeState.value = current.copy(query = "", hasMoreSearchResults = false, errorMessage = null)
             refreshYoutubeHome()
+        }
+    }
+
+    private fun scheduleCachedYouTubeHomeRefresh() {
+        cachedYouTubeHomeRefreshJob?.cancel()
+        cachedYouTubeHomeRefreshJob = viewModelScope.launch {
+            delay(350L)
+            val latest = _youtubeState.value
+            if (_homeSelectedTab.value != HOME_TAB_YOUTUBE_INDEX) return@launch
+            if (latest.query.isNotBlank() || latest.isLoading || latest.isLoadingMore) return@launch
+            refreshYoutubeHome(silent = true)
         }
     }
 
