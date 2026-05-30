@@ -17,8 +17,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
@@ -135,6 +134,22 @@ private fun YouTubeSuggestionsHost(
     val listState = rememberLazyListState()
     val visibleItems = suggestionsState.items
 
+    LaunchedEffect(listState, visibleItems.size, suggestionsState.canLoadMore, suggestionsState.isLoadingMore) {
+        if (!isActive || !suggestionsState.canLoadMore || suggestionsState.isLoadingMore || visibleItems.isEmpty()) {
+            return@LaunchedEffect
+        }
+        snapshotFlow {
+            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            lastVisibleIndex to listState.isScrollInProgress
+        }
+            .distinctUntilChanged()
+            .collect { (lastVisibleIndex, isScrolling) ->
+                if (!isScrolling && lastVisibleIndex >= visibleItems.lastIndex - 3) {
+                    viewModel.loadMoreYoutubeSuggestions()
+                }
+            }
+    }
+
     YouTubeSuggestionsList(
         modifier = modifier.fillMaxSize(),
         listState = listState,
@@ -227,11 +242,6 @@ private fun YouTubeSuggestionsList(
 
             if (visibleItems.isNotEmpty() && suggestionsState.canLoadMore) {
                 item(key = "youtube_feed_load_more_trigger", contentType = "youtube_feed_load_more_trigger") {
-                    LaunchedEffect(visibleItems.lastOrNull()?.url, suggestionsState.canLoadMore, suggestionsState.isLoadingMore) {
-                        if (suggestionsState.canLoadMore && !suggestionsState.isLoadingMore) {
-                            onLoadMore()
-                        }
-                    }
                     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp))
                 }
             }

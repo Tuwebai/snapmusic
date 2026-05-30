@@ -29,6 +29,7 @@ import com.juan.snapmusic.core.platform.PlaybackSessionState
 import com.juan.snapmusic.core.platform.PlaybackSessionTarget
 import com.juan.snapmusic.core.platform.validateYouTubeUrl
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -101,11 +102,14 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-        lifecycleScope.launch(Dispatchers.IO) {
-            if (!app.appGraph.launchPreferencesRepository.isInitialized()) {
-                app.appGraph.launchPreferencesRepository.syncFromLegacy(
-                    app.appGraph.currentPreferences(),
-                )
+        window.decorView.post {
+            lifecycleScope.launch(Dispatchers.IO) {
+                delay(1_500L)
+                if (!app.appGraph.launchPreferencesRepository.isInitialized()) {
+                    app.appGraph.launchPreferencesRepository.syncFromLegacy(
+                        app.appGraph.currentPreferences(),
+                    )
+                }
             }
         }
         window.decorView.post { requestRuntimePermissionsIfNeeded() }
