@@ -19,16 +19,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import com.juan.snapmusic.core.designsystem.SnapMusicTheme
 import com.juan.snapmusic.core.model.IncomingShareItem
 import com.juan.snapmusic.core.model.IncomingSharePayload
 import com.juan.snapmusic.core.model.IncomingShareSourceAction
-import com.juan.snapmusic.core.model.UserPreferences
 import com.juan.snapmusic.core.platform.PlaybackCommandReceiver
 import com.juan.snapmusic.core.platform.PlaybackSessionState
 import com.juan.snapmusic.core.platform.PlaybackSessionTarget
 import com.juan.snapmusic.core.platform.validateYouTubeUrl
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private var isYouTubePopupEligible = false
@@ -88,9 +89,7 @@ class MainActivity : ComponentActivity() {
         }
         val app = application as SnapMusicApplication
         setContent {
-            val themeMode by app.appGraph.preferencesRepository.preferences
-                .map { preferences -> preferences.themeMode }
-                .collectAsStateWithLifecycle(initialValue = UserPreferences().themeMode)
+            val themeMode by app.appGraph.launchPreferencesRepository.themeMode.collectAsStateWithLifecycle()
             SnapMusicTheme(themeMode = themeMode) {
                 SnapMusicApp(
                     graph = app.appGraph,
@@ -99,6 +98,13 @@ class MainActivity : ComponentActivity() {
                     incomingSharePayload = incomingShareOverride.value,
                     onIncomingShareConsumed = { incomingShareOverride.value = null },
                     isInPictureInPictureMode = isPictureInPictureModeState.value,
+                )
+            }
+        }
+        lifecycleScope.launch(Dispatchers.IO) {
+            if (!app.appGraph.launchPreferencesRepository.isInitialized()) {
+                app.appGraph.launchPreferencesRepository.syncFromLegacy(
+                    app.appGraph.currentPreferences(),
                 )
             }
         }

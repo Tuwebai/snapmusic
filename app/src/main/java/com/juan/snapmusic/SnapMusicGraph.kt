@@ -13,6 +13,7 @@ import com.juan.snapmusic.data.persistence.QueueRepository
 import com.juan.snapmusic.data.persistence.SnapMusicDatabase
 import com.juan.snapmusic.data.recommendation.MusicHomeFeedRepository
 import com.juan.snapmusic.data.recommendation.MusicRecommendationEngine
+import com.juan.snapmusic.data.storage.LaunchPreferencesRepository
 import com.juan.snapmusic.data.storage.PreferencesRepository
 import com.juan.snapmusic.data.storage.StorageRepository
 import com.juan.snapmusic.data.transcode.FfmpegKitTranscodeEngine
@@ -58,6 +59,10 @@ class SnapMusicGraph(
 
     val preferencesRepository: PreferencesRepository by lazy {
         PreferencesRepository(appContext)
+    }
+
+    val launchPreferencesRepository: LaunchPreferencesRepository by lazy {
+        LaunchPreferencesRepository(appContext)
     }
 
     val storageRepository: StorageRepository by lazy {

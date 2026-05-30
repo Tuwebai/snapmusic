@@ -1115,10 +1115,10 @@ class SnapMusicViewModel(
 
     init {
         viewModelScope.launch {
-            graph.preferencesRepository.preferences.collect { prefs ->
+            graph.launchPreferencesRepository.youtubeAutoplayEnabled.collect { youtubeAutoplayEnabled ->
                 val current = _youtubeState.value
-                if (current.autoplayEnabled != prefs.youtubeAutoplayEnabled) {
-                    _youtubeState.value = current.copy(autoplayEnabled = prefs.youtubeAutoplayEnabled)
+                if (current.autoplayEnabled != youtubeAutoplayEnabled) {
+                    _youtubeState.value = current.copy(autoplayEnabled = youtubeAutoplayEnabled)
                 }
             }
         }
@@ -2293,6 +2293,7 @@ class SnapMusicViewModel(
         )
         viewModelScope.launch {
             graph.preferencesRepository.updateYouTubeAutoplayEnabled(updated)
+            graph.launchPreferencesRepository.setYouTubeAutoplayEnabled(updated)
             persistCurrentYouTubeSnapshot()
         }
     }
@@ -3334,7 +3335,10 @@ class SnapMusicViewModel(
     }
 
     fun updateThemeMode(value: AppThemeMode) {
-        viewModelScope.launch { graph.preferencesRepository.updateThemeMode(value) }
+        viewModelScope.launch {
+            graph.preferencesRepository.updateThemeMode(value)
+            graph.launchPreferencesRepository.setThemeMode(value)
+        }
     }
 
     private fun enqueueHomePreset(preset: String): Boolean {
