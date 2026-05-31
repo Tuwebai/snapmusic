@@ -4,12 +4,11 @@ import android.content.Context
 import coil.request.ImageRequest
 import coil.size.Precision
 
-private const val YOUTUBE_THUMBNAIL_WIDTH_PX = 154
-private const val YOUTUBE_THUMBNAIL_HEIGHT_PX = 88
-
 internal fun buildYouTubeThumbnailRequest(
     context: Context,
     thumbnailUrl: String,
+    widthPx: Int,
+    heightPx: Int,
 ): ImageRequest {
     return ImageRequest.Builder(context)
         .data(thumbnailUrl)
@@ -17,6 +16,6 @@ internal fun buildYouTubeThumbnailRequest(
         .diskCacheKey(thumbnailUrl)
         .crossfade(false)
         .precision(Precision.INEXACT)
-        .size(YOUTUBE_THUMBNAIL_WIDTH_PX, YOUTUBE_THUMBNAIL_HEIGHT_PX)
+        .size(widthPx, heightPx)
         .build()
 }

@@ -22,6 +22,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
@@ -182,8 +183,11 @@ private fun YouTubeThumbnailPrefetcher(
     isActive: Boolean,
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
+    val thumbnailWidthPx = androidx.compose.runtime.remember(density) { with(density) { 154.dp.roundToPx() } }
+    val thumbnailHeightPx = androidx.compose.runtime.remember(density) { with(density) { 88.dp.roundToPx() } }
     val prefetchedUrls = androidx.compose.runtime.remember { LinkedHashSet<String>() }
-    LaunchedEffect(items, listState, isActive) {
+    LaunchedEffect(items, listState, isActive, thumbnailWidthPx, thumbnailHeightPx) {
         if (!isActive || items.isEmpty()) return@LaunchedEffect
         val imageLoader = context.imageLoader
         snapshotFlow {
@@ -207,7 +211,14 @@ private fun YouTubeThumbnailPrefetcher(
                     .distinct()
                     .filter { thumbnailUrl -> prefetchedUrls.add(thumbnailUrl) }
                     .forEach { thumbnailUrl ->
-                        imageLoader.enqueue(buildYouTubeThumbnailRequest(context, thumbnailUrl))
+                        imageLoader.enqueue(
+                            buildYouTubeThumbnailRequest(
+                                context = context,
+                                thumbnailUrl = thumbnailUrl,
+                                widthPx = thumbnailWidthPx,
+                                heightPx = thumbnailHeightPx,
+                            ),
+                        )
                     }
                 while (prefetchedUrls.size > YOUTUBE_THUMBNAIL_PREFETCH_CACHE_SIZE) {
                     val iterator = prefetchedUrls.iterator()

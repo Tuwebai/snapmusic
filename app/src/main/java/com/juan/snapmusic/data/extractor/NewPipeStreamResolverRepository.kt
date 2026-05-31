@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import org.schabi.newpipe.extractor.Image
 import org.schabi.newpipe.extractor.InfoItem
 import org.schabi.newpipe.extractor.ListExtractor
 import org.schabi.newpipe.extractor.MediaFormat
@@ -28,11 +29,15 @@ import org.schabi.newpipe.extractor.stream.StreamType
 import org.schabi.newpipe.extractor.stream.VideoStream
 import java.util.Base64
 import java.util.LinkedHashMap
+import kotlin.math.abs
 
 class NewPipeStreamResolverRepository(
     private val downloader: OkHttpNewPipeDownloader,
 ) : StreamResolverRepository {
     private companion object {
+        private const val FEED_THUMBNAIL_TARGET_WIDTH = 320
+        private const val FEED_THUMBNAIL_TARGET_HEIGHT = 180
+
         @Volatile
         private var newPipeInitialized = false
 
@@ -70,7 +75,7 @@ class NewPipeStreamResolverRepository(
             title = info.name,
             author = info.uploaderName.orEmpty(),
             durationSeconds = info.duration,
-            thumbnailUrl = info.thumbnails.lastOrNull()?.url.orEmpty(),
+            thumbnailUrl = selectFeedThumbnailUrl(info.thumbnails),
             playbackUrl = buildPlaybackUrl(info.videoStreams),
             adaptivePlaybackUrl = info.dashMpdUrl ?: info.hlsUrl,
             audioVariants = DownloadSourcePlanner.buildAudioVariants(audioCandidates),
@@ -225,12 +230,44 @@ class NewPipeStreamResolverRepository(
             url = url,
             title = name,
             author = uploaderName.orEmpty(),
-            thumbnailUrl = thumbnails.lastOrNull()?.url.orEmpty(),
+            thumbnailUrl = selectFeedThumbnailUrl(thumbnails),
             durationSeconds = duration.coerceAtLeast(0),
             viewCount = viewCount.takeIf { it > 0 },
             publishedText = textualUploadDate,
             description = shortDescription,
         )
+    }
+
+    private fun selectFeedThumbnailUrl(thumbnails: List<Image>): String {
+        return thumbnails
+            .asSequence()
+            .filter { thumbnail -> thumbnail.url.isNotBlank() }
+            .minWithOrNull(
+                compareBy<Image> { thumbnail -> thumbnail.feedThumbnailScore() }
+                    .thenBy { thumbnail -> thumbnail.safeArea() },
+            )
+            ?.url
+            .orEmpty()
+    }
+
+    private fun Image.feedThumbnailScore(): Int {
+        val width = width.takeIf { it > 0 } ?: FEED_THUMBNAIL_TARGET_WIDTH
+        val height = height.takeIf { it > 0 } ?: FEED_THUMBNAIL_TARGET_HEIGHT
+        val targetArea = FEED_THUMBNAIL_TARGET_WIDTH * FEED_THUMBNAIL_TARGET_HEIGHT
+        val areaDelta = abs((width * height) - targetArea)
+        val ratioDelta = abs((width * FEED_THUMBNAIL_TARGET_HEIGHT) - (height * FEED_THUMBNAIL_TARGET_WIDTH))
+        val undersizePenalty = if (width < FEED_THUMBNAIL_TARGET_WIDTH || height < FEED_THUMBNAIL_TARGET_HEIGHT) {
+            targetArea
+        } else {
+            0
+        }
+        return areaDelta + (ratioDelta / 10) + undersizePenalty
+    }
+
+    private fun Image.safeArea(): Int {
+        val width = width.takeIf { it > 0 } ?: FEED_THUMBNAIL_TARGET_WIDTH
+        val height = height.takeIf { it > 0 } ?: FEED_THUMBNAIL_TARGET_HEIGHT
+        return width * height
     }
 
     private fun buildPlaybackUrl(streams: List<VideoStream>): String? {

@@ -3,6 +3,7 @@ package com.juan.snapmusic.data.recommendation
 import com.juan.snapmusic.core.model.FeedImpression
 import com.juan.snapmusic.core.model.MusicAffinitySignal
 import com.juan.snapmusic.core.model.MusicHomeFeedState
+import com.juan.snapmusic.core.model.MusicInterestProfile
 import com.juan.snapmusic.core.model.MusicSignalType
 import com.juan.snapmusic.core.model.YouTubeFeedItem
 import com.juan.snapmusic.data.extractor.StreamResolverRepository
@@ -27,6 +28,8 @@ class MusicHomeFeedRepository(
         const val WATCH_NEXT_SEARCH_CONCURRENCY = 2
     }
 
+    private var homeFeedSessionCache: HomeFeedSessionCache? = null
+
     suspend fun loadMusicHomeFeed(
         sessionSeed: Long,
         cursor: String? = null,
@@ -37,13 +40,31 @@ class MusicHomeFeedRepository(
         val strongProfile = engine.hasStrongHomeProfile(profile)
         val offset = cursor?.toIntOrNull()?.coerceAtLeast(0) ?: 0
         val isInitialPage = offset == 0 && cursor == null
+        val sessionKey = HomeFeedSessionKey(
+            seed = sessionSeed,
+            profileSignature = profile.homeFeedSignature(),
+            strongProfile = strongProfile,
+        )
+        homeFeedSessionCache
+            ?.takeIf { cache -> cache.key == sessionKey && cache.rankedItems.size >= offset + limit }
+            ?.let { cache ->
+                val pageItems = cache.rankedItems.drop(offset).take(limit)
+                rememberImpressions(pageItems)
+                return@withContext MusicHomeFeedState(
+                    sessionSeed = sessionSeed,
+                    items = pageItems,
+                    nextCursor = (offset + pageItems.size)
+                        .takeIf { nextOffset -> pageItems.isNotEmpty() && cache.rankedItems.size > nextOffset }
+                        ?.toString(),
+                )
+            }
         val pageSeed = sessionSeed + (offset * 1_103_515_245L)
         val extraCandidates = if (isInitialPage) {
             if (strongProfile) 32 else 40
         } else {
             if (strongProfile) 54 else 66
         }
-        val targetCount = (limit + extraCandidates).coerceAtLeast(limit + extraCandidates)
+        val targetCount = (offset + limit + extraCandidates).coerceAtLeast(limit + extraCandidates)
         val queryCount = if (strongProfile) {
             if (isInitialPage) {
                 ((targetCount / 18) + 1).coerceIn(3, 4)
@@ -110,7 +131,11 @@ class MusicHomeFeedRepository(
                 .distinctBy(YouTubeFeedItem::url)
         }
         val ranked = engine.rankHomeCandidates(candidates, profile, impressions, pageSeed, limit = targetCount)
-        val pageItems = ranked.take(limit)
+        homeFeedSessionCache = HomeFeedSessionCache(
+            key = sessionKey,
+            rankedItems = ranked,
+        )
+        val pageItems = ranked.drop(offset).take(limit)
         rememberImpressions(pageItems)
         MusicHomeFeedState(
             sessionSeed = sessionSeed,
@@ -118,6 +143,27 @@ class MusicHomeFeedRepository(
             nextCursor = (offset + pageItems.size).takeIf { pageItems.isNotEmpty() }?.toString(),
         )
     }
+
+    private fun MusicInterestProfile.homeFeedSignature(): Int {
+        var result = artistScores.keys.take(16).toList().hashCode()
+        result = (31 * result) + tagScores.keys.take(16).toList().hashCode()
+        result = (31 * result) + contentTypeScores.keys.take(8).toList().hashCode()
+        result = (31 * result) + searchScores.keys.take(12).toList().hashCode()
+        result = (31 * result) + recentUrls.take(24).toList().hashCode()
+        result = (31 * result) + recentArtists.take(16).toList().hashCode()
+        return result
+    }
+
+    private data class HomeFeedSessionKey(
+        val seed: Long,
+        val profileSignature: Int,
+        val strongProfile: Boolean,
+    )
+
+    private data class HomeFeedSessionCache(
+        val key: HomeFeedSessionKey,
+        val rankedItems: List<YouTubeFeedItem>,
+    )
 
     suspend fun searchMusicVideos(query: String, limit: Int = 36): List<YouTubeFeedItem> = withContext(Dispatchers.IO) {
         val baseQuery = query.trim()

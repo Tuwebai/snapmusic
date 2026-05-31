@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import com.juan.snapmusic.core.designsystem.AccentRed
@@ -85,11 +86,19 @@ fun YouTubeFeedRow(
     onDownload: (YouTubeFeedItem) -> Unit,
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
+    val thumbnailWidthPx = remember(density) { with(density) { 154.dp.roundToPx() } }
+    val thumbnailHeightPx = remember(density) { with(density) { 88.dp.roundToPx() } }
     val metaLabel = remember(item.author, item.viewCount, item.publishedText, item.durationSeconds) {
         feedMeta(item)
     }
-    val thumbnailModel = remember(context, item.thumbnailUrl) {
-        buildYouTubeThumbnailRequest(context, item.thumbnailUrl)
+    val thumbnailModel = remember(context, item.thumbnailUrl, thumbnailWidthPx, thumbnailHeightPx) {
+        buildYouTubeThumbnailRequest(
+            context = context,
+            thumbnailUrl = item.thumbnailUrl,
+            widthPx = thumbnailWidthPx,
+            heightPx = thumbnailHeightPx,
+        )
     }
     val thumbnailPainter = rememberAsyncImagePainter(
         model = thumbnailModel,

@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
         const val ROUTE_PREVIEW = "preview"
         const val ROUTE_HOME = "home"
         const val ROUTE_PLAYBACK = "playback"
+        private const val EXTRA_PERFORMANCE_TELEMETRY = "extra_performance_telemetry"
         private val YOUTUBE_URL_REGEX = Regex("""https?://\S+""")
 
         fun buildOpenQueuePendingIntent(context: Context): PendingIntent {
@@ -106,7 +107,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         window.decorView.post {
-            if (jankStats == null) {
+            if (isFrameTelemetryEnabled() && jankStats == null) {
                 jankStats = JankStats.createAndTrack(window) { frameData ->
                     PerformanceTelemetry.recordFrame(frameData)
                 }
@@ -140,6 +141,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+    }
+
+    private fun isFrameTelemetryEnabled(): Boolean {
+        return BuildConfig.DEBUG || intent?.getBooleanExtra(EXTRA_PERFORMANCE_TELEMETRY, false) == true
     }
 
     override fun onDestroy() {

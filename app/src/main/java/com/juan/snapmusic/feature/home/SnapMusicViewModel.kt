@@ -84,15 +84,18 @@ class SnapMusicViewModel(
         private const val YOUTUBE_FEED_DUPLICATE_PAGE_RETRY_LIMIT = 2
     }
 
-    private fun mergeUniqueYoutubeItems(
+    private suspend fun mergeUniqueYoutubeItems(
         existing: List<YouTubeFeedItem>,
         incoming: List<YouTubeFeedItem>,
-    ): List<YouTubeFeedItem> {
-        if (incoming.isEmpty()) return existing
-        val byUrl = LinkedHashMap<String, YouTubeFeedItem>(existing.size + incoming.size)
-        existing.forEach { item -> byUrl.putIfAbsent(item.url, item) }
-        incoming.forEach { item -> byUrl.putIfAbsent(item.url, item) }
-        return byUrl.values.toList()
+    ): List<YouTubeFeedItem> = withContext(Dispatchers.Default) {
+        if (incoming.isEmpty()) {
+            existing
+        } else {
+            val byUrl = LinkedHashMap<String, YouTubeFeedItem>(existing.size + incoming.size)
+            existing.forEach { item -> byUrl.putIfAbsent(item.url, item) }
+            incoming.forEach { item -> byUrl.putIfAbsent(item.url, item) }
+            byUrl.values.toList()
+        }
     }
 
     private fun cachedHomeNextCursor(items: List<YouTubeFeedItem>): String? {
@@ -1498,7 +1501,9 @@ class SnapMusicViewModel(
                     cursor = cursor,
                     limit = YOUTUBE_HOME_FEED_PAGE_SIZE,
                 )
-                val existingUrls = current.items.mapTo(HashSet()) { it.url }
+                val existingUrls = withContext(Dispatchers.Default) {
+                    current.items.mapTo(HashSet()) { it.url }
+                }
                 var retryCount = 0
                 while (
                     page.items.none { item -> item.url !in existingUrls } &&
@@ -1544,7 +1549,9 @@ class SnapMusicViewModel(
                     limit = YOUTUBE_HOME_FEED_PAGE_SIZE,
                     cursor = cursor,
                 )
-                val existingUrls = current.items.mapTo(HashSet()) { it.url }
+                val existingUrls = withContext(Dispatchers.Default) {
+                    current.items.mapTo(HashSet()) { it.url }
+                }
                 var retryCount = 0
                 while (
                     page.items.none { item -> item.url !in existingUrls } &&
