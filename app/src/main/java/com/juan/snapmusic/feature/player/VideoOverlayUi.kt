@@ -58,6 +58,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -66,10 +67,35 @@ import com.juan.snapmusic.core.designsystem.TextPrimary
 import com.juan.snapmusic.core.designsystem.TextSecondary
 import kotlinx.coroutines.delay
 
-private tailrec fun Context.findActivity(): Activity? = when (this) {
+internal const val DOUBLE_TAP_SEEK_MS = 10_000L
+
+internal tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
+}
+
+internal fun Player.seekByClamped(deltaMs: Long) {
+    val durationMs = duration.takeIf { it != C.TIME_UNSET && it > 0L }
+    val targetPositionMs = (currentPosition + deltaMs).coerceAtLeast(0L)
+    seekTo(durationMs?.let { targetPositionMs.coerceAtMost(it) } ?: targetPositionMs)
+}
+
+internal fun Modifier.videoDoubleTapSeek(
+    onTap: () -> Unit,
+    onSeekBack: () -> Unit,
+    onSeekForward: () -> Unit,
+): Modifier = pointerInput(onTap, onSeekBack, onSeekForward) {
+    detectTapGestures(
+        onTap = { onTap() },
+        onDoubleTap = { tapOffset ->
+            if (tapOffset.x < size.width / 2f) {
+                onSeekBack()
+            } else {
+                onSeekForward()
+            }
+        },
+    )
 }
 
 @Composable
@@ -268,292 +294,3 @@ internal fun VideoFullscreenOverlay(
     }
 }
 
-@androidx.media3.common.util.UnstableApi
-@Composable
-internal fun LandscapeFullscreenVideoDialog(
-    visible: Boolean,
-    player: Player?,
-    overlayState: PlaybackOverlayState,
-    canGoPrevious: Boolean,
-    canGoNext: Boolean,
-    thumbnailVisible: Boolean,
-    isBuffering: Boolean = false,
-    thumbnail: @Composable (() -> Unit)?,
-    onDismiss: () -> Unit,
-    onPlayPause: () -> Unit,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onMore: (() -> Unit)?,
-    onSeekTo: (Long) -> Unit,
-) {
-    if (!visible || player == null) return
-
-    val activity = LocalContext.current.findActivity()
-    val mediaKey = player.currentMediaItem?.mediaId ?: "fullscreen"
-    var showControls by rememberSaveable(mediaKey) { mutableStateOf(true) }
-    var hasInteracted by rememberSaveable(mediaKey) { mutableStateOf(false) }
-
-    DisposableEffect(activity, visible) {
-        val initialOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        val controller = activity?.window?.let { WindowInsetsControllerCompat(it, it.decorView) }
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        controller?.hide(WindowInsetsCompat.Type.systemBars())
-        onDispose {
-            controller?.show(WindowInsetsCompat.Type.systemBars())
-            activity?.requestedOrientation = initialOrientation
-        }
-    }
-
-    LaunchedEffect(visible, mediaKey) {
-        if (visible) {
-            hasInteracted = false
-            showControls = true
-        }
-    }
-
-    LaunchedEffect(showControls, hasInteracted, mediaKey) {
-        if (showControls && hasInteracted) {
-            delay(2400)
-            showControls = false
-        }
-    }
-
-    BackHandler(enabled = visible) { onDismiss() }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = false,
-        ),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    .pointerInput(Unit) {
-                        detectTapGestures(onTap = {
-                            hasInteracted = true
-                            showControls = !showControls
-                        })
-                    },
-            ) {
-                if (thumbnailVisible) {
-                    thumbnail?.invoke()
-                }
-                PlayerSurface(
-                    player = player,
-                    modifier = Modifier.fillMaxSize(),
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
-                    shutterColor = android.graphics.Color.BLACK,
-                    keepScreenOn = player.playWhenReady,
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                    ),
-                )
-                if (isBuffering) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .size(56.dp)
-                            .background(Color.Black.copy(alpha = 0.42f), CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            strokeWidth = 3.dp,
-                            modifier = Modifier.size(32.dp),
-                        )
-                    }
-                }
-                VideoFullscreenOverlay(
-                    playbackState = overlayState.copy(showControls = showControls),
-                    canGoPrevious = canGoPrevious,
-                    canGoNext = canGoNext,
-                    onBack = {
-                        hasInteracted = true
-                        showControls = false
-                        onDismiss()
-                    },
-                    onPlayPause = {
-                        hasInteracted = true
-                        onPlayPause()
-                    },
-                    onPrevious = {
-                        hasInteracted = true
-                        onPrevious()
-                    },
-                    onNext = {
-                        hasInteracted = true
-                        onNext()
-                    },
-                    onMore = onMore,
-                    onSeekTo = {
-                        hasInteracted = true
-                        onSeekTo(it)
-                    },
-                    onToggleResize = {
-                        hasInteracted = true
-                        showControls = false
-                        onDismiss()
-                    },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-internal fun VideoMiniOverlay(
-    isPlaying: Boolean,
-    canGoPrevious: Boolean,
-    canGoNext: Boolean,
-    modifier: Modifier = Modifier,
-    onPrevious: () -> Unit,
-    onPlayPause: () -> Unit,
-    onNext: () -> Unit,
-    onOpen: () -> Unit,
-    onClose: () -> Unit,
-) {
-    Box(modifier = modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OverlayGlyphButton(
-                onClick = onPrevious,
-                enabled = canGoPrevious,
-                size = 28.dp,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Outlined.SkipPrevious,
-                        contentDescription = "Anterior",
-                        tint = if (canGoPrevious) TextPrimary else TextSecondary.copy(alpha = 0.35f),
-                        modifier = Modifier.size(18.dp),
-                    )
-                },
-            )
-            OverlayPrimaryButton(
-                onClick = onPlayPause,
-                size = 42.dp,
-                icon = {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
-                        contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(21.dp),
-                    )
-                },
-            )
-            OverlayGlyphButton(
-                onClick = onNext,
-                enabled = canGoNext,
-                size = 28.dp,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Outlined.SkipNext,
-                        contentDescription = "Siguiente",
-                        tint = if (canGoNext) TextPrimary else TextSecondary.copy(alpha = 0.35f),
-                        modifier = Modifier.size(18.dp),
-                    )
-                },
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 6.dp, end = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OverlayGlyphButton(
-                onClick = onOpen,
-                size = 24.dp,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Fullscreen,
-                        contentDescription = "Abrir reproductor",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(14.dp),
-                    )
-                },
-            )
-            OverlayGlyphButton(
-                onClick = onClose,
-                size = 24.dp,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Close,
-                        contentDescription = "Cerrar reproductor",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(14.dp),
-                    )
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun OverlayGlyphButton(
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-    size: androidx.compose.ui.unit.Dp = 34.dp,
-    icon: @Composable () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clickable(
-                enabled = enabled,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        icon()
-    }
-}
-
-@Composable
-private fun OverlayPrimaryButton(
-    onClick: () -> Unit,
-    size: androidx.compose.ui.unit.Dp = 54.dp,
-    icon: @Composable () -> Unit,
-) {
-    Surface(
-        shape = CircleShape,
-        color = Color.Black.copy(alpha = 0.34f),
-        modifier = Modifier.size(size),
-    ) {
-        IconButton(onClick = onClick, modifier = Modifier.fillMaxSize()) {
-            icon()
-        }
-    }
-}
-
-private fun formatOverlayMillis(value: Long): String {
-    if (value <= 0L) return "00:00"
-    val totalSeconds = value / 1_000
-    val hours = totalSeconds / 3_600
-    val minutes = (totalSeconds % 3_600) / 60
-    val seconds = totalSeconds % 60
-    return if (hours > 0) {
-        "%d:%02d:%02d".format(hours, minutes, seconds)
-    } else {
-        "%02d:%02d".format(minutes, seconds)
-    }
-}

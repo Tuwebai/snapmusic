@@ -313,7 +313,6 @@ private fun PreviewLibraryArtwork(
             .data(item.thumbnailUrl)
             .memoryCacheKey("preview-library:${item.id}:${item.thumbnailUrl}")
             .crossfade(false)
-            .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
             .precision(Precision.INEXACT)
             .size(64, 64)
             .build()
