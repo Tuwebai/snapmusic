@@ -1,6 +1,7 @@
 package com.juan.snapmusic.feature.youtube
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import coil.size.Precision
 import com.juan.snapmusic.core.designsystem.AccentRed
@@ -35,6 +37,8 @@ import com.juan.snapmusic.core.designsystem.TextSecondary
 import com.juan.snapmusic.core.model.YouTubeFeedItem
 import com.juan.snapmusic.core.platform.formatDuration
 import java.text.DecimalFormat
+
+private val FeedViewCountFormat = DecimalFormat("0.#")
 
 @Composable
 fun CommentPreviewCard(
@@ -95,6 +99,10 @@ fun YouTubeFeedRow(
             .size(154, 88)
             .build()
     }
+    val thumbnailPainter = rememberAsyncImagePainter(
+        model = thumbnailModel,
+        filterQuality = FilterQuality.None,
+    )
     Row(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -107,14 +115,13 @@ fun YouTubeFeedRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AsyncImage(
-                model = thumbnailModel,
-                contentDescription = item.title,
+            Image(
+                painter = thumbnailPainter,
+                contentDescription = null,
                 modifier = Modifier
                     .size(width = 154.dp, height = 88.dp)
                     .clip(RoundedCornerShape(10.dp)),
                 contentScale = ContentScale.Crop,
-                filterQuality = FilterQuality.None,
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
@@ -129,11 +136,18 @@ fun YouTubeFeedRow(
 }
 
 private fun feedMeta(item: YouTubeFeedItem): String {
-    return listOfNotNull(
-        item.viewCount?.let(::formatViews),
-        item.publishedText?.takeIf { it.isNotBlank() },
-        formatDuration(item.durationSeconds).takeIf { item.durationSeconds > 0 },
-    ).joinToString(" · ")
+    val builder = StringBuilder()
+    fun appendPart(value: String) {
+        if (value.isBlank()) return
+        if (builder.isNotEmpty()) builder.append(" · ")
+        builder.append(value)
+    }
+    item.viewCount?.let(::formatViews)?.let(::appendPart)
+    item.publishedText?.let(::appendPart)
+    if (item.durationSeconds > 0) {
+        appendPart(formatDuration(item.durationSeconds))
+    }
+    return builder.toString()
 }
 
 private fun formatViews(value: Long): String {
@@ -143,5 +157,5 @@ private fun formatViews(value: Long): String {
         value >= 1_000_000 -> value / 1_000_000.0 to "M"
         else -> value / 1_000.0 to "K"
     }
-    return "${DecimalFormat("0.#").format(base.first)} ${base.second} vistas"
+    return "${FeedViewCountFormat.format(base.first)} ${base.second} vistas"
 }

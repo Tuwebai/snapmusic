@@ -83,6 +83,12 @@ class SnapMusicViewModel(
         const val YOUTUBE_WATCH_COMMENT_FALLBACK = "Elegí un formato y mandalo a la cola sin salir de esta pantalla."
     }
 
+    private fun cachedHomeNextCursor(items: List<YouTubeFeedItem>): String? {
+        return items.size
+            .takeIf { it >= YOUTUBE_HOME_CACHE_PRIME_COUNT }
+            ?.toString()
+    }
+
     private val buildSearchSuggestionCorpus = BuildSearchSuggestionCorpusUseCase()
     private val buildWatchNextProjection = BuildWatchNextProjectionUseCase()
     private val _homeSelectedTab = MutableStateFlow(0)
@@ -2821,7 +2827,12 @@ class SnapMusicViewModel(
             cachedYouTubeHomeFeed = cachedItems
             val current = _youtubeState.value
             if (current.items.isEmpty() && current.playbackQueue.isEmpty()) {
-                _youtubeState.value = current.copy(items = cachedItems.take(YOUTUBE_HOME_CACHE_PRIME_COUNT))
+                val primeItems = cachedItems.take(YOUTUBE_HOME_CACHE_PRIME_COUNT)
+                _youtubeState.value = current.copy(
+                    items = primeItems,
+                    nextCursor = cachedHomeNextCursor(primeItems),
+                    hasMoreSearchResults = false,
+                )
                 delay(3_000L)
                 prefetchFeedItems(cachedItems)
             }
@@ -2853,11 +2864,12 @@ class SnapMusicViewModel(
         if (current.query.isNotBlank()) return
         if (current.playbackQueue.isNotEmpty()) return
         if (current.items.isNotEmpty()) return
+        val primeItems = cachedItems.take(YOUTUBE_HOME_CACHE_PRIME_COUNT)
         _youtubeState.value = current.copy(
-            items = cachedItems.take(YOUTUBE_HOME_CACHE_PRIME_COUNT),
+            items = primeItems,
             isLoading = false,
             isLoadingMore = false,
-            nextCursor = null,
+            nextCursor = cachedHomeNextCursor(primeItems),
             hasMoreSearchResults = false,
             errorMessage = null,
         )
@@ -2872,7 +2884,7 @@ class SnapMusicViewModel(
                 items = cachedItems,
                 isLoading = false,
                 isLoadingMore = false,
-                nextCursor = null,
+                nextCursor = cachedHomeNextCursor(cachedItems),
                 hasMoreSearchResults = false,
                 canLoadMoreWatchNext = current.canLoadMoreWatchNext,
                 errorMessage = null,

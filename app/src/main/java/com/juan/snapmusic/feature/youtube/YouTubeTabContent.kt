@@ -20,14 +20,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.size.Precision
 import com.juan.snapmusic.core.model.YouTubeFeedItem
 import com.juan.snapmusic.feature.home.DownloadFormatSheet
 import com.juan.snapmusic.feature.home.SnapMusicViewModel
 import com.juan.snapmusic.feature.home.YouTubeSuggestionsUiState
 import kotlinx.coroutines.flow.distinctUntilChanged
+
+private const val YOUTUBE_THUMBNAIL_PREFETCH_LIMIT = 54
 
 @OptIn(ExperimentalMaterial3Api::class)
 @androidx.media3.common.util.UnstableApi
@@ -133,6 +139,7 @@ private fun YouTubeSuggestionsHost(
     val suggestionsState by viewModel.youtubeSuggestionsScreen.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val visibleItems = suggestionsState.items
+    YouTubeThumbnailPrefetcher(items = visibleItems)
 
     LaunchedEffect(listState, visibleItems.size, suggestionsState.canLoadMore, suggestionsState.isLoadingMore) {
         if (!isActive || !suggestionsState.canLoadMore || suggestionsState.isLoadingMore || visibleItems.isEmpty()) {
@@ -160,6 +167,31 @@ private fun YouTubeSuggestionsHost(
         onRefresh = viewModel::refreshYoutubeByPull,
         onLoadMore = viewModel::loadMoreYoutubeSuggestions,
     )
+}
+
+@Composable
+private fun YouTubeThumbnailPrefetcher(
+    items: List<YouTubeFeedItem>,
+) {
+    val context = LocalContext.current
+    LaunchedEffect(items) {
+        val imageLoader = context.imageLoader
+        items.asSequence()
+            .map(YouTubeFeedItem::thumbnailUrl)
+            .filter(String::isNotBlank)
+            .distinct()
+            .take(YOUTUBE_THUMBNAIL_PREFETCH_LIMIT)
+            .forEach { thumbnailUrl ->
+                imageLoader.enqueue(
+                    ImageRequest.Builder(context)
+                        .data(thumbnailUrl)
+                        .crossfade(false)
+                        .precision(Precision.INEXACT)
+                        .size(154, 88)
+                        .build(),
+                )
+            }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

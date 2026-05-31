@@ -37,12 +37,13 @@ class MusicHomeFeedRepository(
         val strongProfile = engine.hasStrongHomeProfile(profile)
         val offset = cursor?.toIntOrNull()?.coerceAtLeast(0) ?: 0
         val isInitialPage = offset == 0 && cursor == null
+        val pageSeed = sessionSeed + (offset * 1_103_515_245L)
         val extraCandidates = if (isInitialPage) {
             if (strongProfile) 32 else 40
         } else {
-            120
+            if (strongProfile) 54 else 66
         }
-        val targetCount = (offset + limit + extraCandidates).coerceAtLeast(limit + extraCandidates)
+        val targetCount = (limit + extraCandidates).coerceAtLeast(limit + extraCandidates)
         val queryCount = if (strongProfile) {
             if (isInitialPage) {
                 ((targetCount / 18) + 1).coerceIn(3, 4)
@@ -94,7 +95,7 @@ class MusicHomeFeedRepository(
                 addAll(
                     homeQueries
                         .drop(fixedHeadCount)
-                        .shuffled(kotlin.random.Random(sessionSeed))
+                        .shuffled(kotlin.random.Random(pageSeed))
                         .take((queryCount - size).coerceAtLeast(0)),
                 )
             }
@@ -108,8 +109,8 @@ class MusicHomeFeedRepository(
             (searched + trending.await())
                 .distinctBy(YouTubeFeedItem::url)
         }
-        val ranked = engine.rankHomeCandidates(candidates, profile, impressions, sessionSeed, limit = targetCount)
-        val pageItems = ranked.drop(offset).take(limit)
+        val ranked = engine.rankHomeCandidates(candidates, profile, impressions, pageSeed, limit = targetCount)
+        val pageItems = ranked.take(limit)
         rememberImpressions(pageItems)
         MusicHomeFeedState(
             sessionSeed = sessionSeed,
