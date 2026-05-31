@@ -878,47 +878,6 @@ private fun YouTubeMiniPlayerVideoShell(
 }
 
 @Composable
-fun CommentPreviewCard(
-    text: String,
-) {
-    Surface(
-        modifier = Modifier.padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(24.dp),
-        color = SurfaceElevated,
-        border = BorderStroke(1.dp, BorderSubtle),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text("Comentarios", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-            Text(text, style = MaterialTheme.typography.bodyMedium, color = TextSecondary, maxLines = 2)
-        }
-    }
-}
-
-@Composable
-fun InlineStatusCard(
-    title: String,
-    message: String,
-) {
-    Surface(
-        modifier = Modifier.padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(22.dp),
-        color = SurfaceElevated,
-        border = BorderStroke(1.dp, AccentRed.copy(alpha = 0.25f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(message, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-        }
-    }
-}
-
-@Composable
 fun SuggestionsHeader() {
     Text(
         text = "Seguí mirando",
@@ -926,56 +885,6 @@ fun SuggestionsHeader() {
         style = MaterialTheme.typography.titleMedium,
         color = TextPrimary,
     )
-}
-
-@Composable
-fun YouTubeFeedRow(
-    item: YouTubeFeedItem,
-    onClick: () -> Unit,
-    onDownload: () -> Unit,
-) {
-    val context = LocalContext.current
-    val metaLabel = remember(item.author, item.viewCount, item.publishedText, item.durationSeconds) {
-        feedMeta(item)
-    }
-    val thumbnailModel = remember(item.thumbnailUrl) {
-        ImageRequest.Builder(context)
-            .data(item.thumbnailUrl)
-            .crossfade(false)
-            .precision(Precision.INEXACT)
-            .size(154, 88)
-            .build()
-    }
-    Row(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .clickable(onClick = onClick),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            AsyncImage(
-                model = thumbnailModel,
-                contentDescription = item.title,
-                modifier = Modifier
-                    .size(width = 154.dp, height = 88.dp)
-                    .clip(RoundedCornerShape(10.dp)),
-                filterQuality = FilterQuality.None,
-            )
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
-                Text(item.author, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 1)
-                Text(metaLabel, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 1)
-            }
-        }
-        IconButton(onClick = onDownload) {
-            Icon(Icons.Outlined.Download, contentDescription = "Descargar", tint = TextSecondary)
-        }
-    }
 }
 
 private data class WatchQualityOption(
