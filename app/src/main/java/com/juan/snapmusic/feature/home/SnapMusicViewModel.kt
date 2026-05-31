@@ -332,19 +332,13 @@ class SnapMusicViewModel(
         const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 4_500L
         const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 20_000L
         const val HOME_TAB_YOUTUBE_INDEX = 1
-        const val HOME_TAB_CONVERT_INDEX = 2
-        const val PRESET_MP3_320 = "preset_mp3_320"
-        const val PRESET_M4A = "preset_m4a"
-        const val PRESET_MP4_720 = "preset_mp4_720"
         const val YOUTUBE_WATCH_COMMENT_FALLBACK = "Elegí un formato y mandalo a la cola sin salir de esta pantalla."
     }
 
     private val buildSearchSuggestionCorpus = BuildSearchSuggestionCorpusUseCase()
     private val buildWatchNextProjection = BuildWatchNextProjectionUseCase()
-    private val _homeState = MutableStateFlow(HomeUiState())
     private val _homeSelectedTab = MutableStateFlow(0)
     private val _downloadSearchState = MutableStateFlow(DownloadSearchState())
-    val homeState: StateFlow<HomeUiState> = _homeState.asStateFlow()
     val homeSelectedTab: StateFlow<Int> = _homeSelectedTab.asStateFlow()
     private val _incomingShareSelectionState = MutableStateFlow(IncomingShareSelectionState())
     val incomingShareSelectionState: StateFlow<IncomingShareSelectionState> = _incomingShareSelectionState.asStateFlow()
@@ -1186,11 +1180,10 @@ class SnapMusicViewModel(
     }
 
     fun selectHomeTab(index: Int) {
-        val normalizedIndex = index.coerceIn(0, 2)
+        val normalizedIndex = index.coerceIn(0, HOME_TAB_YOUTUBE_INDEX)
         _homeSelectedTab.value = normalizedIndex
         when (normalizedIndex) {
             HOME_TAB_YOUTUBE_INDEX -> onHomeYouTubeTabOpened()
-            HOME_TAB_CONVERT_INDEX -> ensurePopularDownloadSearchesLoaded()
         }
     }
 
@@ -1203,10 +1196,6 @@ class SnapMusicViewModel(
             restoreYoutubeHomeFeedAfterSearch()
         }
         selectHomeTab(1)
-    }
-
-    fun selectHomeConvertTab() {
-        selectHomeTab(HOME_TAB_CONVERT_INDEX)
     }
 
     fun openDownloadSearchOverlay() {
@@ -1273,54 +1262,10 @@ class SnapMusicViewModel(
         selectDownloadSearchSuggestion(value)
     }
 
-    fun onUrlChange(value: String) {
-        _homeState.value = _homeState.value.copy(
-            url = value,
-            errorMessage = null,
-            resolvedMedia = null,
-            autoOpenFormats = false,
-        )
-    }
-
-    fun analyze(openFormatsOnSuccess: Boolean = false) {
-        val validation = validateYouTubeUrl(_homeState.value.url)
-        if (validation.normalizedUrl == null) {
-            _homeState.value = _homeState.value.copy(errorMessage = validation.message, autoOpenFormats = false)
-            return
-        }
-        viewModelScope.launch {
-            _homeState.value = _homeState.value.copy(isAnalyzing = true, errorMessage = null, autoOpenFormats = false)
-            runCatching { graph.resolverRepository.resolve(validation.normalizedUrl) }
-                .onSuccess { media ->
-                    _homeState.value = _homeState.value.copy(
-                        isAnalyzing = false,
-                        resolvedMedia = media,
-                        url = validation.normalizedUrl,
-                        autoOpenFormats = openFormatsOnSuccess,
-                    )
-                }
-                .onFailure { error ->
-                    _homeState.value = _homeState.value.copy(
-                        isAnalyzing = false,
-                        errorMessage = userFacingError(error.message, UiFailureKind.EXTRACTION),
-                        autoOpenFormats = false,
-                    )
-                }
-        }
-    }
-
-    fun consumeAutoOpenFormats() {
-        _homeState.value = _homeState.value.copy(autoOpenFormats = false)
-    }
-
     fun applyIncomingSharePayload(payload: IncomingSharePayload) {
-        selectHomeConvertTab()
         when {
             payload.items.isEmpty() -> {
                 _incomingShareSelectionState.value = IncomingShareSelectionState()
-                _homeState.value = _homeState.value.copy(
-                    errorMessage = "No encontramos links compatibles en lo que compartiste.",
-                )
             }
             payload.items.size == 1 -> {
                 _incomingShareSelectionState.value = IncomingShareSelectionState()
@@ -1348,61 +1293,11 @@ class SnapMusicViewModel(
     fun applyIncomingSharedUrl(rawUrl: String) {
         val validation = validateYouTubeUrl(rawUrl)
         if (validation.normalizedUrl == null) {
-            _homeState.value = _homeState.value.copy(errorMessage = validation.message)
             return
         }
-        selectHomeConvertTab()
-        _homeState.value = _homeState.value.copy(
-            url = validation.normalizedUrl,
-            errorMessage = null,
-            resolvedMedia = null,
-            autoOpenFormats = false,
-        )
-        analyze(openFormatsOnSuccess = true)
-    }
-
-    fun inspectClipboardCandidate(rawValue: String?) {
-        val candidate = rawValue
-            ?.lineSequence()
-            ?.map(String::trim)
-            ?.firstOrNull { validateYouTubeUrl(it).normalizedUrl != null }
-            ?.let { validateYouTubeUrl(it).normalizedUrl }
-
-        _homeState.value = _homeState.value.copy(
-            clipboardCandidateUrl = candidate?.takeIf { it != _homeState.value.url },
-        )
-    }
-
-    fun useClipboardCandidate(analyzeImmediately: Boolean) {
-        val candidate = _homeState.value.clipboardCandidateUrl ?: return
-        _homeState.value = _homeState.value.copy(
-            url = candidate,
-            clipboardCandidateUrl = null,
-            errorMessage = null,
-            resolvedMedia = null,
-            autoOpenFormats = false,
-        )
-        if (analyzeImmediately) {
-            analyze()
-        }
-    }
-
-    fun enqueueHomePresetMp3320(): Boolean = enqueueHomePreset(PRESET_MP3_320)
-
-    fun enqueueHomePresetM4a(): Boolean = enqueueHomePreset(PRESET_M4A)
-
-    fun enqueueHomePresetMp4720(): Boolean = enqueueHomePreset(PRESET_MP4_720)
-
-    fun enqueueVariant(variantId: String) {
-        enqueueFromMedia(
-            media = _homeState.value.resolvedMedia,
-            variantId = variantId,
-            onUnsupported = {
-                _homeState.value = _homeState.value.copy(
-                    errorMessage = "Esa opción todavía no está lista. Por ahora usá M4A o MP4 directo.",
-                )
-            },
-        )
+        selectHomeYouTubeTab()
+        _youtubeState.value = _youtubeState.value.copy(query = validation.normalizedUrl)
+        searchYoutube()
     }
 
     fun enqueueYoutubeVariant(variantId: String) {
@@ -3339,45 +3234,6 @@ class SnapMusicViewModel(
             graph.preferencesRepository.updateThemeMode(value)
             graph.launchPreferencesRepository.setThemeMode(value)
         }
-    }
-
-    private fun enqueueHomePreset(preset: String): Boolean {
-        val media = _homeState.value.resolvedMedia ?: return false
-        val variant = when (preset) {
-            PRESET_MP3_320 -> media.audioVariants.closestAudioVariant(
-                container = com.juan.snapmusic.core.model.ContainerFormat.MP3,
-                targetBitrate = 320,
-            )
-
-            PRESET_M4A -> media.audioVariants.closestAudioVariant(
-                container = com.juan.snapmusic.core.model.ContainerFormat.M4A,
-                targetBitrate = media.audioVariants
-                    .filter { it.container == com.juan.snapmusic.core.model.ContainerFormat.M4A }
-                    .maxOfOrNull { it.bitrateKbps ?: 0 }
-                    ?.takeIf { it > 0 },
-            )
-
-            PRESET_MP4_720 -> media.videoVariants.closestVideoVariant(720)
-
-            else -> null
-        } ?: run {
-            _homeState.value = _homeState.value.copy(errorMessage = "No encontramos ese atajo para este video.")
-            return false
-        }
-
-        val prefs = preferences.value
-        enqueueRequest(
-            ConversionRequest(
-                sourceUrl = media.sourceUrl,
-                title = media.title,
-                author = media.author,
-                thumbnailUrl = media.thumbnailUrl,
-                selectedVariant = variant,
-                destinationLabel = prefs.defaultDestinationLabel,
-                destinationTreeUri = prefs.customTreeUri,
-            ),
-        )
-        return true
     }
 
     private fun enqueueFromMedia(
