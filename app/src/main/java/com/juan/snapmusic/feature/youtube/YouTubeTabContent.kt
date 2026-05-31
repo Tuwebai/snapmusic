@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,15 +26,16 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import coil.imageLoader
-import coil.request.ImageRequest
-import coil.size.Precision
 import com.juan.snapmusic.core.model.YouTubeFeedItem
 import com.juan.snapmusic.feature.home.DownloadFormatSheet
 import com.juan.snapmusic.feature.home.SnapMusicViewModel
 import com.juan.snapmusic.feature.home.YouTubeSuggestionsUiState
 import kotlinx.coroutines.flow.distinctUntilChanged
+import java.util.LinkedHashSet
 
-private const val YOUTUBE_THUMBNAIL_PREFETCH_LIMIT = 54
+private const val YOUTUBE_THUMBNAIL_PREFETCH_AHEAD = 8
+private const val YOUTUBE_THUMBNAIL_PREFETCH_CACHE_SIZE = 160
+private const val YOUTUBE_LOAD_MORE_THRESHOLD = 5
 
 @OptIn(ExperimentalMaterial3Api::class)
 @androidx.media3.common.util.UnstableApi
@@ -139,19 +141,23 @@ private fun YouTubeSuggestionsHost(
     val suggestionsState by viewModel.youtubeSuggestionsScreen.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val visibleItems = suggestionsState.items
-    YouTubeThumbnailPrefetcher(items = visibleItems)
+    YouTubeThumbnailPrefetcher(
+        items = visibleItems,
+        listState = listState,
+        isActive = isActive,
+    )
 
-    LaunchedEffect(listState, visibleItems.size, suggestionsState.canLoadMore, suggestionsState.isLoadingMore) {
+    LaunchedEffect(listState, visibleItems.size, suggestionsState.canLoadMore, suggestionsState.isLoadingMore, isActive) {
         if (!isActive || !suggestionsState.canLoadMore || suggestionsState.isLoadingMore || visibleItems.isEmpty()) {
             return@LaunchedEffect
         }
         snapshotFlow {
             val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            lastVisibleIndex to listState.isScrollInProgress
+            lastVisibleIndex >= visibleItems.lastIndex - YOUTUBE_LOAD_MORE_THRESHOLD
         }
             .distinctUntilChanged()
-            .collect { (lastVisibleIndex, isScrolling) ->
-                if (!isScrolling && lastVisibleIndex >= visibleItems.lastIndex - 3) {
+            .collect { shouldLoadMore ->
+                if (shouldLoadMore) {
                     viewModel.loadMoreYoutubeSuggestions()
                 }
             }
@@ -172,24 +178,43 @@ private fun YouTubeSuggestionsHost(
 @Composable
 private fun YouTubeThumbnailPrefetcher(
     items: List<YouTubeFeedItem>,
+    listState: LazyListState,
+    isActive: Boolean,
 ) {
     val context = LocalContext.current
-    LaunchedEffect(items) {
+    val prefetchedUrls = androidx.compose.runtime.remember { LinkedHashSet<String>() }
+    LaunchedEffect(items, listState, isActive) {
+        if (!isActive || items.isEmpty()) return@LaunchedEffect
         val imageLoader = context.imageLoader
-        items.asSequence()
-            .map(YouTubeFeedItem::thumbnailUrl)
-            .filter(String::isNotBlank)
-            .distinct()
-            .take(YOUTUBE_THUMBNAIL_PREFETCH_LIMIT)
-            .forEach { thumbnailUrl ->
-                imageLoader.enqueue(
-                    ImageRequest.Builder(context)
-                        .data(thumbnailUrl)
-                        .crossfade(false)
-                        .precision(Precision.INEXACT)
-                        .size(154, 88)
-                        .build(),
-                )
+        snapshotFlow {
+            val visible = listState.layoutInfo.visibleItemsInfo
+            val first = visible.firstOrNull()?.index ?: 0
+            val last = visible.lastOrNull()?.index ?: -1
+            Triple(
+                first,
+                minOf(items.lastIndex, last + YOUTUBE_THUMBNAIL_PREFETCH_AHEAD),
+                listState.isScrollInProgress,
+            )
+        }
+            .distinctUntilChanged()
+            .collect { (firstIndex, lastIndex, isScrolling) ->
+                if (isScrolling) return@collect
+                if (firstIndex > lastIndex) return@collect
+                (firstIndex..lastIndex)
+                    .asSequence()
+                    .mapNotNull { index -> items.getOrNull(index)?.thumbnailUrl }
+                    .filter(String::isNotBlank)
+                    .distinct()
+                    .filter { thumbnailUrl -> prefetchedUrls.add(thumbnailUrl) }
+                    .forEach { thumbnailUrl ->
+                        imageLoader.enqueue(buildYouTubeThumbnailRequest(context, thumbnailUrl))
+                    }
+                while (prefetchedUrls.size > YOUTUBE_THUMBNAIL_PREFETCH_CACHE_SIZE) {
+                    val iterator = prefetchedUrls.iterator()
+                    if (!iterator.hasNext()) break
+                    iterator.next()
+                    iterator.remove()
+                }
             }
     }
 }
@@ -266,8 +291,8 @@ private fun YouTubeSuggestionsList(
                 ) { item ->
                     YouTubeFeedRow(
                         item = item,
-                        onClick = { onItemClick(item) },
-                        onDownload = { onItemDownload(item) },
+                        onClick = onItemClick,
+                        onDownload = onItemDownload,
                     )
                 }
             }
@@ -295,13 +320,7 @@ private fun YouTubeSuggestionsList(
             }
         }
     }
-    if (suggestionsState.isPlayerVisible) {
-        Box(modifier = modifier) {
-            listContent()
-        }
-    } else {
-        Box(modifier = modifier) {
-            listContent()
-        }
+    Box(modifier = modifier) {
+        listContent()
     }
 }

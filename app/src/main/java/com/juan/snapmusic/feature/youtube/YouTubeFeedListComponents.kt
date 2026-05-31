@@ -25,10 +25,7 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
-import coil.request.ImageRequest
-import coil.size.Precision
 import com.juan.snapmusic.core.designsystem.AccentRed
 import com.juan.snapmusic.core.designsystem.BorderSubtle
 import com.juan.snapmusic.core.designsystem.SurfaceElevated
@@ -84,20 +81,15 @@ fun InlineStatusCard(
 @Composable
 fun YouTubeFeedRow(
     item: YouTubeFeedItem,
-    onClick: () -> Unit,
-    onDownload: () -> Unit,
+    onClick: (YouTubeFeedItem) -> Unit,
+    onDownload: (YouTubeFeedItem) -> Unit,
 ) {
     val context = LocalContext.current
     val metaLabel = remember(item.author, item.viewCount, item.publishedText, item.durationSeconds) {
         feedMeta(item)
     }
-    val thumbnailModel = remember(item.thumbnailUrl) {
-        ImageRequest.Builder(context)
-            .data(item.thumbnailUrl)
-            .crossfade(false)
-            .precision(Precision.INEXACT)
-            .size(154, 88)
-            .build()
+    val thumbnailModel = remember(context, item.thumbnailUrl) {
+        buildYouTubeThumbnailRequest(context, item.thumbnailUrl)
     }
     val thumbnailPainter = rememberAsyncImagePainter(
         model = thumbnailModel,
@@ -111,7 +103,7 @@ fun YouTubeFeedRow(
         Row(
             modifier = Modifier
                 .weight(1f)
-                .clickable(onClick = onClick),
+                .clickable { onClick(item) },
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -129,7 +121,7 @@ fun YouTubeFeedRow(
                 Text(metaLabel, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 1)
             }
         }
-        IconButton(onClick = onDownload) {
+        IconButton(onClick = { onDownload(item) }) {
             Icon(Icons.Outlined.Download, contentDescription = "Descargar", tint = TextSecondary)
         }
     }

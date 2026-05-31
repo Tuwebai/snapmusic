@@ -81,6 +81,18 @@ class SnapMusicViewModel(
         const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 20_000L
         const val HOME_TAB_YOUTUBE_INDEX = 1
         const val YOUTUBE_WATCH_COMMENT_FALLBACK = "Elegí un formato y mandalo a la cola sin salir de esta pantalla."
+        private const val YOUTUBE_FEED_DUPLICATE_PAGE_RETRY_LIMIT = 2
+    }
+
+    private fun mergeUniqueYoutubeItems(
+        existing: List<YouTubeFeedItem>,
+        incoming: List<YouTubeFeedItem>,
+    ): List<YouTubeFeedItem> {
+        if (incoming.isEmpty()) return existing
+        val byUrl = LinkedHashMap<String, YouTubeFeedItem>(existing.size + incoming.size)
+        existing.forEach { item -> byUrl.putIfAbsent(item.url, item) }
+        incoming.forEach { item -> byUrl.putIfAbsent(item.url, item) }
+        return byUrl.values.toList()
     }
 
     private fun cachedHomeNextCursor(items: List<YouTubeFeedItem>): String? {
@@ -110,6 +122,7 @@ class SnapMusicViewModel(
     private var popularDownloadSearchesJob: Job? = null
     private var cachedYouTubePrefetchJob: Job? = null
     private var youtubeFeedPrefetchJob: Job? = null
+    private var youtubeLoadMoreJob: Job? = null
     private var deferredYoutubeHomeRefreshJob: Job? = null
     private var startupPrefetchDone = false
     private var hasOpenedYouTubeHomeTab = false
@@ -1460,28 +1473,50 @@ class SnapMusicViewModel(
     fun loadMoreYoutubeSuggestions() {
         val current = _youtubeState.value
         if (current.isLoading || current.isLoadingMore) return
+        if (youtubeLoadMoreJob?.isActive == true) return
         when {
-            current.showPlayer && current.featured.isReady && current.canLoadMoreWatchNext -> loadMoreWatchNextQueue()
-            current.query.isBlank() && current.nextCursor != null -> loadMoreYoutubeHome()
-            current.query.isNotBlank() && current.hasMoreSearchResults -> loadMoreYoutubeSearchResults()
+            current.showPlayer && current.featured.isReady && current.canLoadMoreWatchNext -> {
+                youtubeLoadMoreJob = loadMoreWatchNextQueue()
+            }
+            current.query.isBlank() && current.nextCursor != null -> {
+                youtubeLoadMoreJob = loadMoreYoutubeHome()
+            }
+            current.query.isNotBlank() && current.hasMoreSearchResults -> {
+                youtubeLoadMoreJob = loadMoreYoutubeSearchResults()
+            }
         }
     }
 
-    private fun loadMoreYoutubeHome() {
+    private fun loadMoreYoutubeHome(): Job? {
         val current = _youtubeState.value
-        val cursor = current.nextCursor ?: return
+        val cursor = current.nextCursor ?: return null
         _youtubeState.value = current.copy(isLoadingMore = true)
-        viewModelScope.launch {
+        return viewModelScope.launch {
             runCatching {
-                graph.musicHomeFeedRepository.loadMusicHomeFeed(
+                var page = graph.musicHomeFeedRepository.loadMusicHomeFeed(
                     sessionSeed = youTubeFeedSessionSeed,
                     cursor = cursor,
                     limit = YOUTUBE_HOME_FEED_PAGE_SIZE,
                 )
+                val existingUrls = current.items.mapTo(HashSet()) { it.url }
+                var retryCount = 0
+                while (
+                    page.items.none { item -> item.url !in existingUrls } &&
+                    !page.nextCursor.isNullOrBlank() &&
+                    retryCount < YOUTUBE_FEED_DUPLICATE_PAGE_RETRY_LIMIT
+                ) {
+                    retryCount += 1
+                    page = graph.musicHomeFeedRepository.loadMusicHomeFeed(
+                        sessionSeed = youTubeFeedSessionSeed,
+                        cursor = page.nextCursor,
+                        limit = YOUTUBE_HOME_FEED_PAGE_SIZE,
+                    )
+                }
+                page
             }
                 .onSuccess { state ->
                     val latest = _youtubeState.value
-                    val merged = (latest.items + state.items).distinctBy(YouTubeFeedItem::url)
+                    val merged = mergeUniqueYoutubeItems(latest.items, state.items)
                     _youtubeState.value = latest.copy(
                         items = merged,
                         isLoadingMore = false,
@@ -1496,23 +1531,38 @@ class SnapMusicViewModel(
         }
     }
 
-    private fun loadMoreYoutubeSearchResults() {
+    private fun loadMoreYoutubeSearchResults(): Job? {
         val current = _youtubeState.value
         val query = current.query.trim()
         val cursor = current.nextCursor
-        if (query.isBlank() || cursor.isNullOrBlank()) return
+        if (query.isBlank() || cursor.isNullOrBlank()) return null
         _youtubeState.value = current.copy(isLoadingMore = true)
-        viewModelScope.launch {
+        return viewModelScope.launch {
             runCatching {
-                graph.resolverRepository.searchVideosPage(
+                var page = graph.resolverRepository.searchVideosPage(
                     query = query,
                     limit = YOUTUBE_HOME_FEED_PAGE_SIZE,
                     cursor = cursor,
                 )
+                val existingUrls = current.items.mapTo(HashSet()) { it.url }
+                var retryCount = 0
+                while (
+                    page.items.none { item -> item.url !in existingUrls } &&
+                    !page.nextCursor.isNullOrBlank() &&
+                    retryCount < YOUTUBE_FEED_DUPLICATE_PAGE_RETRY_LIMIT
+                ) {
+                    retryCount += 1
+                    page = graph.resolverRepository.searchVideosPage(
+                        query = query,
+                        limit = YOUTUBE_HOME_FEED_PAGE_SIZE,
+                        cursor = page.nextCursor,
+                    )
+                }
+                page
             }
                 .onSuccess { page ->
                     val latest = _youtubeState.value
-                    val merged = (latest.items + page.items).distinctBy(YouTubeFeedItem::url)
+                    val merged = mergeUniqueYoutubeItems(latest.items, page.items)
                     _youtubeState.value = latest.copy(
                         items = merged,
                         isLoadingMore = false,
@@ -2334,14 +2384,14 @@ class SnapMusicViewModel(
         }
     }
 
-    private fun loadMoreWatchNextQueue() {
+    private fun loadMoreWatchNextQueue(): Job? {
         val current = _youtubeState.value
-        val featuredItem = currentYouTubeQueueItem(current) ?: return
+        val featuredItem = currentYouTubeQueueItem(current) ?: return null
         val existingQueue = current.playbackQueue.ifEmpty { listOf(featuredItem) }
         val currentIndex = resolveCurrentQueueIndex(current, existingQueue)
         val existingWatchNext = current.watchNextItems.ifEmpty { initialWatchNextItems(existingQueue, currentIndex) }
         _youtubeState.value = current.copy(isLoadingMore = true)
-        viewModelScope.launch {
+        return viewModelScope.launch {
             val currentRelatedCount = existingWatchNext.size
             val requestLimit = (currentRelatedCount + 8)
                 .coerceAtLeast(YOUTUBE_WATCH_NEXT_PAGE_SIZE)

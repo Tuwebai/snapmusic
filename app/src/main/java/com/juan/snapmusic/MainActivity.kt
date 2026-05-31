@@ -20,6 +20,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.metrics.performance.JankStats
+import com.juan.snapmusic.core.performance.PerformanceTelemetry
 import com.juan.snapmusic.core.designsystem.SnapMusicTheme
 import com.juan.snapmusic.core.model.IncomingShareItem
 import com.juan.snapmusic.core.model.IncomingSharePayload
@@ -36,6 +38,7 @@ class MainActivity : ComponentActivity() {
     private var isYouTubePopupEligible = false
     private var playbackSessionState = PlaybackSessionState()
     private var lastPictureInPictureSignature: Int? = null
+    private var jankStats: JankStats? = null
     private val isPictureInPictureModeState = mutableStateOf(false)
     private val mediaPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -103,6 +106,13 @@ class MainActivity : ComponentActivity() {
             }
         }
         window.decorView.post {
+            if (jankStats == null) {
+                jankStats = JankStats.createAndTrack(window) { frameData ->
+                    PerformanceTelemetry.recordFrame(frameData)
+                }
+            }
+        }
+        window.decorView.post {
             lifecycleScope.launch(Dispatchers.IO) {
                 delay(1_500L)
                 if (!app.appGraph.launchPreferencesRepository.isInitialized()) {
@@ -130,6 +140,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        jankStats?.isTrackingEnabled = false
+        jankStats = null
+        super.onDestroy()
     }
 
     override fun onUserLeaveHint() {
