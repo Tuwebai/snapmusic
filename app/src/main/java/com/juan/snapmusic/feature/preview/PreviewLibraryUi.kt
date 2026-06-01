@@ -16,10 +16,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.PlaylistPlay
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
@@ -154,6 +156,7 @@ internal fun PreviewLibraryRow(
     onRename: () -> Unit,
     onDelete: () -> Unit,
     onOpenLocation: () -> Unit,
+    onCopyUri: () -> Unit,
     onViewInfo: () -> Unit,
     onUseAsNext: () -> Unit,
     onSelectMultiple: () -> Unit,
@@ -227,6 +230,26 @@ internal fun PreviewLibraryRow(
                     onDismissRequest = { expanded = false },
                 ) {
                     DropdownMenuItem(
+                        text = { Text("Reproducir ahora") },
+                        leadingIcon = {
+                            Icon(Icons.Outlined.PlayArrow, contentDescription = null)
+                        },
+                        onClick = {
+                            expanded = false
+                            onClick()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Usar como siguiente") },
+                        leadingIcon = {
+                            Icon(Icons.Outlined.PlaylistPlay, contentDescription = null)
+                        },
+                        onClick = {
+                            expanded = false
+                            onUseAsNext()
+                        },
+                    )
+                    DropdownMenuItem(
                         text = { Text("Compartir") },
                         leadingIcon = {
                             Icon(Icons.Outlined.Share, contentDescription = null)
@@ -257,6 +280,16 @@ internal fun PreviewLibraryRow(
                         },
                     )
                     DropdownMenuItem(
+                        text = { Text("Copiar ruta") },
+                        leadingIcon = {
+                            Icon(Icons.Outlined.ContentCopy, contentDescription = null)
+                        },
+                        onClick = {
+                            expanded = false
+                            onCopyUri()
+                        },
+                    )
+                    DropdownMenuItem(
                         text = { Text("Ver información") },
                         leadingIcon = {
                             Icon(Icons.Outlined.Info, contentDescription = null)
@@ -264,16 +297,6 @@ internal fun PreviewLibraryRow(
                         onClick = {
                             expanded = false
                             onViewInfo()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Usar como siguiente") },
-                        leadingIcon = {
-                            Icon(Icons.Outlined.PlaylistPlay, contentDescription = null)
-                        },
-                        onClick = {
-                            expanded = false
-                            onUseAsNext()
                         },
                     )
                     DropdownMenuItem(

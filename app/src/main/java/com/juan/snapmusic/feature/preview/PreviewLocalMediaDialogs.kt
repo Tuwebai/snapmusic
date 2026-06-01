@@ -1,10 +1,13 @@
 package com.juan.snapmusic.feature.preview
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -87,7 +90,7 @@ internal fun shareLocalMedia(
         fileName = item.fileName,
         isVideo = item.isVideo,
     ) ?: return
-    context.startActivity(android.content.Intent.createChooser(shareIntent, "Compartir archivo"))
+    launchChooserOrToast(context, shareIntent, "Compartir archivo", "No hay una app para compartir este archivo.")
 }
 
 internal fun shareLocalMediaItems(
@@ -104,12 +107,21 @@ internal fun shareLocalMediaItems(
     val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
         type = mimeType
         putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-        clipData = android.content.ClipData.newRawUri(items.first().title, uris.first()).also { clip ->
-            uris.drop(1).forEach { clip.addItem(android.content.ClipData.Item(it)) }
+        clipData = ClipData.newRawUri(items.first().title, uris.first()).also { clip ->
+            uris.drop(1).forEach { clip.addItem(ClipData.Item(it)) }
         }
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    context.startActivity(Intent.createChooser(intent, "Compartir archivos"))
+    launchChooserOrToast(context, intent, "Compartir archivos", "No hay una app para compartir estos archivos.")
+}
+
+internal fun copyLocalMediaUri(
+    context: Context,
+    item: LocalMediaItem,
+) {
+    val clipboard = ContextCompat.getSystemService(context, ClipboardManager::class.java) ?: return
+    clipboard.setPrimaryClip(ClipData.newPlainText(item.title, item.contentUri))
+    Toast.makeText(context, "Ruta copiada", Toast.LENGTH_SHORT).show()
 }
 
 internal fun openLocalMediaLocation(
@@ -121,7 +133,20 @@ internal fun openLocalMediaLocation(
         setDataAndType(uri, if (item.isVideo) "video/*" else "audio/*")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    context.startActivity(Intent.createChooser(intent, "Abrir ubicación"))
+    launchChooserOrToast(context, intent, "Abrir ubicación", "No hay una app para abrir este archivo.")
+}
+
+private fun launchChooserOrToast(
+    context: Context,
+    intent: Intent,
+    title: String,
+    errorMessage: String,
+) {
+    runCatching {
+        context.startActivity(Intent.createChooser(intent, title))
+    }.onFailure {
+        Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+    }
 }
 
 @Composable

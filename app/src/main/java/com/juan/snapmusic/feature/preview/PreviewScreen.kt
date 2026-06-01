@@ -214,6 +214,7 @@ private fun PreviewDetailHost(
                     onRename = { renameTarget = item },
                     onDelete = { viewModel.deleteLocalMediaItem(item) },
                     onOpenLocation = { openLocalMediaLocation(context, item) },
+                    onCopyUri = { copyLocalMediaUri(context, item) },
                     onViewInfo = { infoTarget = item },
                     onUseAsNext = { viewModel.queuePreviewItemNext(item) },
                     onSelectMultiple = {
@@ -369,6 +370,7 @@ private fun PreviewLibraryRoot(
                         onRename = { renameTarget = item },
                         onDelete = { viewModel.deleteLocalMediaItem(item) },
                         onOpenLocation = { openLocalMediaLocation(context, item) },
+                        onCopyUri = { copyLocalMediaUri(context, item) },
                         onViewInfo = { infoTarget = item },
                         onUseAsNext = { viewModel.queuePreviewItemNext(item) },
                         onSelectMultiple = {
