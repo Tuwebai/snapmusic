@@ -1,6 +1,5 @@
 package com.juan.snapmusic.feature.home
 
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -125,7 +124,16 @@ private fun HomeYouTubeLanding(
     onSelectYouTube: () -> Unit,
 ) {
     val showTopTabs by viewModel.homeYouTubeTabsVisible.collectAsStateWithLifecycle()
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .homeTabSwipe(
+                canSwipeLeft = false,
+                canSwipeRight = true,
+                onSwipeLeft = onSelectYouTube,
+                onSwipeRight = onSelectSearch,
+            ),
+    ) {
         if (showTopTabs) {
             Box(modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 10.dp)) {
                 HomeSectionTabs(

@@ -57,6 +57,12 @@ internal fun HomeSearchLanding(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .homeTabSwipe(
+                canSwipeLeft = true,
+                canSwipeRight = false,
+                onSwipeLeft = onSelectYouTube,
+                onSwipeRight = onSelectSearch,
+            )
             .background(SearchBackground)
             .padding(padding),
     ) {
