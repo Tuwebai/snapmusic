@@ -51,7 +51,7 @@ androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.re
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 google-material = { group = "com.google.android.material", name = "material", version.ref = "material" }
-newpipe-extractor = { module = "com.github.TeamNewPipe:NewPipeExtractor", version = "v0.26.2" }
+newpipe-extractor = { module = "com.github.MonseyNY:NewPipeExtractor", version = "7ccf36f473" }
 junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidx-junit" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
