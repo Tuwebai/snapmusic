@@ -53,6 +53,17 @@ Red:            OkHttp (dos clientes: okHttpClient + extractorOkHttpClient)
   - dejó la telemetría de frames apagada en builds no-debug salvo flag explícito.
 - Métrica validada después del commit en APK `perf`: scroll del feed con jank cercano a `2.31%`, p95 `23 ms`, p99 `28 ms`, sin crash y sin cambios visuales.
 
+### Feed infinito YouTube
+
+- **Feed infinito YouTube:** commit `756b275` (`Implement infinite YouTube home feed`).
+- Ese commit agregó paginación real del home feed con sesión estable para que el feed no se corte en pocos ítems:
+  - cacheó la sesión de home por seed y firma de perfil;
+  - paginó desde candidatos acumulados sin recalcular todo desde cero en cada página;
+  - mantuvo dedupe incremental con `seenUrls` para evitar trabajo creciente;
+  - avanzó por trending/search/related sin cerrar el feed ante páginas con duplicados;
+  - conservó el trabajo pesado fuera del Main Thread para no romper la fluidez.
+- Si se vuelve a tocar el algoritmo de home feed, agregar cambios sobre esa base y no eliminar la estrategia de sesión/cache.
+
 ---
 
 ## Reglas de código — OBLIGATORIAS
