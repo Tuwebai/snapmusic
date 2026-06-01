@@ -302,6 +302,7 @@ internal fun rememberManagedYouTubePlayer(
         onPlaybackProgress = viewModel::syncYouTubePlaybackProgress,
         onMediaTransition = viewModel::syncYouTubeMediaTransition,
         onPlaybackQualityChanged = viewModel::syncYouTubePlaybackTracks,
+        onPlaybackRebuffer = viewModel::onYouTubePlaybackRebuffer,
     )
 }
 

@@ -1,6 +1,8 @@
 package com.juan.snapmusic.feature.youtube
 
 import android.content.ComponentName
+import android.os.SystemClock
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -110,6 +112,7 @@ fun rememberYouTubePlayer(
     onPlaybackProgress: (Long, Boolean, Boolean) -> Unit,
     onMediaTransition: (String, Long, Boolean) -> Unit,
     onPlaybackQualityChanged: (List<Int>, Int?) -> Unit,
+    onPlaybackRebuffer: (Long, Long) -> Unit,
 ): Player? {
     val context = LocalContext.current
     val featured = sessionState.featured
@@ -154,6 +157,10 @@ fun rememberYouTubePlayer(
             onDispose { }
         } else {
             val listener = object : Player.Listener {
+                private var playbackStartedAtMs = 0L
+                private var bufferStartedAtMs = 0L
+                private var firstFrameReported = false
+
                 fun syncTransitionIfNeeded() {
                     val mediaId = mediaController.currentMediaItem?.mediaId ?: return
                     if (mediaId == currentFeaturedSourceUrl) return
@@ -165,6 +172,9 @@ fun rememberYouTubePlayer(
                 }
 
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    playbackStartedAtMs = SystemClock.elapsedRealtime()
+                    bufferStartedAtMs = 0L
+                    firstFrameReported = false
                     val mediaId = mediaItem?.mediaId ?: return
                     onMediaTransition(
                         mediaId,
@@ -176,6 +186,24 @@ fun rememberYouTubePlayer(
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     syncTransitionIfNeeded()
                     if (mediaController.currentMediaItem?.mediaId != currentFeaturedSourceUrl) return
+                    val now = SystemClock.elapsedRealtime()
+                    if (playbackStartedAtMs == 0L && playbackState == Player.STATE_BUFFERING) {
+                        playbackStartedAtMs = now
+                    }
+                    if (mediaController.playWhenReady && playbackState == Player.STATE_BUFFERING && bufferStartedAtMs == 0L) {
+                        bufferStartedAtMs = now
+                    } else if (playbackState == Player.STATE_READY && bufferStartedAtMs != 0L) {
+                        val durationMs = now - bufferStartedAtMs
+                        val positionMs = mediaController.currentPosition.coerceAtLeast(0L)
+                        Log.d(
+                            "SnapMusicPlayback",
+                            "rebuffer media=${mediaController.currentMediaItem?.mediaId.orEmpty()} durationMs=$durationMs positionMs=$positionMs firstFrame=$firstFrameReported",
+                        )
+                        if (firstFrameReported) {
+                            onPlaybackRebuffer(positionMs, durationMs)
+                        }
+                        bufferStartedAtMs = 0L
+                    }
                     onPlaybackProgress(
                         mediaController.currentPosition.coerceAtLeast(0L),
                         mediaController.playWhenReady,
@@ -198,7 +226,22 @@ fun rememberYouTubePlayer(
 
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     if (mediaController.currentMediaItem?.mediaId != currentFeaturedSourceUrl) return
+                    Log.w(
+                        "SnapMusicPlayback",
+                        "error media=${mediaController.currentMediaItem?.mediaId.orEmpty()} message=${error.message.orEmpty()}",
+                    )
                     onPlaybackError(error.message, error.isExpiredStream403())
+                }
+
+                override fun onRenderedFirstFrame() {
+                    if (mediaController.currentMediaItem?.mediaId != currentFeaturedSourceUrl) return
+                    if (firstFrameReported) return
+                    firstFrameReported = true
+                    val firstFrameMs = (SystemClock.elapsedRealtime() - playbackStartedAtMs).takeIf { playbackStartedAtMs > 0L }
+                    Log.d(
+                        "SnapMusicPlayback",
+                        "firstFrame media=${mediaController.currentMediaItem?.mediaId.orEmpty()} firstFrameMs=${firstFrameMs ?: -1}",
+                    )
                 }
 
                 override fun onTracksChanged(tracks: Tracks) {

@@ -15,6 +15,7 @@ import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
@@ -56,10 +57,17 @@ internal fun applyYouTubePlaybackQuality(
         .setMinVideoSize(0, 0)
         .clearViewportSizeConstraints()
         .clearVideoSizeConstraints()
+        .setPreferredVideoMimeTypes(
+            MimeTypes.VIDEO_H264,
+            MimeTypes.VIDEO_H265,
+            MimeTypes.VIDEO_VP9,
+            MimeTypes.VIDEO_AV1,
+        )
 
     if (adaptivePlayback && featured.selectedVideoQualityId == "auto") {
         preferredAutomaticHeight?.let { targetHeight ->
-            builder.setMaxVideoSize(Int.MAX_VALUE, targetHeight)
+            val targetWidth = ((targetHeight * 16) / 9).coerceAtLeast(426)
+            builder.setMaxVideoSize(targetWidth, targetHeight)
         }
     } else if (adaptivePlayback && featured.selectedVideoQualityId != "auto") {
         val targetHeight = selectedVariant?.resolution?.substringBefore('p')?.toIntOrNull()
@@ -97,6 +105,7 @@ internal fun resolveVideoTrackOverride(
         val index: Int,
         val height: Int,
         val bitrate: Int,
+        val codecPriority: Int,
     )
 
     val candidates = tracks.groups
@@ -112,6 +121,7 @@ internal fun resolveVideoTrackOverride(
                     index = index,
                     height = height,
                     bitrate = format.bitrate.takeIf { it > 0 } ?: 0,
+                    codecPriority = videoCodecPriority(format.sampleMimeType),
                 )
             }
         }
@@ -119,11 +129,19 @@ internal fun resolveVideoTrackOverride(
 
     val selected = candidates
         .filter { it.height <= requestedHeight }
-        .maxWithOrNull(compareBy<Candidate>({ it.height }, { it.bitrate }))
-        ?: candidates.minWithOrNull(compareBy<Candidate>({ kotlin.math.abs(it.height - requestedHeight) }, { -it.bitrate }))
+        .maxWithOrNull(compareBy<Candidate>({ it.height }, { -it.codecPriority }, { it.bitrate }))
+        ?: candidates.minWithOrNull(compareBy<Candidate>({ kotlin.math.abs(it.height - requestedHeight) }, { it.codecPriority }, { -it.bitrate }))
         ?: return null
 
     return TrackSelectionOverride(selected.group.mediaTrackGroup, listOf(selected.index))
+}
+
+private fun videoCodecPriority(sampleMimeType: String?): Int = when (sampleMimeType) {
+    MimeTypes.VIDEO_H264 -> 0
+    MimeTypes.VIDEO_H265 -> 1
+    MimeTypes.VIDEO_VP9 -> 2
+    MimeTypes.VIDEO_AV1 -> 3
+    else -> 4
 }
 
 internal data class AudioTrackCandidate(

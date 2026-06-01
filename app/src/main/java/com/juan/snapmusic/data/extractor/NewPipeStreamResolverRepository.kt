@@ -6,6 +6,7 @@ import com.juan.snapmusic.core.model.DownloadSelection
 import com.juan.snapmusic.core.model.ResolvedMedia
 import com.juan.snapmusic.core.model.YouTubeFeedPage
 import com.juan.snapmusic.core.model.YouTubeFeedItem
+import com.juan.snapmusic.core.platform.YouTubePlaybackHeaders
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -55,13 +56,7 @@ class NewPipeStreamResolverRepository(
 
     private val pageCursorStore = linkedMapOf<String, Page>()
     private var pageCursorCounter = 0L
-    private val transferHeaders = mapOf(
-        "User-Agent" to "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
-        "Referer" to "https://www.youtube.com/",
-        "Origin" to "https://www.youtube.com",
-        "Accept" to "*/*",
-        "Accept-Language" to "es-AR,es;q=0.9,en;q=0.8",
-    )
+    private val transferHeaders = YouTubePlaybackHeaders.DEFAULT
 
     override suspend fun resolve(url: String): ResolvedMedia = withContext(Dispatchers.IO) {
         ensureInitialized(downloader)

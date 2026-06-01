@@ -5,19 +5,26 @@ import android.net.Uri
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
+import okhttp3.ConnectionPool
+import okhttp3.OkHttpClient
 import java.nio.charset.StandardCharsets
 import java.util.Base64
+import java.util.concurrent.TimeUnit
 
 @UnstableApi
 class SnapMusicPlaybackMediaSourceFactory(
     context: Context,
 ) : MediaSource.Factory {
-    private val delegate = DefaultMediaSourceFactory(context)
+    private val httpDataSourceFactory = OkHttpDataSource.Factory(PlaybackHttpClientHolder.client)
+        .setDefaultRequestProperties(YouTubePlaybackHeaders.DEFAULT)
+    private val delegate = DefaultMediaSourceFactory(DefaultDataSource.Factory(context, httpDataSourceFactory))
 
     override fun createMediaSource(mediaItem: MediaItem): MediaSource {
         val merged = MergedPlaybackUri.parse(mediaItem.localConfiguration?.uri)
@@ -44,6 +51,26 @@ class SnapMusicPlaybackMediaSourceFactory(
     }
 
     override fun getSupportedTypes(): IntArray = delegate.supportedTypes
+}
+
+object YouTubePlaybackHeaders {
+    val DEFAULT: Map<String, String> = mapOf(
+        "User-Agent" to "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+        "Referer" to "https://www.youtube.com/",
+        "Origin" to "https://www.youtube.com",
+        "Accept" to "*/*",
+        "Accept-Language" to "es-AR,es;q=0.9,en;q=0.8",
+    )
+}
+
+private object PlaybackHttpClientHolder {
+    val client: OkHttpClient = OkHttpClient.Builder()
+        .connectionPool(ConnectionPool(8, 5, TimeUnit.MINUTES))
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(45, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .build()
 }
 
 object MergedPlaybackUri {
