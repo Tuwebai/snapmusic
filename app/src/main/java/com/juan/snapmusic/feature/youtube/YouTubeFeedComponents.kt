@@ -212,7 +212,7 @@ internal fun YouTubeFeaturedVideo.toWatchQualityOptions(): List<WatchQualityOpti
     val resolved = resolvedMedia ?: return emptyList()
     val adaptivePlayback = resolved.adaptivePlaybackUrl?.let { watchHasAdaptivePlaybackUrl(it) } == true
     val preferredHeights = listOf(1080, 720, 480, 360, 240, 144)
-    val automaticPreferredHeights = listOf(720, 1080, 480, 360, 240, 144)
+    val automaticPreferredHeights = listOf(720, 480, 360, 240, 144, 1080)
     val variantsByHeight = resolved.videoVariants
         .mapNotNull { variant ->
             val height = variant.resolution?.substringBefore('p')?.toIntOrNull() ?: return@mapNotNull null

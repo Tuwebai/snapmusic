@@ -63,6 +63,7 @@ internal fun applyYouTubePlaybackQuality(
         }
     } else if (adaptivePlayback && featured.selectedVideoQualityId != "auto") {
         val targetHeight = selectedVariant?.resolution?.substringBefore('p')?.toIntOrNull()
+            ?: featured.selectedVideoQualityId.removePrefix("adaptive-").toIntOrNull()
         val override = resolveVideoTrackOverride(
             tracks = mediaController.currentTracks,
             requestedHeight = targetHeight,
@@ -82,13 +83,8 @@ internal fun resolvePreferredAutomaticHeight(
         .mapNotNull { it.resolution?.substringBefore('p')?.toIntOrNull() }
         .distinct()
         .sortedDescending()
-    return when {
-        720 in heights -> 720
-        480 in heights -> 480
-        360 in heights -> 360
-        1080 in heights -> 1080
-        else -> heights.firstOrNull()
-    }
+    return heights.filter { it <= 720 }.maxOrNull()
+        ?: heights.minByOrNull { kotlin.math.abs(it - 720) }
 }
 
 internal fun resolveVideoTrackOverride(

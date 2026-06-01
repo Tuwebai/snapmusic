@@ -1,5 +1,6 @@
 package com.juan.snapmusic.feature.home
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -69,6 +70,12 @@ private fun isPreviewVideoUri(uri: String): Boolean {
         normalized.endsWith(".mov")
 }
 
+private enum class YouTubePlaybackSourceMode {
+    ADAPTIVE,
+    MERGED,
+    PROGRESSIVE,
+}
+
 class SnapMusicViewModel(
     private val graph: SnapMusicGraph,
 ) : ViewModel() {
@@ -82,6 +89,7 @@ class SnapMusicViewModel(
         const val HOME_TAB_YOUTUBE_INDEX = 1
         const val YOUTUBE_WATCH_COMMENT_FALLBACK = "Elegí un formato y mandalo a la cola sin salir de esta pantalla."
         private const val YOUTUBE_FEED_DUPLICATE_PAGE_RETRY_LIMIT = 2
+        private const val YOUTUBE_PLAYBACK_LOG_TAG = "SnapMusicYouTube"
     }
 
     private suspend fun mergeUniqueYoutubeItems(
@@ -150,6 +158,8 @@ class SnapMusicViewModel(
     private val youTubePlaybackMilestones = linkedMapOf<String, MutableSet<MusicSignalType>>()
     private var lastFailureFallbackSourceUrl: String? = null
     private var lastExpiredStreamRetrySourceUrl: String? = null
+    private val refreshedAdaptivePlaybackSources = linkedSetOf<String>()
+    private val playbackFallbackModes = linkedMapOf<String, MutableSet<YouTubePlaybackSourceMode>>()
     private var cachedYouTubeHomeFeed: List<YouTubeFeedItem> = emptyList()
     private var queueObservationStarted = false
     private var historyObservationStarted = false
@@ -1324,6 +1334,8 @@ class SnapMusicViewModel(
         watchNextEnrichmentJob?.cancel()
         nextQueuePreResolveJob?.cancel()
         lastExpiredStreamRetrySourceUrl = null
+        refreshedAdaptivePlaybackSources.clear()
+        playbackFallbackModes.clear()
         val current = _youtubeState.value
         _youtubeState.value = current.copy(
             showPlayer = false,
@@ -1845,6 +1857,7 @@ class SnapMusicViewModel(
         val keepMiniPlayer = current.showMiniPlayer && !current.showPlayer
         val seededWatchNextItems = initialWatchNextItems(queueItems, normalizedIndex)
         if (current.featured.sourceUrl == target.url && current.featured.isReady) {
+            resetPlaybackFallbacks(target.url)
             _youtubeState.value = current.copy(
                 playbackQueue = queueItems,
                 watchNextItems = seededWatchNextItems,
@@ -1895,6 +1908,7 @@ class SnapMusicViewModel(
                 .onSuccess { featured ->
                     lastFailureFallbackSourceUrl = null
                     lastExpiredStreamRetrySourceUrl = null
+                    resetPlaybackFallbacks(target.url)
                     val latest = _youtubeState.value
                     youTubePlaybackMilestones[target.url] = mutableSetOf()
                     _youtubeState.value = latest.copy(
@@ -2162,6 +2176,7 @@ class SnapMusicViewModel(
             withContext(Dispatchers.Main.immediate) {
                 lastFailureFallbackSourceUrl = null
                 lastExpiredStreamRetrySourceUrl = null
+                resetPlaybackFallbacks(currentItem.url)
                 val restoredState = _youtubeState.value
                 _youtubeState.value = restoredState.copy(
                     query = snapshot.query,
@@ -2218,6 +2233,7 @@ class SnapMusicViewModel(
         rawMessage: String?,
         shouldRetryExpiredStream: Boolean,
     ) {
+        if (retryYouTubePlaybackSource(rawMessage)) return
         if (shouldRetryExpiredStream && retryExpiredYouTubeStream()) return
         handleYouTubePlaybackFailure(
             currentIndex = resolveCurrentQueueIndex(_youtubeState.value),
@@ -2233,6 +2249,7 @@ class SnapMusicViewModel(
         val current = _youtubeState.value
         if (mediaId != current.featured.sourceUrl) {
             lastExpiredStreamRetrySourceUrl = null
+            resetPlaybackFallbacks(mediaId)
         }
         val queueItems = current.playbackQueue.ifEmpty { current.items }
         val nextIndex = queueItems.indexOfFirst { it.url == mediaId }
@@ -2278,6 +2295,104 @@ class SnapMusicViewModel(
         if (queueItems.isEmpty()) return emptyList()
         val normalizedIndex = currentIndex.coerceIn(0, queueItems.lastIndex)
         return queueItems.drop((normalizedIndex + 1).coerceAtMost(queueItems.size))
+    }
+
+    private fun retryYouTubePlaybackSource(rawMessage: String?): Boolean {
+        val current = _youtubeState.value
+        val featured = current.featured
+        val sourceUrl = featured.sourceUrl
+        val media = featured.resolvedMedia ?: return false
+        val mode = playbackSourceMode(featured) ?: return false
+        if (mode == YouTubePlaybackSourceMode.ADAPTIVE && refreshedAdaptivePlaybackSources.add(sourceUrl)) {
+            return refreshAdaptiveYouTubePlaybackSource(current, rawMessage)
+        }
+        val fallbackModes = playbackFallbackModes.getOrPut(sourceUrl) { linkedSetOf() }
+        if (!fallbackModes.add(mode)) return false
+        val fallbackSelection = resolveFallbackPlaybackSelection(
+            media = media,
+            currentMode = mode,
+            requestedVariantId = featured.selectedVideoQualityId,
+        ) ?: return false
+        if (fallbackSelection.playbackUrl == featured.playbackUrl) return false
+        Log.w(
+            YOUTUBE_PLAYBACK_LOG_TAG,
+            "source=$sourceUrl fallback=${mode.name}->${fallbackSelection.sourceMode.name} quality=${featured.selectedVideoQualityId} cause=${rawMessage.orEmpty()}",
+        )
+        val updatedFeatured = featured.copy(
+            playbackUrl = fallbackSelection.playbackUrl,
+            actualVideoHeight = if (featured.selectedVideoQualityId == "auto") fallbackSelection.expectedHeight else null,
+            actualPlaybackLabel = if (featured.selectedVideoQualityId == "auto") {
+                fallbackSelection.expectedHeight?.let { "Automático · ${it}P" } ?: preferredAutomaticPlaybackLabel(media)
+            } else {
+                null
+            },
+            isReady = true,
+        )
+        youTubeResolveCache[sourceUrl] = updatedFeatured
+        _youtubeState.value = current.copy(
+            featured = updatedFeatured,
+            isRefreshingVideo = false,
+            pendingTransition = false,
+            shouldAutoPlayCurrent = true,
+            errorMessage = null,
+        )
+        persistCurrentYouTubeSnapshot()
+        return true
+    }
+
+    private fun refreshAdaptiveYouTubePlaybackSource(
+        current: YouTubeUiState,
+        rawMessage: String?,
+    ): Boolean {
+        val sourceUrl = current.featured.sourceUrl
+        if (sourceUrl.isBlank()) return false
+        val queueItems = current.playbackQueue.ifEmpty { current.items }
+        val currentIndex = resolveCurrentQueueIndex(current, queueItems)
+        val currentItem = queueItems.getOrNull(currentIndex) ?: return false
+        Log.w(
+            YOUTUBE_PLAYBACK_LOG_TAG,
+            "source=$sourceUrl refreshAdaptive cause=${rawMessage.orEmpty()}",
+        )
+        _youtubeState.value = current.copy(
+            isRefreshingVideo = true,
+            pendingTransition = false,
+            errorMessage = null,
+        )
+        viewModelScope.launch {
+            youTubeResolveCache.remove(currentItem.url)
+            runCatching { resolveFeaturedVideo(currentItem, forceRefresh = true) }
+                .onSuccess { resolvedFeatured ->
+                    val latest = _youtubeState.value
+                    if (latest.featured.sourceUrl != currentItem.url) return@onSuccess
+                    val selectedQuality = current.featured.selectedVideoQualityId
+                    val refreshedFeatured = applyResolvedPlaybackSelection(
+                        featured = resolvedFeatured,
+                        variantId = selectedQuality,
+                    )
+                    _youtubeState.value = latest.copy(
+                        featured = refreshedFeatured,
+                        isRefreshingVideo = false,
+                        pendingTransition = false,
+                        shouldAutoPlayCurrent = true,
+                        errorMessage = null,
+                        preloadedNextFeatured = nextQueueItem(queueItems, currentIndex, latest.continuationMode)?.let { youTubeResolveCache[it.url] },
+                    )
+                    youTubeResolveCache[currentItem.url] = refreshedFeatured
+                    persistCurrentYouTubeSnapshot()
+                    preResolveNextQueueItem(queueItems, currentIndex, latest.continuationMode)
+                }
+                .onFailure {
+                    if (_youtubeState.value.featured.sourceUrl == currentItem.url) {
+                        if (!retryYouTubePlaybackSource(it.message)) {
+                            handleYouTubePlaybackFailure(
+                                currentIndex = currentIndex,
+                                rawMessage = it.message,
+                            )
+                        }
+                    }
+                }
+        }
+        return true
     }
 
     private fun retryExpiredYouTubeStream(): Boolean {
@@ -3109,20 +3224,29 @@ class SnapMusicViewModel(
 
     private suspend fun YouTubeFeedItem.toFeaturedVideo(): YouTubeFeaturedVideo {
         val resolved = graph.resolverRepository.resolve(url)
-        val playback = fallbackAutomaticPlaybackUrl(resolved)
+        val playbackSelection = resolvePlaybackSelection(
+            media = resolved,
+            requestedVariantId = "auto",
+        )
+        Log.d(
+            YOUTUBE_PLAYBACK_LOG_TAG,
+            "source=$url playback=${playbackSelection?.sourceMode?.name.orEmpty()} heights=${resolved.videoVariants.mapNotNull { it.resolution }.distinct()} adaptive=${resolved.adaptivePlaybackUrl?.let(::isAdaptivePlaybackUrl) == true}",
+        )
         return YouTubeFeaturedVideo(
             sourceUrl = url,
             title = resolved.title,
             author = resolved.author,
             thumbnailUrl = resolved.thumbnailUrl,
-            playbackUrl = playback,
+            playbackUrl = playbackSelection?.playbackUrl,
             adaptivePlaybackUrl = resolved.adaptivePlaybackUrl,
             selectedVideoQualityId = "auto",
+            actualVideoHeight = playbackSelection?.expectedHeight,
+            actualPlaybackLabel = playbackSelection?.expectedHeight?.let { "Automático · ${it}P" } ?: preferredAutomaticPlaybackLabel(resolved),
             durationSeconds = resolved.durationSeconds,
             publishedText = publishedText,
             description = description,
             resolvedMedia = resolved,
-            isReady = playback != null,
+            isReady = playbackSelection?.playbackUrl != null,
         )
     }
 
@@ -3152,18 +3276,36 @@ class SnapMusicViewModel(
 
     private fun fallbackAutomaticPlaybackUrl(resolved: com.juan.snapmusic.core.model.ResolvedMedia): String? {
         val playbackCandidates = resolved.videoVariants.filter { !it.directUrl.isNullOrBlank() }
+        val mergedCandidates = playbackCandidates.filter { it.requiresMux && !it.secondaryUrl.isNullOrBlank() }
         val progressiveCandidates = playbackCandidates.filterNot { it.requiresMux }
-        val fallbackVariant = resolveAutomaticPlaybackVariant(progressiveCandidates)
-            ?: resolveAutomaticPlaybackVariant(playbackCandidates)
+        val fallbackVariant = resolveAutomaticPlaybackVariant(mergedCandidates)
+            ?: resolveAutomaticPlaybackVariant(progressiveCandidates)
             ?: return resolved.playbackUrl
             ?: progressiveCandidates.firstOrNull()?.directUrl
             ?: playbackCandidates.firstOrNull()?.directUrl
         return fallbackPlaybackUrl(fallbackVariant)
     }
 
+    private fun fallbackProgressivePlaybackUrl(resolved: com.juan.snapmusic.core.model.ResolvedMedia): PlaybackSelection? {
+        val progressiveCandidates = resolved.videoVariants
+            .filter { !it.directUrl.isNullOrBlank() && !it.requiresMux }
+        val fallbackVariant = resolveAutomaticPlaybackVariant(progressiveCandidates)
+        val playbackUrl = fallbackVariant?.let(::fallbackPlaybackUrl)
+            ?: resolved.playbackUrl
+            ?: progressiveCandidates.firstOrNull()?.directUrl
+            ?: return null
+        return PlaybackSelection(
+            playbackUrl = playbackUrl,
+            expectedHeight = fallbackVariant?.resolution?.substringBefore('p')?.toIntOrNull()
+                ?: resolved.playbackUrl?.let { playbackUrlHeightHint(progressiveCandidates, it) },
+            sourceMode = YouTubePlaybackSourceMode.PROGRESSIVE,
+        )
+    }
+
     private data class PlaybackSelection(
         val playbackUrl: String,
         val expectedHeight: Int?,
+        val sourceMode: YouTubePlaybackSourceMode,
     )
 
     private fun resolvePlaybackSelection(
@@ -3190,9 +3332,11 @@ class SnapMusicViewModel(
 
         if (requestedVariantId == "auto") {
             val automaticHeight = preferredAutomaticPlaybackHeight(media)
+            val playbackUrl = adaptivePlaybackUrl ?: fallbackAutomaticPlaybackUrl(media) ?: return null
             return PlaybackSelection(
-                playbackUrl = adaptivePlaybackUrl ?: fallbackAutomaticPlaybackUrl(media) ?: return null,
+                playbackUrl = playbackUrl,
                 expectedHeight = automaticHeight,
+                sourceMode = playbackSourceMode(playbackUrl, adaptivePlaybackUrl),
             )
         }
 
@@ -3200,14 +3344,97 @@ class SnapMusicViewModel(
             return PlaybackSelection(
                 playbackUrl = adaptivePlaybackUrl,
                 expectedHeight = requestedHeight,
+                sourceMode = YouTubePlaybackSourceMode.ADAPTIVE,
             )
         }
 
         val chosenProgressive = resolveNearestPlaybackVariant(playbackCandidates, requestedHeight) ?: return null
+        val playbackUrl = fallbackPlaybackUrl(chosenProgressive) ?: return null
         return PlaybackSelection(
-            playbackUrl = fallbackPlaybackUrl(chosenProgressive) ?: return null,
+            playbackUrl = playbackUrl,
             expectedHeight = chosenProgressive.resolution?.substringBefore('p')?.toIntOrNull(),
+            sourceMode = playbackSourceMode(playbackUrl, adaptivePlaybackUrl),
         )
+    }
+
+    private fun resolveFallbackPlaybackSelection(
+        media: com.juan.snapmusic.core.model.ResolvedMedia,
+        currentMode: YouTubePlaybackSourceMode,
+        requestedVariantId: String,
+    ): PlaybackSelection? {
+        val requestedHeight = requestedPlaybackHeight(media, requestedVariantId)
+        val playbackCandidates = media.videoVariants.filter { !it.directUrl.isNullOrBlank() }
+        val mergedCandidates = playbackCandidates.filter { it.requiresMux && !it.secondaryUrl.isNullOrBlank() }
+        val progressiveCandidates = playbackCandidates.filterNot { it.requiresMux }
+        return when (currentMode) {
+            YouTubePlaybackSourceMode.ADAPTIVE -> {
+                val mergedVariant = resolveNearestPlaybackVariant(mergedCandidates, requestedHeight)
+                    ?: resolveAutomaticPlaybackVariant(mergedCandidates)
+                val mergedUrl = mergedVariant?.let(::fallbackPlaybackUrl)
+                if (mergedVariant != null && mergedUrl != null) {
+                    PlaybackSelection(
+                        playbackUrl = mergedUrl,
+                        expectedHeight = mergedVariant.resolution?.substringBefore('p')?.toIntOrNull(),
+                        sourceMode = YouTubePlaybackSourceMode.MERGED,
+                    )
+                } else {
+                    fallbackProgressivePlaybackUrl(media)
+                }
+            }
+
+            YouTubePlaybackSourceMode.MERGED -> {
+                val progressiveVariant = resolveNearestPlaybackVariant(progressiveCandidates, requestedHeight)
+                    ?: resolveAutomaticPlaybackVariant(progressiveCandidates)
+                val progressiveUrl = progressiveVariant?.let(::fallbackPlaybackUrl)
+                if (progressiveVariant != null && progressiveUrl != null) {
+                    PlaybackSelection(
+                        playbackUrl = progressiveUrl,
+                        expectedHeight = progressiveVariant.resolution?.substringBefore('p')?.toIntOrNull(),
+                        sourceMode = YouTubePlaybackSourceMode.PROGRESSIVE,
+                    )
+                } else {
+                    fallbackProgressivePlaybackUrl(media)
+                }
+            }
+
+            YouTubePlaybackSourceMode.PROGRESSIVE -> null
+        }
+    }
+
+    private fun requestedPlaybackHeight(
+        media: com.juan.snapmusic.core.model.ResolvedMedia,
+        requestedVariantId: String,
+    ): Int? {
+        if (requestedVariantId == "auto") return preferredAutomaticPlaybackHeight(media)
+        if (requestedVariantId.startsWith("adaptive-")) {
+            return requestedVariantId.removePrefix("adaptive-").toIntOrNull()
+        }
+        return media.videoVariants
+            .firstOrNull { it.id == requestedVariantId }
+            ?.resolution
+            ?.substringBefore('p')
+            ?.toIntOrNull()
+    }
+
+    private fun playbackSourceMode(
+        featured: YouTubeFeaturedVideo,
+    ): YouTubePlaybackSourceMode? {
+        val playbackUrl = featured.playbackUrl ?: return null
+        return playbackSourceMode(playbackUrl, featured.adaptivePlaybackUrl)
+    }
+
+    private fun playbackSourceMode(
+        playbackUrl: String,
+        adaptivePlaybackUrl: String?,
+    ): YouTubePlaybackSourceMode {
+        return when {
+            adaptivePlaybackUrl?.let(::isAdaptivePlaybackUrl) == true && playbackUrl == adaptivePlaybackUrl -> {
+                YouTubePlaybackSourceMode.ADAPTIVE
+            }
+
+            playbackUrl.startsWith("snapmusic-merged://") -> YouTubePlaybackSourceMode.MERGED
+            else -> YouTubePlaybackSourceMode.PROGRESSIVE
+        }
     }
 
     private fun fallbackPlaybackUrl(
@@ -3222,6 +3449,45 @@ class SnapMusicViewModel(
         )
     }
 
+    private fun playbackUrlHeightHint(
+        candidates: List<com.juan.snapmusic.core.model.MediaVariant>,
+        playbackUrl: String,
+    ): Int? {
+        return candidates.firstOrNull { it.directUrl == playbackUrl }
+            ?.resolution
+            ?.substringBefore('p')
+            ?.toIntOrNull()
+    }
+
+    private fun applyResolvedPlaybackSelection(
+        featured: YouTubeFeaturedVideo,
+        variantId: String,
+    ): YouTubeFeaturedVideo {
+        val resolved = featured.resolvedMedia ?: return featured
+        val playbackSelection = resolvePlaybackSelection(
+            media = resolved,
+            requestedVariantId = variantId,
+        ) ?: return featured
+        return featured.copy(
+            playbackUrl = playbackSelection.playbackUrl,
+            adaptivePlaybackUrl = resolved.adaptivePlaybackUrl,
+            selectedVideoQualityId = variantId,
+            actualVideoHeight = if (variantId == "auto") playbackSelection.expectedHeight else null,
+            actualPlaybackLabel = if (variantId == "auto") {
+                playbackSelection.expectedHeight?.let { "Automático · ${it}P" } ?: preferredAutomaticPlaybackLabel(resolved)
+            } else {
+                null
+            },
+            isReady = true,
+        )
+    }
+
+    private fun resetPlaybackFallbacks(sourceUrl: String) {
+        if (sourceUrl.isBlank()) return
+        refreshedAdaptivePlaybackSources.remove(sourceUrl)
+        playbackFallbackModes.remove(sourceUrl)
+    }
+
     private fun preferredAutomaticPlaybackHeight(
         media: com.juan.snapmusic.core.model.ResolvedMedia?,
     ): Int? {
@@ -3230,13 +3496,8 @@ class SnapMusicViewModel(
             ?.distinct()
             ?.sortedDescending()
             .orEmpty()
-        return when {
-            720 in heights -> 720
-            1080 in heights -> 1080
-            480 in heights -> 480
-            360 in heights -> 360
-            else -> heights.firstOrNull()
-        }
+        return heights.filter { it <= 720 }.maxOrNull()
+            ?: heights.minByOrNull { kotlin.math.abs(it - 720) }
     }
 
     private fun preferredAutomaticPlaybackLabel(
