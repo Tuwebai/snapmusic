@@ -7,9 +7,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -122,92 +124,98 @@ fun YouTubeMiniPlayer(
         tonalElevation = 0.dp,
         shadowElevation = 2.dp,
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(IntrinsicSize.Min)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.Top,
+            YouTubeMiniPlayerVideoShell(
+                featured = featured,
+                player = player,
+                compact = compact,
+                thumbnailModel = miniThumbnailModel,
+                fillAvailableHeight = true,
+                onOpen = onOpen,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                YouTubeMiniPlayerVideoShell(
-                    featured = featured,
-                    player = player,
-                    compact = compact,
-                    thumbnailModel = miniThumbnailModel,
-                    onOpen = onOpen,
-                )
-                Column(
-                    modifier = Modifier
-                        .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.Top,
                 ) {
-                    Text(
-                        text = featured.title,
-                        modifier = Modifier.clickable(onClick = onOpen),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextPrimary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = featuredMeta(featured),
-                        modifier = Modifier.clickable(onClick = onOpen),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    YouTubeMiniPlaybackControls(
-                        player = player,
-                        onPrevious = onPrevious,
-                        onTogglePlayPause = onTogglePlayPause,
-                        onNext = onNext,
-                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            text = featured.title,
+                            modifier = Modifier.clickable(onClick = onOpen),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextPrimary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = featuredMeta(featured),
+                            modifier = Modifier.clickable(onClick = onOpen),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        YouTubeMiniPlaybackControls(
+                            player = player,
+                            onPrevious = onPrevious,
+                            onTogglePlayPause = onTogglePlayPause,
+                            onNext = onNext,
+                        )
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = "Cerrar",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
                 }
-                IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
-                    Icon(
-                        imageVector = Icons.Outlined.Close,
-                        contentDescription = "Cerrar",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = BackgroundSecondary,
-                    modifier = Modifier.clickable(onClick = onShare),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = "Compartir",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = TextPrimary,
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = AccentRed,
-                    modifier = Modifier.clickable(onClick = onDownload),
-                ) {
-                    Text(
-                        text = "Descargar",
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = TextPrimary,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = BackgroundSecondary,
+                        modifier = Modifier.clickable(onClick = onShare),
+                    ) {
+                        Text(
+                            text = "Compartir",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TextPrimary,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = AccentRed,
+                        modifier = Modifier.clickable(onClick = onDownload),
+                    ) {
+                        Text(
+                            text = "Descargar",
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TextPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
                 }
             }
         }
@@ -283,6 +291,7 @@ private fun YouTubeMiniPlayerVideoShell(
     player: Player?,
     compact: Boolean,
     thumbnailModel: ImageRequest,
+    fillAvailableHeight: Boolean = false,
     onOpen: () -> Unit,
 ) {
     var hasRenderedFirstFrame by remember(featured.sourceUrl, player) {
@@ -308,7 +317,13 @@ private fun YouTubeMiniPlayerVideoShell(
     Box(
         modifier = Modifier
             .width(if (compact) 112.dp else 132.dp)
-            .height(if (compact) 64.dp else 74.dp)
+            .then(
+                if (fillAvailableHeight) {
+                    Modifier.fillMaxHeight()
+                } else {
+                    Modifier.height(if (compact) 64.dp else 74.dp)
+                },
+            )
             .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onOpen),
     ) {
