@@ -1,11 +1,16 @@
 package com.juan.snapmusic.feature.preview
 
+import android.app.Activity
 import android.content.Intent
 import android.content.Context
 import android.net.Uri
 import android.os.Build
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -156,10 +161,22 @@ private fun PreviewDetailHost(
     val context = LocalContext.current
     var renameTarget by remember { mutableStateOf<LocalMediaItem?>(null) }
     var infoTarget by remember { mutableStateOf<LocalMediaItem?>(null) }
+    var deleteTarget by remember { mutableStateOf<List<LocalMediaItem>>(emptyList()) }
+    var pendingSystemDelete by remember { mutableStateOf<List<LocalMediaItem>>(emptyList()) }
     var selectedIds by rememberSaveable { mutableStateOf(setOf<String>()) }
     val selectionMode = selectedIds.isNotEmpty()
     val selectedItems = remember(selectedIds, libraryState.items) {
         libraryState.items.filter { it.id in selectedIds }
+    }
+    val deleteLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        val deletedItems = pendingSystemDelete
+        pendingSystemDelete = emptyList()
+        if (result.resultCode == Activity.RESULT_OK && deletedItems.isNotEmpty()) {
+            viewModel.confirmLocalMediaDeleted(deletedItems)
+            selectedIds = emptySet()
+        }
     }
 
     BackHandler {
@@ -189,8 +206,7 @@ private fun PreviewDetailHost(
                     },
                     onDeleteSelected = {
                         if (selectedItems.isNotEmpty()) {
-                            viewModel.deleteLocalMediaItems(selectedItems)
-                            selectedIds = emptySet()
+                            deleteTarget = selectedItems
                         }
                     },
                     onCloseSelection = { selectedIds = emptySet() },
@@ -212,7 +228,7 @@ private fun PreviewDetailHost(
                     },
                     onShare = { shareLocalMedia(context, item) },
                     onRename = { renameTarget = item },
-                    onDelete = { viewModel.deleteLocalMediaItem(item) },
+                    onDelete = { deleteTarget = listOf(item) },
                     onOpenLocation = { openLocalMediaLocation(context, item) },
                     onCopyUri = { copyLocalMediaUri(context, item) },
                     onViewInfo = { infoTarget = item },
@@ -239,6 +255,55 @@ private fun PreviewDetailHost(
             item = item,
             onDismiss = { infoTarget = null },
         )
+    }
+    if (deleteTarget.isNotEmpty()) {
+        LocalMediaDeleteDialog(
+            items = deleteTarget,
+            onDismiss = { deleteTarget = emptyList() },
+            onConfirm = {
+                val itemsToDelete = deleteTarget
+                deleteTarget = emptyList()
+                val request = buildLocalMediaDeleteRequest(context, itemsToDelete)
+                if (request != null) {
+                    pendingSystemDelete = itemsToDelete
+                    runCatching { deleteLauncher.launch(request) }
+                        .onFailure {
+                            pendingSystemDelete = emptyList()
+                            deleteLocalMediaDirectly(viewModel, itemsToDelete)
+                            selectedIds = emptySet()
+                        }
+                } else {
+                    deleteLocalMediaDirectly(viewModel, itemsToDelete)
+                    selectedIds = emptySet()
+                }
+            },
+        )
+    }
+}
+
+private fun buildLocalMediaDeleteRequest(
+    context: Context,
+    items: List<LocalMediaItem>,
+): IntentSenderRequest? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || items.isEmpty()) return null
+    val uris = items.mapNotNull { item ->
+        Uri.parse(item.contentUri).takeIf { it.scheme == "content" }
+    }
+    if (uris.size != items.size) return null
+    return runCatching {
+        val pendingIntent = MediaStore.createDeleteRequest(context.contentResolver, uris)
+        IntentSenderRequest.Builder(pendingIntent.intentSender).build()
+    }.getOrNull()
+}
+
+private fun deleteLocalMediaDirectly(
+    viewModel: SnapMusicViewModel,
+    items: List<LocalMediaItem>,
+) {
+    when (items.size) {
+        0 -> Unit
+        1 -> viewModel.deleteLocalMediaItem(items.first())
+        else -> viewModel.deleteLocalMediaItems(items)
     }
 }
 
@@ -300,6 +365,8 @@ private fun PreviewLibraryRoot(
     val context = LocalContext.current
     var renameTarget by remember { mutableStateOf<LocalMediaItem?>(null) }
     var infoTarget by remember { mutableStateOf<LocalMediaItem?>(null) }
+    var deleteTarget by remember { mutableStateOf<List<LocalMediaItem>>(emptyList()) }
+    var pendingSystemDelete by remember { mutableStateOf<List<LocalMediaItem>>(emptyList()) }
     var showSearch by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedIds by rememberSaveable { mutableStateOf(setOf<String>()) }
@@ -309,6 +376,16 @@ private fun PreviewLibraryRoot(
     }
     val searchResults = remember(searchQuery, libraryState.items) {
         filterLocalMediaSuggestions(searchQuery, libraryState.items)
+    }
+    val deleteLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        val deletedItems = pendingSystemDelete
+        pendingSystemDelete = emptyList()
+        if (result.resultCode == Activity.RESULT_OK && deletedItems.isNotEmpty()) {
+            viewModel.confirmLocalMediaDeleted(deletedItems)
+            selectedIds = emptySet()
+        }
     }
     LazyColumn(
         modifier = Modifier
@@ -345,8 +422,7 @@ private fun PreviewLibraryRoot(
                         },
                         onDeleteSelected = {
                             if (selectedItems.isNotEmpty()) {
-                                viewModel.deleteLocalMediaItems(selectedItems)
-                                selectedIds = emptySet()
+                                deleteTarget = selectedItems
                             }
                         },
                         onCloseSelection = { selectedIds = emptySet() },
@@ -368,7 +444,7 @@ private fun PreviewLibraryRoot(
                         },
                         onShare = { shareLocalMedia(context, item) },
                         onRename = { renameTarget = item },
-                        onDelete = { viewModel.deleteLocalMediaItem(item) },
+                        onDelete = { deleteTarget = listOf(item) },
                         onOpenLocation = { openLocalMediaLocation(context, item) },
                         onCopyUri = { copyLocalMediaUri(context, item) },
                         onViewInfo = { infoTarget = item },
@@ -395,6 +471,29 @@ private fun PreviewLibraryRoot(
         LocalMediaInfoDialog(
             item = item,
             onDismiss = { infoTarget = null },
+        )
+    }
+    if (deleteTarget.isNotEmpty()) {
+        LocalMediaDeleteDialog(
+            items = deleteTarget,
+            onDismiss = { deleteTarget = emptyList() },
+            onConfirm = {
+                val itemsToDelete = deleteTarget
+                deleteTarget = emptyList()
+                val request = buildLocalMediaDeleteRequest(context, itemsToDelete)
+                if (request != null) {
+                    pendingSystemDelete = itemsToDelete
+                    runCatching { deleteLauncher.launch(request) }
+                        .onFailure {
+                            pendingSystemDelete = emptyList()
+                            deleteLocalMediaDirectly(viewModel, itemsToDelete)
+                            selectedIds = emptySet()
+                        }
+                } else {
+                    deleteLocalMediaDirectly(viewModel, itemsToDelete)
+                    selectedIds = emptySet()
+                }
+            },
         )
     }
     if (showSearch) {

@@ -7,7 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -127,7 +126,7 @@ fun YouTubeMiniPlayer(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Min)
+                .height(if (compact) 94.dp else 104.dp)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.Top,
@@ -168,13 +167,6 @@ fun YouTubeMiniPlayer(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        YouTubeMiniPlaybackControls(
-                            player = player,
-                            onPrevious = onPrevious,
-                            onTogglePlayPause = onTogglePlayPause,
-                            onNext = onNext,
-                        )
                     }
                     IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
                         Icon(
@@ -187,9 +179,15 @@ fun YouTubeMiniPlayer(
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    YouTubeMiniPlaybackControls(
+                        player = player,
+                        onPrevious = onPrevious,
+                        onTogglePlayPause = onTogglePlayPause,
+                        onNext = onNext,
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
                     Surface(
                         shape = RoundedCornerShape(999.dp),
                         color = BackgroundSecondary,

@@ -1163,6 +1163,25 @@ class SnapMusicViewModel(
         }
     }
 
+    fun confirmLocalMediaDeleted(items: List<LocalMediaItem>) {
+        if (items.isEmpty()) return
+        val deletedUris = items.map(LocalMediaItem::contentUri).toSet()
+        graph.storageRepository.invalidateLocalMediaCache()
+        if (_selectedPreview.value?.fileUri in deletedUris) {
+            _selectedPreview.value = PreviewState()
+            _previewDetailVisible.value = false
+            _previewMiniPlayerVisible.value = false
+            _previewPlaybackQueueOverride.value = emptyList()
+        }
+        _previewLibrary.value = _previewLibrary.value.filterNot { it.contentUri in deletedUris }
+        refreshLocalPreviewLibrary(forceRefresh = true)
+        _queueFeedback.value = if (items.size == 1) {
+            "Se eliminó del dispositivo."
+        } else {
+            "Se eliminaron ${items.size} archivos."
+        }
+    }
+
     fun renameLocalMediaItem(
         item: LocalMediaItem,
         newTitle: String,

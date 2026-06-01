@@ -136,6 +136,39 @@ internal fun openLocalMediaLocation(
     launchChooserOrToast(context, intent, "Abrir ubicación", "No hay una app para abrir este archivo.")
 }
 
+@Composable
+internal fun LocalMediaDeleteDialog(
+    items: List<LocalMediaItem>,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    if (items.isEmpty()) return
+    val singleItem = items.singleOrNull()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (singleItem != null) "Eliminar archivo" else "Eliminar archivos") },
+        text = {
+            Text(
+                if (singleItem != null) {
+                    "Se eliminará \"${singleItem.title}\" del dispositivo. Esta acción no se puede deshacer."
+                } else {
+                    "Se eliminarán ${items.size} archivos del dispositivo. Esta acción no se puede deshacer."
+                },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Eliminar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        },
+    )
+}
+
 private fun launchChooserOrToast(
     context: Context,
     intent: Intent,
