@@ -18,6 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.SkipNext
+import androidx.compose.material.icons.outlined.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -94,6 +98,7 @@ fun YouTubeMiniPlayer(
     onDismiss: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
+    onTogglePlayPause: () -> Unit,
     onShare: () -> Unit,
     onDownload: () -> Unit,
     onToggleCompact: () -> Unit,
@@ -137,12 +142,12 @@ fun YouTubeMiniPlayer(
                 )
                 Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .clickable(onClick = onOpen),
+                        .weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
                         text = featured.title,
+                        modifier = Modifier.clickable(onClick = onOpen),
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextPrimary,
                         maxLines = 2,
@@ -150,10 +155,17 @@ fun YouTubeMiniPlayer(
                     )
                     Text(
                         text = featuredMeta(featured),
+                        modifier = Modifier.clickable(onClick = onOpen),
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                    )
+                    YouTubeMiniPlaybackControls(
+                        player = player,
+                        onPrevious = onPrevious,
+                        onTogglePlayPause = onTogglePlayPause,
+                        onNext = onNext,
                     )
                 }
                 IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
@@ -198,6 +210,68 @@ fun YouTubeMiniPlayer(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun YouTubeMiniPlaybackControls(
+    player: Player?,
+    onPrevious: () -> Unit,
+    onTogglePlayPause: () -> Unit,
+    onNext: () -> Unit,
+) {
+    var isPlaying by remember(player) { mutableStateOf(player?.isPlaying == true) }
+    DisposableEffect(player) {
+        val currentPlayer = player
+        if (currentPlayer == null) {
+            onDispose { }
+        } else {
+            isPlaying = currentPlayer.isPlaying
+            val listener = object : Player.Listener {
+                override fun onIsPlayingChanged(isPlayingNow: Boolean) {
+                    isPlaying = isPlayingNow
+                }
+
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    isPlaying = currentPlayer.isPlaying
+                }
+            }
+            currentPlayer.addListener(listener)
+            onDispose { currentPlayer.removeListener(listener) }
+        }
+    }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onPrevious, modifier = Modifier.size(28.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.SkipPrevious,
+                contentDescription = "Video anterior",
+                tint = TextPrimary,
+                modifier = Modifier.size(17.dp),
+            )
+        }
+        IconButton(
+            onClick = onTogglePlayPause,
+            enabled = player != null,
+            modifier = Modifier.size(30.dp),
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+                contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                tint = TextPrimary,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        IconButton(onClick = onNext, modifier = Modifier.size(28.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.SkipNext,
+                contentDescription = "Video siguiente",
+                tint = TextPrimary,
+                modifier = Modifier.size(17.dp),
+            )
         }
     }
 }

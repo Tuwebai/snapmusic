@@ -254,6 +254,13 @@ internal fun YouTubeMiniPlayerHost(
         },
         onNext = { viewModel.playNextYouTubeItem() },
         onPrevious = { viewModel.playPreviousYouTubeItem() },
+        onTogglePlayPause = {
+            if (player?.isPlaying == true) {
+                player.pause()
+            } else {
+                player?.play()
+            }
+        },
         onShare = {
             context.startActivity(
                     android.content.Intent.createChooser(
