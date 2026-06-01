@@ -2687,10 +2687,16 @@ class SnapMusicViewModel(
         item: YouTubeFeedItem,
         forceRefresh: Boolean,
     ) {
-        _youtubeDownloadSheet.value = YouTubeDownloadSheetState(isPreparing = true)
+        _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
+            media = item.toPendingResolvedMedia(),
+            visible = true,
+            isPreparing = true,
+        )
         viewModelScope.launch {
             runCatching { resolveFeaturedVideo(item, forceRefresh = forceRefresh) }
                 .onSuccess { featured ->
+                    val sheet = _youtubeDownloadSheet.value
+                    if (!sheet.isPreparing || sheet.media?.sourceUrl != item.url) return@onSuccess
                     if (hasDownloadVariants(featured.resolvedMedia)) {
                         _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
                             media = featured.resolvedMedia,
@@ -2702,6 +2708,8 @@ class SnapMusicViewModel(
                     }
                 }
                 .onFailure { error ->
+                    val sheet = _youtubeDownloadSheet.value
+                    if (!sheet.isPreparing || sheet.media?.sourceUrl != item.url) return@onFailure
                     _youtubeDownloadSheet.value = YouTubeDownloadSheetState()
                     _queueFeedback.value = userFacingError(error.message, UiFailureKind.EXTRACTION)
                 }
@@ -3321,6 +3329,18 @@ class SnapMusicViewModel(
             publishedText = publishedText,
             description = description,
             isReady = false,
+        )
+    }
+
+    private fun YouTubeFeedItem.toPendingResolvedMedia(): ResolvedMedia {
+        return ResolvedMedia(
+            sourceUrl = url,
+            title = title,
+            author = author,
+            durationSeconds = durationSeconds,
+            thumbnailUrl = thumbnailUrl,
+            audioVariants = emptyList(),
+            videoVariants = emptyList(),
         )
     }
 

@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -55,6 +56,7 @@ import kotlin.math.roundToInt
 @Composable
 fun DownloadFormatSheet(
     media: ResolvedMedia,
+    isPreparing: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
@@ -92,12 +94,16 @@ fun DownloadFormatSheet(
                     selectedVariantId = null
                 },
             )
-            FormatGrid(
-                media = media,
-                variants = variants,
-                selectedVariantId = selectedVariantId,
-                onSelect = { selectedVariantId = it },
-            )
+            if (isPreparing) {
+                PreparingFormatsStatus()
+            } else {
+                FormatGrid(
+                    media = media,
+                    variants = variants,
+                    selectedVariantId = selectedVariantId,
+                    onSelect = { selectedVariantId = it },
+                )
+            }
             selected?.takeIf { it.requiresTranscode || it.requiresMux }?.let {
                 Text(
                     text = "Ese formato usa el motor local de SnapMusic para convertir o unir streams antes de guardarlo.",
@@ -115,17 +121,44 @@ fun DownloadFormatSheet(
                 Button(
                     onClick = { selected?.let { onConfirm(it.id) } },
                     modifier = Modifier.weight(1f),
-                    enabled = selected != null,
+                    enabled = selected != null && !isPreparing,
                     colors = ButtonDefaults.buttonColors(containerColor = AccentRed),
                 ) {
-                    Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                    if (isPreparing) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
                     Text(
-                        text = selected?.let { "Descargar ${it.container.name} · ${variantQuality(it)}" } ?: "Seleccioná un formato",
+                        text = when {
+                            isPreparing -> "Preparando formatos"
+                            selected != null -> "Descargar ${selected.container.name} · ${variantQuality(selected)}"
+                            else -> "Seleccioná un formato"
+                        },
                         modifier = Modifier.padding(start = 8.dp),
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PreparingFormatsStatus() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(SurfaceElevated, RoundedCornerShape(18.dp))
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+        Text(
+            text = "Preparando formatos reales de descarga...",
+            color = TextSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
