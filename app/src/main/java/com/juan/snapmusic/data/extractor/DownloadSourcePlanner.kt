@@ -29,6 +29,7 @@ internal data class VideoSourceCandidate(
     val sourceContainerHint: String,
     val isProgressiveMp4: Boolean,
     val isMuxableMp4: Boolean,
+    val isPlaybackMuxable: Boolean = isMuxableMp4,
     val headers: Map<String, String> = emptyMap(),
 )
 
@@ -99,7 +100,7 @@ internal object DownloadSourcePlanner {
         val directHeights = progressive.mapNotNull { normalizeHeight(it.height, it.resolution) }.toSet()
         val mux = if (audioReady) {
             muxCandidates
-                .filter { it.url.isNotBlank() && it.isMuxableMp4 }
+                .filter { it.url.isNotBlank() && it.isPlaybackMuxable }
                 .sortedByDescending { normalizeHeight(it.height, it.resolution) ?: 0 }
                 .distinctBy { normalizeHeight(it.height, it.resolution) ?: -1 }
                 .filterNot { candidate -> normalizeHeight(candidate.height, candidate.resolution) in directHeights }

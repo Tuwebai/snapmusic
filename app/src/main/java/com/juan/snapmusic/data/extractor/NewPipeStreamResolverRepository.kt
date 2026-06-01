@@ -220,6 +220,8 @@ class NewPipeStreamResolverRepository(
             stream.format == MediaFormat.MPEG_4 &&
             stream.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP,
         isMuxableMp4 = stream.format == MediaFormat.MPEG_4,
+        isPlaybackMuxable = stream.isVideoOnly &&
+            (stream.format == MediaFormat.MPEG_4 || stream.format == MediaFormat.WEBM),
         headers = transferHeaders,
     )
 

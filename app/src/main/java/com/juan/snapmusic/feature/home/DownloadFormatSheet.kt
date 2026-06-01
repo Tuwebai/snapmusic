@@ -244,7 +244,11 @@ private fun modalVariants(
     media: ResolvedMedia,
     activeTab: MediaKind,
 ): List<MediaVariant> {
-    val base = if (activeTab == MediaKind.AUDIO) media.audioVariants else media.videoVariants
+    val base = if (activeTab == MediaKind.AUDIO) {
+        media.audioVariants
+    } else {
+        media.videoVariants.filter { !it.requiresMux || it.sourceContainerHint.equals("MPEG_4", ignoreCase = true) }
+    }
     return base.sortedWith(
         compareByDescending<MediaVariant> { modalPriority(it) }
             .thenByDescending { it.bitrateKbps ?: resolutionScore(it.resolution) }
