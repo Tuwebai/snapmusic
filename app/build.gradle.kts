@@ -113,6 +113,7 @@ dependencies {
     implementation(libs.google.material)
     implementation(libs.newpipe.extractor)
     implementation(files("libs/ffmpeg-kit-full-6.1.4.aar"))
+    implementation("com.arthenica:smart-exception-java:0.2.1")
     baselineProfile(project(":baselineprofile"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
