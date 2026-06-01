@@ -126,8 +126,8 @@ fun YouTubeMiniPlayer(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (compact) 94.dp else 104.dp)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .height(if (compact) 112.dp else 122.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.Top,
         ) {
