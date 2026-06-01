@@ -151,7 +151,8 @@ class HttpTransferEngine(
         policy: HttpTransferPolicy,
         onProgress: suspend (DownloadProgressSnapshot) -> Unit,
     ): File = coroutineScope {
-        val totalBytes = probe.contentLength ?: error("El origen no informó el tamaño total del stream.")
+        val totalBytes = probe.contentLength
+            ?: return@coroutineScope downloadSingle(source, probe, payloadFile, policy, onProgress)
         val ranges = buildRanges(totalBytes, policy.maxChunkBytes)
         val tracker = SegmentProgressTracker(ranges.size, totalBytes, onProgress)
         val semaphore = Semaphore(policy.maxParallelConnections.coerceAtLeast(1))
@@ -336,7 +337,7 @@ class HttpTransferEngine(
     private fun validateFinalSize(file: File, expectedLength: Long?) {
         val size = file.length()
         if (size <= 0L) throw TransferValidationException("El stream descargado quedó vacío.")
-        if (expectedLength != null && size != expectedLength) {
+        if (expectedLength != null && size < expectedLength) {
             throw TransferValidationException("El archivo descargado quedó incompleto.")
         }
     }

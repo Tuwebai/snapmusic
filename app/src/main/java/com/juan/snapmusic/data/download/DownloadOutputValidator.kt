@@ -11,7 +11,11 @@ class DownloadOutputValidator(
     fun validate(uri: Uri, container: ContainerFormat) {
         val retriever = MediaMetadataRetriever()
         try {
-            retriever.setDataSource(context, uri)
+            if (uri.scheme == "file") {
+                retriever.setDataSource(uri.path)
+            } else {
+                retriever.setDataSource(context, uri)
+            }
             val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
             if (durationMs <= 0L) {
                 error("El archivo final quedó inválido después de procesarlo.")
