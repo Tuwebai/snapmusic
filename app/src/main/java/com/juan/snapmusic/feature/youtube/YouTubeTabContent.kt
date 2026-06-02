@@ -1,6 +1,9 @@
 package com.juan.snapmusic.feature.youtube
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -298,7 +301,19 @@ private fun YouTubeSuggestionsList(
     val density = LocalDensity.current
     val currentOnRefresh by rememberUpdatedState(onRefresh)
     val refreshThresholdPx = remember(density) { with(density) { 86.dp.toPx() } }
+    val refreshingSettledOffsetPx = remember(density) { with(density) { 18.dp.toPx() } }
     var pullOffsetPx by remember { mutableStateOf(0f) }
+    val rawPullProgress = (pullOffsetPx / refreshThresholdPx).coerceIn(0f, 1f)
+    val indicatorProgress by animateFloatAsState(
+        targetValue = if (suggestionsState.isRefreshing) 1f else rawPullProgress,
+        animationSpec = tween(durationMillis = 90, easing = FastOutSlowInEasing),
+        label = "youtubePullRefreshProgress",
+    )
+    val indicatorTranslationY by animateFloatAsState(
+        targetValue = if (suggestionsState.isRefreshing) refreshingSettledOffsetPx else pullOffsetPx * 0.45f,
+        animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing),
+        label = "youtubePullRefreshOffset",
+    )
     val isAtTop by remember(listState) {
         derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
     }
@@ -418,17 +433,39 @@ private fun YouTubeSuggestionsList(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .graphicsLayer {
-                        alpha = if (suggestionsState.isRefreshing) 1f else (pullOffsetPx / refreshThresholdPx).coerceIn(0f, 1f)
-                        translationY = if (suggestionsState.isRefreshing) 18f else (pullOffsetPx * 0.45f)
+                        alpha = indicatorProgress
+                        translationY = indicatorTranslationY
+                        val scale = 0.72f + (indicatorProgress * 0.28f)
+                        scaleX = scale
+                        scaleY = scale
                     }
                     .padding(top = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
+                YouTubePullRefreshIndicator(
+                    isRefreshing = suggestionsState.isRefreshing,
+                    progress = indicatorProgress,
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun YouTubePullRefreshIndicator(
+    isRefreshing: Boolean,
+    progress: Float,
+) {
+    if (isRefreshing) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(20.dp),
+            strokeWidth = 2.dp,
+        )
+    } else {
+        CircularProgressIndicator(
+            progress = { progress.coerceIn(0f, 1f) },
+            modifier = Modifier.size(20.dp),
+            strokeWidth = 2.dp,
+        )
     }
 }
