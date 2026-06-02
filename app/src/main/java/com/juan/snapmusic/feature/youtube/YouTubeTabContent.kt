@@ -17,12 +17,23 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
@@ -263,9 +274,56 @@ private fun YouTubeSuggestionsList(
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
 ) {
+    val density = LocalDensity.current
+    val currentOnRefresh by rememberUpdatedState(onRefresh)
+    val refreshThresholdPx = remember(density) { with(density) { 86.dp.toPx() } }
+    var pullOffsetPx by remember { mutableStateOf(0f) }
+    val isAtTop by remember(listState) {
+        derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
+    }
+    val pullRefreshConnection = remember(listState, suggestionsState.isRefreshing, refreshThresholdPx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val delta = available.y
+                if (delta >= 0f || pullOffsetPx <= 0f) return Offset.Zero
+                val consumed = delta.coerceAtLeast(-pullOffsetPx)
+                pullOffsetPx += consumed
+                return Offset(x = 0f, y = consumed)
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                val delta = available.y
+                if (delta <= 0f || !isAtTop || suggestionsState.isRefreshing) return Offset.Zero
+                val consumedY = delta * 0.55f
+                pullOffsetPx = (pullOffsetPx + consumedY).coerceAtMost(refreshThresholdPx * 1.35f)
+                return Offset(x = 0f, y = delta)
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (pullOffsetPx >= refreshThresholdPx && !suggestionsState.isRefreshing) {
+                    currentOnRefresh()
+                }
+                if (pullOffsetPx > 0f) {
+                    pullOffsetPx = 0f
+                    return Velocity.Zero
+                }
+                return Velocity.Zero
+            }
+        }
+    }
+    LaunchedEffect(suggestionsState.isRefreshing) {
+        if (suggestionsState.isRefreshing) pullOffsetPx = 0f
+    }
+
     val listContent: @Composable () -> Unit = {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(pullRefreshConnection),
             state = listState,
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(bottom = 28.dp),
@@ -334,5 +392,22 @@ private fun YouTubeSuggestionsList(
     }
     Box(modifier = modifier) {
         listContent()
+        if (pullOffsetPx > 0f || suggestionsState.isRefreshing) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer {
+                        alpha = if (suggestionsState.isRefreshing) 1f else (pullOffsetPx / refreshThresholdPx).coerceIn(0f, 1f)
+                        translationY = if (suggestionsState.isRefreshing) 18f else (pullOffsetPx * 0.45f)
+                    }
+                    .padding(top = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                )
+            }
+        }
     }
 }
