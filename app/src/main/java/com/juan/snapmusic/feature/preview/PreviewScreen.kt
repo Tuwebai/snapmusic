@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -45,6 +46,7 @@ import com.juan.snapmusic.feature.home.PreviewLibraryUiState
 import com.juan.snapmusic.feature.home.SnapMusicViewModel
 import java.text.DecimalFormat
 import java.util.Date
+import kotlinx.coroutines.launch
 
 @androidx.media3.common.util.UnstableApi
 @Composable
@@ -159,6 +161,7 @@ private fun PreviewDetailHost(
     val libraryState = viewModel.previewLibraryScreen.collectAsStateWithLifecycle().value
     val activePreviewUri = viewModel.previewActiveFileUri.collectAsStateWithLifecycle().value
     val context = LocalContext.current
+    val snapCardScope = rememberCoroutineScope()
     var renameTarget by remember { mutableStateOf<LocalMediaItem?>(null) }
     var infoTarget by remember { mutableStateOf<LocalMediaItem?>(null) }
     var deleteTarget by remember { mutableStateOf<List<LocalMediaItem>>(emptyList()) }
@@ -227,6 +230,7 @@ private fun PreviewDetailHost(
                         viewModel.openPreviewFromDevice(item)
                     },
                     onShare = { shareLocalMedia(context, item) },
+                    onShareSnapCard = { snapCardScope.launch { shareSnapCard(context, item) } },
                     onRename = { renameTarget = item },
                     onDelete = { deleteTarget = listOf(item) },
                     onOpenLocation = { openLocalMediaLocation(context, item) },
@@ -363,6 +367,7 @@ private fun PreviewLibraryRoot(
 ) {
     val libraryState = viewModel.previewLibraryScreen.collectAsStateWithLifecycle().value
     val context = LocalContext.current
+    val snapCardScope = rememberCoroutineScope()
     var renameTarget by remember { mutableStateOf<LocalMediaItem?>(null) }
     var infoTarget by remember { mutableStateOf<LocalMediaItem?>(null) }
     var deleteTarget by remember { mutableStateOf<List<LocalMediaItem>>(emptyList()) }
@@ -443,6 +448,7 @@ private fun PreviewLibraryRoot(
                             viewModel.openPreviewFromDevice(item)
                         },
                         onShare = { shareLocalMedia(context, item) },
+                        onShareSnapCard = { snapCardScope.launch { shareSnapCard(context, item) } },
                         onRename = { renameTarget = item },
                         onDelete = { deleteTarget = listOf(item) },
                         onOpenLocation = { openLocalMediaLocation(context, item) },

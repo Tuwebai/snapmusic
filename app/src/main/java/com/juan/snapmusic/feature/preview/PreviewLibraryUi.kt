@@ -153,6 +153,7 @@ internal fun PreviewLibraryRow(
     selected: Boolean = false,
     onClick: () -> Unit,
     onShare: () -> Unit,
+    onShareSnapCard: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
     onOpenLocation: () -> Unit,
@@ -257,6 +258,16 @@ internal fun PreviewLibraryRow(
                         onClick = {
                             expanded = false
                             onShare()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Crear SnapCard") },
+                        leadingIcon = {
+                            Icon(Icons.Outlined.Share, contentDescription = null)
+                        },
+                        onClick = {
+                            expanded = false
+                            onShareSnapCard()
                         },
                     )
                     DropdownMenuItem(

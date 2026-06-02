@@ -3,4 +3,10 @@
     <external-path
         name="snapmusic_external"
         path="." />
+    <external-cache-path
+        name="snapmusic_external_cache"
+        path="." />
+    <cache-path
+        name="snapmusic_cache"
+        path="." />
 </paths>

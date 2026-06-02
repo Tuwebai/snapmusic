@@ -169,7 +169,7 @@ internal fun LocalMediaDeleteDialog(
     )
 }
 
-private fun launchChooserOrToast(
+internal fun launchChooserOrToast(
     context: Context,
     intent: Intent,
     title: String,
