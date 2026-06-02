@@ -59,16 +59,17 @@ import java.util.Locale
 internal fun SettingsHistoryHero(
     items: List<YouTubeWatchHistoryEntry>,
     onClick: () -> Unit,
+    onPlay: (YouTubeWatchHistoryEntry) -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
             .padding(vertical = 2.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(
+            modifier = Modifier.clickable(onClick = onClick),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Historial", color = TextPrimary, style = MaterialTheme.typography.titleSmall)
@@ -98,6 +99,7 @@ internal fun SettingsHistoryHero(
                     WatchHistoryPreviewCard(
                         item = item,
                         modifier = Modifier.width(168.dp),
+                        onClick = { onPlay(item) },
                     )
                 }
             }
@@ -203,6 +205,7 @@ internal fun YouTubeWatchHistoryPane(
 private fun WatchHistoryPreviewCard(
     item: YouTubeWatchHistoryEntry,
     modifier: Modifier = Modifier,
+    onClick: () -> Unit,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -222,7 +225,7 @@ private fun WatchHistoryPreviewCard(
     )
 
     Column(
-        modifier = modifier,
+        modifier = modifier.clickable(onClick = onClick),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box {

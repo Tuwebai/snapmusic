@@ -65,6 +65,7 @@ fun SettingsScreen(
             SettingsPane.ROOT -> SettingsRootScreen(
                 youtubeWatchHistory = youtubeWatchHistory,
                 onWatchHistory = { pane = SettingsPane.WATCH_HISTORY },
+                onPlayWatchHistory = viewModel::playYouTubeWatchHistoryItem,
                 onDownloads = { pane = SettingsPane.DOWNLOADS },
                 onNotifications = { pane = SettingsPane.NOTIFICATIONS },
                 onTheme = { pane = SettingsPane.THEME },

@@ -89,6 +89,7 @@ private val speedOptions = listOf(
 internal fun SettingsRootScreen(
     youtubeWatchHistory: List<YouTubeWatchHistoryEntry>,
     onWatchHistory: () -> Unit,
+    onPlayWatchHistory: (YouTubeWatchHistoryEntry) -> Unit,
     onDownloads: () -> Unit,
     onNotifications: () -> Unit,
     onTheme: () -> Unit,
@@ -109,6 +110,7 @@ internal fun SettingsRootScreen(
                 SettingsHistoryHero(
                     items = youtubeWatchHistory,
                     onClick = onWatchHistory,
+                    onPlay = onPlayWatchHistory,
                 )
                 SettingsSectionLabel("General")
                 SettingsActionRow(Icons.Outlined.Download, "Configuración de descarga", onClick = onDownloads)
