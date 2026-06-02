@@ -144,10 +144,10 @@ internal fun LandscapeFullscreenVideoDialog(
     BackHandler(enabled = visible) { onDismiss() }
 
     Dialog(
-        onDismissRequest = {},
+        onDismissRequest = { onDismiss() },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
-            dismissOnBackPress = false,
+            dismissOnBackPress = true,
             dismissOnClickOutside = false,
         ),
     ) {
@@ -193,7 +193,8 @@ internal fun LandscapeFullscreenVideoDialog(
                     player = player,
                     modifier = Modifier.fillMaxSize(),
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
-                    shutterColor = android.graphics.Color.BLACK,
+                    shutterColor = android.graphics.Color.TRANSPARENT,
+                    keepContentOnPlayerReset = true,
                     keepScreenOn = player.playWhenReady,
                     layoutParams = ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
@@ -219,6 +220,7 @@ internal fun LandscapeFullscreenVideoDialog(
                     playbackState = overlayState.copy(showControls = showControls),
                     canGoPrevious = canGoPrevious,
                     canGoNext = canGoNext,
+                    fullscreenLayout = true,
                     seekPreviewFramesets = seekPreviewFramesets,
                     onBack = {
                         hasInteracted = true

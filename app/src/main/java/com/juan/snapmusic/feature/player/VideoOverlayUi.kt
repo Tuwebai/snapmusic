@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
@@ -30,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Fullscreen
+import androidx.compose.material.icons.outlined.FullscreenExit
 import androidx.compose.material.icons.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Pause
@@ -394,6 +396,7 @@ internal fun VideoFullscreenOverlay(
     canGoNext: Boolean,
     seekPreviewFramesets: List<SeekPreviewFrameset> = emptyList(),
     modifier: Modifier = Modifier,
+    fullscreenLayout: Boolean = false,
     onBack: () -> Unit,
     onPlayPause: () -> Unit,
     onPrevious: () -> Unit,
@@ -499,7 +502,13 @@ internal fun VideoFullscreenOverlay(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+                .then(if (fullscreenLayout) Modifier.navigationBarsPadding() else Modifier)
+                .padding(
+                    start = if (fullscreenLayout) 14.dp else 10.dp,
+                    end = if (fullscreenLayout) 14.dp else 10.dp,
+                    top = if (fullscreenLayout) 0.dp else 8.dp,
+                    bottom = if (fullscreenLayout) 28.dp else 8.dp,
+                ),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             if (sliderBindings.isDragging) {
@@ -582,13 +591,21 @@ internal fun VideoFullscreenOverlay(
                         onClick = onToggleResize,
                         icon = {
                             Icon(
-                                imageVector = Icons.Outlined.Fullscreen,
-                                contentDescription = "Cambiar ajuste del video",
+                                imageVector = if (fullscreenLayout) {
+                                    Icons.Outlined.FullscreenExit
+                                } else {
+                                    Icons.Outlined.Fullscreen
+                                },
+                                contentDescription = if (fullscreenLayout) {
+                                    "Salir de pantalla completa"
+                                } else {
+                                    "Abrir pantalla completa"
+                                },
                                 tint = TextPrimary,
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(if (fullscreenLayout) 18.dp else 16.dp),
                             )
                         },
-                        size = 24.dp,
+                        size = if (fullscreenLayout) 30.dp else 24.dp,
                     )
                 }
             }
