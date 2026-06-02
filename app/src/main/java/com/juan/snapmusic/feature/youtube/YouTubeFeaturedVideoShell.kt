@@ -134,6 +134,8 @@ internal fun FeaturedVideoPlayerShell(
         )
     }
     var totalVerticalDrag by remember(featured.sourceUrl) { mutableStateOf(0f) }
+    var isSeekingPreview by remember(featured.sourceUrl) { mutableStateOf(false) }
+    var resumeAfterSeekPreview by remember(featured.sourceUrl, player) { mutableStateOf(false) }
     val minimizeBySwipeState = rememberDraggableState { delta ->
         if (delta > 0f) {
             totalVerticalDrag += delta
@@ -175,11 +177,36 @@ internal fun FeaturedVideoPlayerShell(
         }
     }
 
-    LaunchedEffect(showOverlayControls, featured.sourceUrl) {
-        if (showOverlayControls) {
+    LaunchedEffect(showOverlayControls, featured.sourceUrl, isSeekingPreview) {
+        if (showOverlayControls && !isSeekingPreview) {
             delay(2400)
-            showOverlayControls = false
+            if (!isSeekingPreview) {
+                showOverlayControls = false
+            }
         }
+    }
+
+    val pauseForSeekPreview: () -> Unit = {
+        player?.let { currentPlayer ->
+            isSeekingPreview = true
+            showOverlayControls = true
+            resumeAfterSeekPreview = currentPlayer.isPlaying || currentPlayer.playWhenReady
+            if (resumeAfterSeekPreview) {
+                currentPlayer.pause()
+                currentPlayer.playWhenReady = false
+            }
+        }
+    }
+    val finishSeekPreview: () -> Unit = {
+        player?.let { currentPlayer ->
+            if (resumeAfterSeekPreview) {
+                currentPlayer.playWhenReady = true
+                currentPlayer.play()
+            }
+        }
+        resumeAfterSeekPreview = false
+        isSeekingPreview = false
+        showOverlayControls = true
     }
 
     Box(
@@ -269,6 +296,8 @@ internal fun FeaturedVideoPlayerShell(
                 },
                 onMore = onOpenWatchSheet,
                 onSeekTo = { seekPosition -> player?.seekTo(seekPosition) },
+                onSeekPreviewStart = pauseForSeekPreview,
+                onSeekPreviewFinished = finishSeekPreview,
                 onToggleResize = {
                     showOverlayControls = false
                     onEnterFullscreen()
@@ -301,6 +330,8 @@ internal fun FeaturedVideoPlayerShell(
         onNext = onNext,
         onMore = onOpenWatchSheet,
         onSeekTo = { seekPosition -> player?.seekTo(seekPosition) },
+        onSeekPreviewStart = pauseForSeekPreview,
+        onSeekPreviewFinished = finishSeekPreview,
     )
 }
 
@@ -314,6 +345,8 @@ internal fun FeaturedVideoOverlayHost(
     onNext: () -> Unit,
     onMore: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    onSeekPreviewStart: () -> Unit = {},
+    onSeekPreviewFinished: () -> Unit = {},
     onToggleResize: () -> Unit,
 ) {
     VideoFullscreenOverlay(
@@ -327,6 +360,8 @@ internal fun FeaturedVideoOverlayHost(
         onNext = onNext,
         onMore = onMore,
         onSeekTo = onSeekTo,
+        onSeekPreviewStart = onSeekPreviewStart,
+        onSeekPreviewFinished = onSeekPreviewFinished,
         onToggleResize = onToggleResize,
     )
 }
@@ -346,6 +381,8 @@ internal fun FeaturedVideoFullscreenShell(
     onNext: () -> Unit,
     onMore: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    onSeekPreviewStart: () -> Unit = {},
+    onSeekPreviewFinished: () -> Unit = {},
 ) {
     LandscapeFullscreenVideoDialog(
         visible = visible,
@@ -370,6 +407,8 @@ internal fun FeaturedVideoFullscreenShell(
         onNext = onNext,
         onMore = onMore,
         onSeekTo = onSeekTo,
+        onSeekPreviewStart = onSeekPreviewStart,
+        onSeekPreviewFinished = onSeekPreviewFinished,
     )
 }
 

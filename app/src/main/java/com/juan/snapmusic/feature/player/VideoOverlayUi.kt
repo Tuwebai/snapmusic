@@ -72,6 +72,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import coil.compose.AsyncImage
+import coil.imageLoader
 import coil.request.ImageRequest
 import coil.size.Size
 import com.juan.snapmusic.core.designsystem.AccentRed
@@ -264,6 +265,7 @@ private fun SeekPreviewStrip(
     durationMs: Long,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val frameset = remember(framesets) { framesets.bestSeekPreviewFrameset() } ?: return
     val frames = remember(frameset, positionMs, durationMs) {
         buildSeekPreviewFrameRow(
@@ -273,6 +275,12 @@ private fun SeekPreviewStrip(
         )
     }
     if (frames.isEmpty()) return
+    val frameUrls = remember(frames) { frames.map { it.imageUrl }.distinct() }
+    LaunchedEffect(context, frameUrls) {
+        frameUrls.forEach { imageUrl ->
+            context.imageLoader.enqueue(seekPreviewImageRequest(context, imageUrl))
+        }
+    }
 
     Surface(
         modifier = modifier,
@@ -310,15 +318,7 @@ private fun StoryboardFrameThumbnail(
     selected: Boolean,
 ) {
     val context = LocalContext.current
-    val request = remember(frame.imageUrl, context) {
-        ImageRequest.Builder(context)
-            .data(frame.imageUrl)
-            .crossfade(false)
-            .size(Size.ORIGINAL)
-            .memoryCacheKey("seek-preview:${frame.imageUrl}")
-            .diskCacheKey("seek-preview:${frame.imageUrl}")
-            .build()
-    }
+    val request = remember(frame.imageUrl, context) { seekPreviewImageRequest(context, frame.imageUrl) }
     val thumbnailWidth = if (selected) 104.dp else 72.dp
     val thumbnailHeight = thumbnailWidth * (frame.frameHeight.toFloat() / frame.frameWidth.toFloat())
     val pageWidth = thumbnailWidth * (frame.pageWidth.toFloat() / frame.frameWidth.toFloat())
@@ -341,6 +341,19 @@ private fun StoryboardFrameThumbnail(
                 .offset(x = offsetX, y = offsetY),
         )
     }
+}
+
+private fun seekPreviewImageRequest(
+    context: Context,
+    imageUrl: String,
+): ImageRequest {
+    return ImageRequest.Builder(context)
+        .data(imageUrl)
+        .crossfade(false)
+        .size(Size.ORIGINAL)
+        .memoryCacheKey("seek-preview:$imageUrl")
+        .diskCacheKey("seek-preview:$imageUrl")
+        .build()
 }
 
 private fun List<SeekPreviewFrameset>.bestSeekPreviewFrameset(): SeekPreviewFrameset? {
@@ -387,6 +400,8 @@ internal fun VideoFullscreenOverlay(
     onNext: () -> Unit,
     onMore: (() -> Unit)?,
     onSeekTo: (Long) -> Unit,
+    onSeekPreviewStart: () -> Unit = {},
+    onSeekPreviewFinished: () -> Unit = {},
     onToggleResize: () -> Unit,
 ) {
     if (!playbackState.showControls) return
@@ -396,6 +411,8 @@ internal fun VideoFullscreenOverlay(
         durationMs = playbackState.durationMs,
         bufferedPositionMs = playbackState.bufferedPositionMs,
         onSeekTo = onSeekTo,
+        onScrubStart = onSeekPreviewStart,
+        onScrubFinished = onSeekPreviewFinished,
     )
 
     Box(

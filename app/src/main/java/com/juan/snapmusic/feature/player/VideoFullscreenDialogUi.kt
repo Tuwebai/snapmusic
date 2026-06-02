@@ -85,6 +85,8 @@ internal fun LandscapeFullscreenVideoDialog(
     onNext: () -> Unit,
     onMore: (() -> Unit)?,
     onSeekTo: (Long) -> Unit,
+    onSeekPreviewStart: () -> Unit = {},
+    onSeekPreviewFinished: () -> Unit = {},
 ) {
     if (!visible || player == null) return
 
@@ -92,6 +94,7 @@ internal fun LandscapeFullscreenVideoDialog(
     val mediaKey = player.currentMediaItem?.mediaId ?: "fullscreen"
     var showControls by rememberSaveable(mediaKey) { mutableStateOf(true) }
     var hasInteracted by rememberSaveable(mediaKey) { mutableStateOf(false) }
+    var isSeekingPreview by remember(mediaKey) { mutableStateOf(false) }
     val gestureController = rememberVideoGestureController()
     var adjustmentFeedback by remember { mutableStateOf<VideoAdjustmentFeedback?>(null) }
     var adjustmentFeedbackTick by remember { mutableStateOf(0) }
@@ -123,10 +126,12 @@ internal fun LandscapeFullscreenVideoDialog(
         }
     }
 
-    LaunchedEffect(showControls, hasInteracted, mediaKey) {
-        if (showControls && hasInteracted) {
+    LaunchedEffect(showControls, hasInteracted, mediaKey, isSeekingPreview) {
+        if (showControls && hasInteracted && !isSeekingPreview) {
             delay(2400)
-            showControls = false
+            if (!isSeekingPreview) {
+                showControls = false
+            }
         }
     }
 
@@ -230,6 +235,17 @@ internal fun LandscapeFullscreenVideoDialog(
                     onSeekTo = {
                         hasInteracted = true
                         onSeekTo(it)
+                    },
+                    onSeekPreviewStart = {
+                        hasInteracted = true
+                        isSeekingPreview = true
+                        showControls = true
+                        onSeekPreviewStart()
+                    },
+                    onSeekPreviewFinished = {
+                        isSeekingPreview = false
+                        showControls = true
+                        onSeekPreviewFinished()
                     },
                     onToggleResize = {
                         hasInteracted = true

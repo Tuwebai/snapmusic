@@ -25,6 +25,8 @@ internal fun rememberPlaybackSliderBindings(
     durationMs: Long,
     bufferedPositionMs: Long = 0L,
     onSeekTo: (Long) -> Unit,
+    onScrubStart: () -> Unit = {},
+    onScrubFinished: () -> Unit = {},
 ): PlaybackSliderBindings {
     var sliderValue by remember { mutableLongStateOf(0L) }
     var isDragging by remember { mutableStateOf(false) }
@@ -49,12 +51,16 @@ internal fun rememberPlaybackSliderBindings(
         playedFraction = playedFraction,
         bufferedFraction = bufferedFraction,
         onValueChange = { nextValue ->
+            if (!isDragging) {
+                onScrubStart()
+            }
             isDragging = true
             sliderValue = nextValue.toLong()
         },
         onValueChangeFinished = {
             isDragging = false
             onSeekTo(sliderValue)
+            onScrubFinished()
         },
     )
 }
