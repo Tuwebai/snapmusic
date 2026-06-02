@@ -90,6 +90,9 @@ internal fun LandscapeFullscreenVideoDialog(
     val mediaKey = player.currentMediaItem?.mediaId ?: "fullscreen"
     var showControls by rememberSaveable(mediaKey) { mutableStateOf(true) }
     var hasInteracted by rememberSaveable(mediaKey) { mutableStateOf(false) }
+    val gestureController = rememberVideoGestureController()
+    var adjustmentFeedback by remember { mutableStateOf<VideoAdjustmentFeedback?>(null) }
+    var adjustmentFeedbackTick by remember { mutableStateOf(0) }
 
     DisposableEffect(activity, visible) {
         val initialOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -107,6 +110,14 @@ internal fun LandscapeFullscreenVideoDialog(
         if (visible) {
             hasInteracted = false
             showControls = true
+            adjustmentFeedback = null
+        }
+    }
+
+    LaunchedEffect(adjustmentFeedbackTick) {
+        if (adjustmentFeedback != null) {
+            delay(700)
+            adjustmentFeedback = null
         }
     }
 
@@ -136,6 +147,15 @@ internal fun LandscapeFullscreenVideoDialog(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black)
+                    .videoBrightnessVolumeGestures(
+                        controller = gestureController,
+                        onFeedback = { feedback ->
+                            hasInteracted = true
+                            showControls = false
+                            adjustmentFeedback = feedback
+                            adjustmentFeedbackTick += 1
+                        },
+                    )
                     .videoDoubleTapSeek(
                         onTap = {
                             hasInteracted = true
@@ -211,6 +231,10 @@ internal fun LandscapeFullscreenVideoDialog(
                         showControls = false
                         onDismiss()
                     },
+                )
+                VideoAdjustmentFeedbackOverlay(
+                    feedback = adjustmentFeedback,
+                    modifier = Modifier.align(Alignment.Center),
                 )
             }
         }

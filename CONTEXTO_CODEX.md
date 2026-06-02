@@ -224,3 +224,10 @@ Extracción:
 
 - El APK final para instalar en el dispositivo y medir fluidez real es el build `perf`: `app/build/outputs/apk/perf/app-arm64-v8a-perf.apk`.
 - El build `debug` queda solo para desarrollo y diagnóstico; no usarlo como referencia de 60 FPS.
+
+## Checks rápidos por slice
+
+- Para cambios Kotlin, UI o lógica sin tocar empaquetado: usar primero `.\gradlew.bat :app:compilePerfKotlin`.
+- Para cambios que también afectan recursos: usar `.\gradlew.bat :app:compilePerfKotlin :app:processPerfResources`.
+- Para dependencias, Gradle, Manifest, Proguard, assets, APK instalable o validación final en dispositivo: usar `.\gradlew.bat :app:assemblePerf`.
+- La instalación por ADB siempre debe usar el APK `perf`; si hubo cambios desde el último paquete, ensamblar `perf` antes de instalar.
