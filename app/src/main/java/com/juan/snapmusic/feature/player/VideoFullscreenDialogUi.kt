@@ -154,8 +154,10 @@ internal fun LandscapeFullscreenVideoDialog(
                         onFeedback = { feedback ->
                             hasInteracted = true
                             showControls = false
-                            adjustmentFeedback = feedback
-                            adjustmentFeedbackTick += 1
+                            if (adjustmentFeedback != feedback) {
+                                adjustmentFeedback = feedback
+                                adjustmentFeedbackTick += 1
+                            }
                         },
                     )
                     .videoDoubleTapSeek(

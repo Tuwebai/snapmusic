@@ -290,7 +290,7 @@ internal fun YouTubeFeaturedVideo.currentQualityLabel(): String {
     return when {
         actualPlaybackLabel != null -> actualPlaybackLabel
         selectedVideoQualityId == "auto" -> options.firstOrNull { it.id == "auto" }?.label ?: "Automático"
-        else -> "Aplicando calidad..."
+        else -> options.firstOrNull { it.id == selectedVideoQualityId }?.label ?: "Aplicando calidad..."
     }
 }
 

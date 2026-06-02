@@ -119,6 +119,13 @@ internal class VideoGestureController(
 ) {
     private val activity = context.findActivity()
     private val audioManager = context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var volumePercent: Float? = null
+
+    fun begin(kind: VideoAdjustmentKind) {
+        if (kind == VideoAdjustmentKind.VOLUME) {
+            volumePercent = currentVolumePercent()
+        }
+    }
 
     fun adjust(kind: VideoAdjustmentKind, delta: Float): VideoAdjustmentFeedback {
         val percent = when (kind) {
@@ -152,12 +159,25 @@ internal class VideoGestureController(
         }.coerceAtMost(max - 1)
         val range = (max - min).coerceAtLeast(1)
         val current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).coerceIn(min, max)
-        val nextPercent = (((current - min).toFloat() / range.toFloat()) + delta).coerceIn(0f, 1f)
+        val nextPercent = ((volumePercent ?: currentVolumePercent()) + delta).coerceIn(0f, 1f)
+        volumePercent = nextPercent
         val nextVolume = (min + nextPercent * range).roundToInt().coerceIn(min, max)
         if (nextVolume != current) {
             audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, nextVolume, 0)
         }
         return (nextPercent * 100f).roundToInt().coerceIn(0, 100)
+    }
+
+    private fun currentVolumePercent(): Float {
+        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        val min = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            audioManager.getStreamMinVolume(AudioManager.STREAM_MUSIC)
+        } else {
+            0
+        }.coerceAtMost(max - 1)
+        val range = (max - min).coerceAtLeast(1)
+        val current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).coerceIn(min, max)
+        return ((current - min).toFloat() / range.toFloat()).coerceIn(0f, 1f)
     }
 }
 
@@ -173,6 +193,7 @@ internal fun Modifier.videoBrightnessVolumeGestures(
             } else {
                 VideoAdjustmentKind.VOLUME
             }
+            activeKind?.let(controller::begin)
         },
         onVerticalDrag = { change, dragAmount ->
             val kind = activeKind ?: return@detectVerticalDragGestures

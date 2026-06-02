@@ -2067,12 +2067,8 @@ class SnapMusicViewModel(
             adaptivePlaybackUrl = resolved.adaptivePlaybackUrl,
             selectedVideoQualityId = variantId,
             availablePlaybackHeights = current.featured.availablePlaybackHeights,
-            actualVideoHeight = if (variantId == "auto") playbackSelection.expectedHeight else null,
-            actualPlaybackLabel = if (variantId == "auto") {
-                playbackSelection.expectedHeight?.let { "Automático · ${it}P" } ?: preferredAutomaticPlaybackLabel(resolved)
-            } else {
-                null
-            },
+            actualVideoHeight = playbackSelection.expectedHeight,
+            actualPlaybackLabel = playbackLabelForSelection(resolved, variantId, playbackSelection.expectedHeight),
             isReady = true,
         )
         youTubeResolveCache[current.featured.sourceUrl] = updatedFeatured
@@ -2094,7 +2090,11 @@ class SnapMusicViewModel(
             current.featured.selectedVideoQualityId == "auto" && height != null && height > 0 -> "Automático · ${height}P"
             height != null && height > 0 -> watchPlaybackQualityLabel(height)
             current.featured.selectedVideoQualityId == "auto" -> preferredAutomaticPlaybackLabel(current.featured.resolvedMedia)
-            else -> null
+            else -> playbackLabelForSelection(
+                media = current.featured.resolvedMedia,
+                variantId = current.featured.selectedVideoQualityId,
+                expectedHeight = current.featured.actualVideoHeight,
+            )
         }
         val distinctHeights = availableHeights
             .filter { it > 0 }
@@ -2391,12 +2391,8 @@ class SnapMusicViewModel(
         )
         val updatedFeatured = featured.copy(
             playbackUrl = fallbackSelection.playbackUrl,
-            actualVideoHeight = if (featured.selectedVideoQualityId == "auto") fallbackSelection.expectedHeight else null,
-            actualPlaybackLabel = if (featured.selectedVideoQualityId == "auto") {
-                fallbackSelection.expectedHeight?.let { "Automático · ${it}P" } ?: preferredAutomaticPlaybackLabel(media)
-            } else {
-                null
-            },
+            actualVideoHeight = fallbackSelection.expectedHeight,
+            actualPlaybackLabel = playbackLabelForSelection(media, featured.selectedVideoQualityId, fallbackSelection.expectedHeight),
             isReady = true,
         )
         youTubeResolveCache[sourceUrl] = updatedFeatured
@@ -3563,12 +3559,8 @@ class SnapMusicViewModel(
             playbackUrl = playbackSelection.playbackUrl,
             adaptivePlaybackUrl = resolved.adaptivePlaybackUrl,
             selectedVideoQualityId = variantId,
-            actualVideoHeight = if (variantId == "auto") playbackSelection.expectedHeight else null,
-            actualPlaybackLabel = if (variantId == "auto") {
-                playbackSelection.expectedHeight?.let { "Automático · ${it}P" } ?: preferredAutomaticPlaybackLabel(resolved)
-            } else {
-                null
-            },
+            actualVideoHeight = playbackSelection.expectedHeight,
+            actualPlaybackLabel = playbackLabelForSelection(resolved, variantId, playbackSelection.expectedHeight),
             isReady = true,
         )
     }
@@ -3579,6 +3571,20 @@ class SnapMusicViewModel(
         playbackFallbackModes.remove(sourceUrl)
         youtubeRebufferEvents.remove(sourceUrl)
         youtubeLastQualityDowngradeAt.remove(sourceUrl)
+    }
+
+    private fun playbackLabelForSelection(
+        media: com.juan.snapmusic.core.model.ResolvedMedia?,
+        variantId: String,
+        expectedHeight: Int?,
+    ): String? {
+        val resolved = media ?: return expectedHeight?.let(::watchPlaybackQualityLabel)
+        return if (variantId == "auto") {
+            expectedHeight?.let { "Automático · ${it}P" } ?: preferredAutomaticPlaybackLabel(resolved)
+        } else {
+            val selectedHeight = expectedHeight ?: requestedPlaybackHeight(resolved, variantId)
+            selectedHeight?.let(::watchPlaybackQualityLabel)
+        }
     }
 
     private fun preferredAutomaticPlaybackHeight(
