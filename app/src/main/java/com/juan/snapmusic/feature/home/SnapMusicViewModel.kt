@@ -80,8 +80,8 @@ private enum class YouTubePlaybackSourceMode {
 
 private const val YOUTUBE_REBUFFER_WINDOW_MS = 20_000L
 private const val YOUTUBE_LONG_REBUFFER_MS = 2_000L
-private val YOUTUBE_STABLE_MERGED_AUTO_HEIGHTS = listOf(480, 360, 720, 240, 144, 1080)
-private val YOUTUBE_STABLE_PROGRESSIVE_AUTO_HEIGHTS = listOf(360, 480, 240, 144, 720)
+private val YOUTUBE_STABLE_MERGED_AUTO_HEIGHTS = listOf(720, 480, 360, 240, 144, 1080)
+private val YOUTUBE_STABLE_PROGRESSIVE_AUTO_HEIGHTS = listOf(720, 480, 360, 240, 144)
 
 class SnapMusicViewModel(
     private val graph: SnapMusicGraph,
@@ -2283,12 +2283,9 @@ class SnapMusicViewModel(
             "source=$sourceUrl rebuffer durationMs=$durationMs positionMs=$positionMs events=${events.size} mode=${mode?.name.orEmpty()}",
         )
         if (durationMs >= YOUTUBE_LONG_REBUFFER_MS || events.size >= 2) {
-            applyYouTubeStabilityFallback(
-                current = current,
-                mode = mode ?: return,
-                positionMs = positionMs,
-                durationMs = durationMs,
-                events = events.size,
+            Log.w(
+                YOUTUBE_PLAYBACK_LOG_TAG,
+                "source=$sourceUrl keepCurrentSource=true durationMs=$durationMs positionMs=$positionMs events=${events.size}",
             )
         }
     }

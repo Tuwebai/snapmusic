@@ -65,12 +65,12 @@ class SnapMusicPlaybackService : MediaSessionService() {
                 DefaultLoadControl.Builder()
                     .setPrioritizeTimeOverSizeThresholds(true)
                     .setBufferDurationsMs(
-                        60_000,
-                        240_000,
+                        90_000,
+                        300_000,
                         500,
-                        5_000,
+                        700,
                     )
-                    .setBackBuffer(30_000, true)
+                    .setBackBuffer(90_000, true)
                     .build(),
             )
             .setMediaSourceFactory(SnapMusicPlaybackMediaSourceFactory(this))
