@@ -85,8 +85,8 @@ class SnapMusicViewModel(
         const val YOUTUBE_HOME_FEED_PAGE_SIZE = 18
         const val YOUTUBE_HOME_CACHE_PRIME_COUNT = YOUTUBE_HOME_FEED_PAGE_SIZE
         const val YOUTUBE_WATCH_NEXT_PAGE_SIZE = 18
-        const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 4_500L
-        const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 20_000L
+        const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 12_000L
+        const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 60_000L
         const val HOME_TAB_YOUTUBE_INDEX = 1
         const val YOUTUBE_WATCH_COMMENT_FALLBACK = "Elegí un formato y mandalo a la cola sin salir de esta pantalla."
         private const val YOUTUBE_FEED_DUPLICATE_PAGE_RETRY_LIMIT = 2

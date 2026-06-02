@@ -72,12 +72,9 @@ internal fun applyYouTubePlaybackQuality(
     } else if (adaptivePlayback && featured.selectedVideoQualityId != "auto") {
         val targetHeight = selectedVariant?.resolution?.substringBefore('p')?.toIntOrNull()
             ?: featured.selectedVideoQualityId.removePrefix("adaptive-").toIntOrNull()
-        val override = resolveVideoTrackOverride(
-            tracks = mediaController.currentTracks,
-            requestedHeight = targetHeight,
-        )
-        if (override != null) {
-            builder.setOverrideForType(override)
+        targetHeight?.let { requestedHeight ->
+            val targetWidth = ((requestedHeight * 16) / 9).coerceAtLeast(426)
+            builder.setMaxVideoSize(targetWidth, requestedHeight)
         }
     }
 
