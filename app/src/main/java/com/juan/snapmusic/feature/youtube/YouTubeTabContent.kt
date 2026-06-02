@@ -116,7 +116,7 @@ private fun YouTubeWatchPlayerHost(
 ) {
     val playerState by viewModel.youtubePlaybackPanel.collectAsStateWithLifecycle()
 
-    BackHandler(enabled = playerState.showPlayer && playerState.featured.isReady) {
+    BackHandler(enabled = playerState.showPlayer && playerState.featured.isReady && !playerState.isFullscreen) {
         viewModel.minimizeYouTubePlayer()
     }
 
@@ -125,6 +125,7 @@ private fun YouTubeWatchPlayerHost(
     FeaturedVideoCard(
         featured = playerState.featured,
         player = player,
+        isFullscreen = playerState.isFullscreen,
         isDownloadEnabled = playerState.featured.resolvedMedia != null,
         autoplayEnabled = playerState.autoplayEnabled,
         nextUpLabel = playerState.nextUpTitle,
@@ -133,6 +134,8 @@ private fun YouTubeWatchPlayerHost(
         onNext = { viewModel.playNextYouTubeItem() },
         onBackToFeed = viewModel::minimizeYouTubePlayer,
         onMinimizeVideo = viewModel::minimizeYouTubePlayer,
+        onEnterFullscreen = viewModel::enterYouTubeFullscreen,
+        onDismissFullscreen = viewModel::exitYouTubeFullscreen,
         onToggleAutoplay = viewModel::toggleYouTubeAutoplay,
         onSwitchQuality = viewModel::switchYouTubePlaybackQuality,
     )

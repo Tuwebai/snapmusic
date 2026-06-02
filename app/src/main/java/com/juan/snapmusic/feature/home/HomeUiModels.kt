@@ -220,6 +220,7 @@ data class YouTubeWatchNextUiState(
 @Immutable
 data class YouTubePlaybackPanelState(
     val showPlayer: Boolean = false,
+    val isFullscreen: Boolean = false,
     val isRefreshingVideo: Boolean = false,
     val featured: YouTubeFeaturedVideo = YouTubeFeaturedVideo(),
     val autoplayEnabled: Boolean = true,

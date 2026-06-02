@@ -699,6 +699,7 @@ class SnapMusicViewModel(
         .map { state ->
             YouTubePlaybackPanelState(
                 showPlayer = state.showPlayer,
+                isFullscreen = state.isFullscreen,
                 isRefreshingVideo = state.isRefreshingVideo,
                 featured = state.featured,
                 autoplayEnabled = state.autoplayEnabled,
@@ -1356,6 +1357,7 @@ class SnapMusicViewModel(
         val current = _youtubeState.value
         _youtubeState.value = current.copy(
             showPlayer = false,
+            isFullscreen = false,
             showMiniPlayer = current.featured.isReady && current.playbackQueue.isNotEmpty(),
             errorMessage = null,
         )
@@ -1372,6 +1374,7 @@ class SnapMusicViewModel(
         val current = _youtubeState.value
         _youtubeState.value = current.copy(
             showPlayer = false,
+            isFullscreen = false,
             showMiniPlayer = false,
             featured = YouTubeFeaturedVideo(),
             watchNextItems = emptyList(),
@@ -1395,11 +1398,30 @@ class SnapMusicViewModel(
         if (!current.featured.isReady) return
         _youtubeState.value = current.copy(
             showPlayer = false,
+            isFullscreen = false,
             showMiniPlayer = true,
             compactMiniPlayer = false,
             errorMessage = null,
         )
         persistCurrentYouTubeSnapshot()
+    }
+
+    fun enterYouTubeFullscreen() {
+        val current = _youtubeState.value
+        if (!current.showPlayer || !current.featured.isReady) return
+        if (current.isFullscreen) return
+        _youtubeState.value = current.copy(
+            isFullscreen = true,
+            showMiniPlayer = false,
+            compactMiniPlayer = false,
+            errorMessage = null,
+        )
+    }
+
+    fun exitYouTubeFullscreen() {
+        val current = _youtubeState.value
+        if (!current.isFullscreen) return
+        _youtubeState.value = current.copy(isFullscreen = false, errorMessage = null)
     }
 
     fun restoreYouTubePlayer() {
@@ -1409,6 +1431,7 @@ class SnapMusicViewModel(
             if (queueItems.isEmpty()) return
             _youtubeState.value = current.copy(
                 showPlayer = true,
+                isFullscreen = false,
                 showMiniPlayer = false,
                 compactMiniPlayer = false,
                 errorMessage = null,
@@ -1416,7 +1439,12 @@ class SnapMusicViewModel(
             playYouTubeQueueItem(resolveCurrentQueueIndex(current, queueItems), userInitiated = false)
             return
         }
-        _youtubeState.value = current.copy(showPlayer = true, showMiniPlayer = false, errorMessage = null)
+        _youtubeState.value = current.copy(
+            showPlayer = true,
+            isFullscreen = false,
+            showMiniPlayer = false,
+            errorMessage = null,
+        )
         persistCurrentYouTubeSnapshot()
     }
 
@@ -2323,6 +2351,7 @@ class SnapMusicViewModel(
                     continuationMode = snapshot.continuationMode,
                     featured = currentItem.toLoadingFeaturedVideo(),
                     showPlayer = false,
+                    isFullscreen = false,
                     showMiniPlayer = snapshot.showMiniPlayer,
                     canLoadMoreWatchNext = true,
                     nextUpItem = if (snapshot.autoplayEnabled) {

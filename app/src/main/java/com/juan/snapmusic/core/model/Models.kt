@@ -367,6 +367,7 @@ data class YouTubeUiState(
     val isLoadingMore: Boolean = false,
     val isRefreshingVideo: Boolean = false,
     val showPlayer: Boolean = false,
+    val isFullscreen: Boolean = false,
     val showMiniPlayer: Boolean = false,
     val featured: YouTubeFeaturedVideo = YouTubeFeaturedVideo(),
     val items: List<YouTubeFeedItem> = emptyList(),

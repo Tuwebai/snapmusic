@@ -60,7 +60,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -111,6 +110,7 @@ private val WatchPlayerHeight = 304.dp
 fun FeaturedVideoCard(
     featured: YouTubeFeaturedVideo,
     player: Player?,
+    isFullscreen: Boolean,
     isDownloadEnabled: Boolean,
     autoplayEnabled: Boolean,
     nextUpLabel: String?,
@@ -119,11 +119,12 @@ fun FeaturedVideoCard(
     onNext: () -> Unit,
     onBackToFeed: () -> Unit,
     onMinimizeVideo: () -> Unit,
+    onEnterFullscreen: () -> Unit,
+    onDismissFullscreen: () -> Unit,
     onToggleAutoplay: () -> Unit,
     onSwitchQuality: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    var showFullscreenShell by rememberSaveable(featured.sourceUrl) { mutableStateOf(false) }
     YouTubeCastPlaybackEffect(featured = featured, player = player)
     val featuredThumbnailModel = remember(featured.thumbnailUrl) {
         ImageRequest.Builder(context)
@@ -200,7 +201,7 @@ fun FeaturedVideoCard(
                     }
                 },
                 orientation = Orientation.Vertical,
-                enabled = !showFullscreenShell,
+                enabled = !isFullscreen,
                 onDragStarted = { swipeSettleJob?.cancel() },
                 onDragStopped = { velocity ->
                     swipeSettleJob?.cancel()
@@ -229,17 +230,17 @@ fun FeaturedVideoCard(
         FeaturedVideoPlayerShell(
             featured = featured,
             player = player,
-            isFullscreen = showFullscreenShell,
+            isFullscreen = isFullscreen,
             featuredThumbnailModel = featuredThumbnailModel,
             onPrevious = onPrevious,
             onNext = onNext,
             onMinimizeVideo = onMinimizeVideo,
-            onEnterFullscreen = { showFullscreenShell = true },
-            onDismissFullscreen = { showFullscreenShell = false },
+            onEnterFullscreen = onEnterFullscreen,
+            onDismissFullscreen = onDismissFullscreen,
             onOpenWatchSheet = { sheetMode = WatchSheetMode.MAIN },
         )
 
-        if (!showFullscreenShell) {
+        if (!isFullscreen) {
             FeaturedVideoMetadataPanel(
                 featured = featured,
                 featuredAvatarModel = featuredAvatarModel,
