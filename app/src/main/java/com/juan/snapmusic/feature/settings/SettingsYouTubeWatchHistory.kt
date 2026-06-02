@@ -98,7 +98,7 @@ internal fun SettingsHistoryHero(
                 ) { item ->
                     WatchHistoryPreviewCard(
                         item = item,
-                        modifier = Modifier.width(188.dp),
+                        modifier = Modifier.width(204.dp),
                         onClick = { onPlay(item) },
                     )
                 }
@@ -209,8 +209,8 @@ private fun WatchHistoryPreviewCard(
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
-    val widthPx = remember(density) { with(density) { 188.dp.roundToPx() } }
-    val heightPx = remember(density) { with(density) { 118.dp.roundToPx() } }
+    val widthPx = remember(density) { with(density) { 204.dp.roundToPx() } }
+    val heightPx = remember(density) { with(density) { 128.dp.roundToPx() } }
     val thumbnailRequest = remember(context, item.thumbnailUrl, widthPx, heightPx) {
         buildYouTubeThumbnailRequest(
             context = context,
@@ -234,7 +234,7 @@ private fun WatchHistoryPreviewCard(
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(118.dp)
+                    .height(128.dp)
                     .clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Crop,
             )

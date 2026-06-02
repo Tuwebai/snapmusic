@@ -1827,20 +1827,18 @@ class SnapMusicViewModel(
         )
         pendingYouTubeHistoryResumePositions[entry.sourceUrl] = resumePositionMs
         val target = entry.toYouTubeFeedItem()
-        val queueItems = entries
-            .asSequence()
-            .map { it.toYouTubeFeedItem() }
-            .distinctBy(YouTubeFeedItem::url)
-            .toList()
-            .ifEmpty { listOf(target) }
-        val startIndex = queueItems.indexOfFirst { it.url == target.url }.takeIf { it >= 0 } ?: 0
         selectHomeYouTubeTab()
+        _youtubeState.value = _youtubeState.value.copy(
+            showPlayer = true,
+            showMiniPlayer = false,
+            compactMiniPlayer = false,
+        )
         setYouTubeQueue(
-            items = queueItems,
-            startIndex = startIndex,
+            items = listOf(target),
+            startIndex = 0,
             sourceLabel = YouTubeQueueOrigin.RESTORED_SESSION,
         )
-        enrichWatchNextQueue(target)
+        enrichWatchNextQueue(target, requireWarmPlayback = false)
     }
 
     fun prepareYouTubeDownload(item: YouTubeFeedItem) {
@@ -2600,17 +2598,36 @@ class SnapMusicViewModel(
         persistCurrentYouTubeSnapshot()
     }
 
-    private fun enrichWatchNextQueue(item: YouTubeFeedItem) {
+    private fun enrichWatchNextQueue(
+        item: YouTubeFeedItem,
+        requireWarmPlayback: Boolean = true,
+    ) {
         watchNextEnrichmentJob?.cancel()
         watchNextEnrichmentJob = viewModelScope.launch {
-            delay(YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS)
+            if (requireWarmPlayback) {
+                delay(YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS)
+            } else {
+                var attempts = 0
+                while (attempts < 40) {
+                    val warmState = _youtubeState.value
+                    if (
+                        warmState.featured.sourceUrl == item.url &&
+                        !warmState.isRefreshingVideo &&
+                        !warmState.pendingTransition
+                    ) {
+                        break
+                    }
+                    delay(150L)
+                    attempts += 1
+                }
+            }
             val startupState = _youtubeState.value
             if (
                 startupState.featured.sourceUrl != item.url ||
                 !startupState.showPlayer ||
                 startupState.isRefreshingVideo ||
                 startupState.pendingTransition ||
-                startupState.currentPositionMs < 10_000L
+                (requireWarmPlayback && startupState.currentPositionMs < 10_000L)
             ) {
                 return@launch
             }
