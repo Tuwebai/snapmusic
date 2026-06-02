@@ -22,6 +22,7 @@ import com.juan.snapmusic.core.model.PreviewPlaybackQueueItem
 import com.juan.snapmusic.R
 import com.juan.snapmusic.core.model.PreviewState
 import com.juan.snapmusic.core.platform.PlaybackArtworkBadgeHelper
+import com.juan.snapmusic.core.platform.PlaybackSessionStateStore
 import com.juan.snapmusic.core.platform.SnapMusicPlaybackService
 
 @androidx.media3.common.util.UnstableApi
@@ -61,7 +62,7 @@ internal fun rememberPreviewPlayer(
         )
 
         onDispose {
-            controller?.release()
+            MediaController.releaseFuture(future)
             controller = null
         }
     }
@@ -73,6 +74,12 @@ internal fun rememberPreviewPlayer(
             mediaSource = preview.fileUri,
             fallbackResId = if (preview.fileUri.isPreviewVideoMedia()) null else R.drawable.preview_local_music_fallback,
         )
+    }
+
+    LaunchedEffect(preview.fileUri, artworkData) {
+        val fileUri = preview.fileUri ?: return@LaunchedEffect
+        val data = artworkData ?: return@LaunchedEffect
+        PlaybackSessionStateStore.updateArtwork(mediaId = fileUri, artworkData = data)
     }
 
     DisposableEffect(controller) {
@@ -133,7 +140,6 @@ internal fun rememberPreviewPlayer(
         preview.fileUri,
         playlist,
         autoPlayRequestId,
-        artworkData,
     ) {
         val mediaController = controller ?: return@LaunchedEffect
         val fileUri = preview.fileUri ?: return@LaunchedEffect
@@ -142,7 +148,6 @@ internal fun rememberPreviewPlayer(
         val queueItems = buildPreviewQueueMediaItems(
             preview = preview,
             playlist = playlist,
-            artworkData = artworkData,
         )
         val queueIndex = queueItems.indexOfFirst { it.mediaId == fileUri }.coerceAtLeast(0)
         val sameCurrentItem = mediaController.currentMediaItem?.mediaId == fileUri
@@ -164,8 +169,6 @@ internal fun rememberPreviewPlayer(
                 } else {
                     mediaController.pause()
                 }
-            } else if (!mediaController.getMediaItemAt(currentIndex).sameArtworkAs(currentItem)) {
-                mediaController.replaceMediaItem(currentIndex, currentItem)
             }
             if (shouldAutoPlay && (!mediaController.isPlaying || !mediaController.playWhenReady)) {
                 mediaController.playWhenReady = true
@@ -201,7 +204,6 @@ internal fun rememberPreviewPlayer(
 private fun buildPreviewQueueMediaItems(
     preview: PreviewState,
     playlist: List<PreviewPlaybackQueueItem>,
-    artworkData: ByteArray?,
 ): List<MediaItem> {
     val currentFileUri = preview.fileUri ?: return emptyList()
     val basePlaylist = playlist
@@ -225,13 +227,7 @@ private fun buildPreviewQueueMediaItems(
                 MediaMetadata.Builder()
                     .setTitle(item.title)
                     .setArtist(item.subtitle)
-                    .apply {
-                        if (item.fileUri == currentFileUri && artworkData != null) {
-                            setArtworkData(artworkData, MediaMetadata.PICTURE_TYPE_FRONT_COVER.toInt())
-                        } else {
-                            setArtworkUri(artworkSource?.toUri())
-                        }
-                    }
+                    .setArtworkUri(artworkSource?.toUri())
                     .build(),
             )
             .build()
@@ -248,16 +244,6 @@ private fun MediaController.samePreviewQueueAs(queueItems: List<MediaItem>): Boo
 private fun MediaItem.samePlaybackAs(other: MediaItem): Boolean {
     return mediaId == other.mediaId &&
         localConfiguration?.uri == other.localConfiguration?.uri
-}
-
-private fun MediaItem.sameArtworkAs(other: MediaItem): Boolean {
-    val currentData = mediaMetadata.artworkData
-    val otherData = other.mediaMetadata.artworkData
-    return when {
-        currentData != null && otherData != null -> currentData.contentEquals(otherData)
-        currentData == null && otherData == null -> mediaMetadata.artworkUri == other.mediaMetadata.artworkUri
-        else -> false
-    }
 }
 
 internal fun String?.isPreviewVideoMedia(): Boolean {

@@ -55,14 +55,19 @@ object PlaybackSessionStateStore {
     ) {
         val target = resolveTarget(mediaId, mediaUri)
         _state.update { current ->
+            val sameRuntimeMedia = current.target == target &&
+                current.mediaId == mediaId &&
+                current.mediaUri == mediaUri
+            val effectiveArtworkUri = artworkUri ?: current.artworkUri.takeIf { sameRuntimeMedia }
+            val effectiveArtworkData = artworkData ?: current.artworkData.takeIf { sameRuntimeMedia }
             if (
                 current.target == target &&
                 current.mediaId == mediaId &&
                 current.mediaUri == mediaUri &&
                 current.title == title &&
                 current.subtitle == subtitle &&
-                current.artworkUri == artworkUri &&
-                current.artworkData.contentEqualsNullable(artworkData) &&
+                current.artworkUri == effectiveArtworkUri &&
+                current.artworkData.contentEqualsNullable(effectiveArtworkData) &&
                 current.positionMs == positionMs &&
                 current.durationMs == durationMs &&
                 current.playWhenReady == playWhenReady &&
@@ -77,8 +82,8 @@ object PlaybackSessionStateStore {
                     mediaUri = mediaUri,
                     title = title,
                     subtitle = subtitle,
-                    artworkUri = artworkUri,
-                    artworkData = artworkData,
+                    artworkUri = effectiveArtworkUri,
+                    artworkData = effectiveArtworkData,
                     positionMs = positionMs,
                     durationMs = durationMs,
                     progressUpdatedAtMs = SystemClock.elapsedRealtime(),
@@ -86,6 +91,34 @@ object PlaybackSessionStateStore {
                     isPlaying = isPlaying,
                     playbackState = playbackState,
                 )
+            }
+        }
+    }
+
+    fun updateArtwork(
+        mediaId: String,
+        artworkUri: Uri? = null,
+        artworkData: ByteArray? = null,
+    ) {
+        if (artworkUri == null && artworkData == null) return
+        _state.update { current ->
+            if (current.target != PlaybackSessionTarget.PREVIEW || current.mediaId != mediaId) {
+                current
+            } else {
+                val effectiveArtworkUri = artworkUri ?: current.artworkUri
+                val effectiveArtworkData = artworkData ?: current.artworkData
+                if (
+                    current.artworkUri == effectiveArtworkUri &&
+                    current.artworkData.contentEqualsNullable(effectiveArtworkData)
+                ) {
+                    current
+                } else {
+                    current.copy(
+                        artworkUri = effectiveArtworkUri,
+                        artworkData = effectiveArtworkData,
+                        progressUpdatedAtMs = SystemClock.elapsedRealtime(),
+                    )
+                }
             }
         }
     }
