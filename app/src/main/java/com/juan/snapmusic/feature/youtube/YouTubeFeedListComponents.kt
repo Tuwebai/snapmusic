@@ -2,10 +2,14 @@ package com.juan.snapmusic.feature.youtube
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -84,6 +88,7 @@ fun YouTubeFeedRow(
     item: YouTubeFeedItem,
     onClick: (YouTubeFeedItem) -> Unit,
     onDownload: ((YouTubeFeedItem) -> Unit)?,
+    watchedProgressFraction: Float = 0f,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -116,14 +121,29 @@ fun YouTubeFeedRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Image(
-                painter = thumbnailPainter,
-                contentDescription = null,
+            Box(
                 modifier = Modifier
                     .size(width = 154.dp, height = 88.dp)
                     .clip(RoundedCornerShape(10.dp)),
-                contentScale = ContentScale.Crop,
-            )
+            ) {
+                Image(
+                    painter = thumbnailPainter,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(88.dp),
+                    contentScale = ContentScale.Crop,
+                )
+                if (watchedProgressFraction > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth(watchedProgressFraction.coerceIn(0f, 1f))
+                            .height(3.dp)
+                            .background(AccentRed),
+                    )
+                }
+            }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
                 Text(item.author, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 1)

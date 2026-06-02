@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
+import com.juan.snapmusic.core.designsystem.AccentRed
 import com.juan.snapmusic.core.designsystem.BackgroundPrimary
 import com.juan.snapmusic.core.designsystem.SurfaceElevated
 import com.juan.snapmusic.core.designsystem.TextPrimary
@@ -194,6 +195,7 @@ internal fun YouTubeWatchHistoryPane(
                         item = item.toFeedItem(),
                         onClick = { onPlay(item) },
                         onDownload = null,
+                        watchedProgressFraction = watchProgressFraction(item),
                     )
                 }
             }
@@ -245,7 +247,7 @@ private fun WatchHistoryPreviewCard(
                         .align(Alignment.BottomStart)
                         .fillMaxWidth(progress)
                         .height(3.dp)
-                        .background(Color.Red),
+                        .background(AccentRed),
                 )
             }
             if (item.durationSeconds > 0) {
