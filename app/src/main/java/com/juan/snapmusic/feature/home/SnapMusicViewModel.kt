@@ -1828,12 +1828,17 @@ class SnapMusicViewModel(
             else -> listOf(item)
         }
         val startIndex = queueItems.indexOfFirst { it.url == item.url }.takeIf { it >= 0 } ?: 0
+        val queueOrigin = when {
+            current.showPlayer && current.watchNextItems.any { it.url == item.url } -> YouTubeQueueOrigin.HOME_FEED
+            current.query.isBlank() -> YouTubeQueueOrigin.HOME_FEED
+            else -> YouTubeQueueOrigin.SEARCH_RESULTS
+        }
         setYouTubeQueue(
             items = queueItems,
             startIndex = startIndex,
-            sourceLabel = if (current.query.isBlank()) YouTubeQueueOrigin.HOME_FEED else YouTubeQueueOrigin.SEARCH_RESULTS,
+            sourceLabel = queueOrigin,
         )
-        enrichWatchNextQueue(item)
+        enrichWatchNextQueue(item, requireWarmPlayback = queueOrigin != YouTubeQueueOrigin.SEARCH_RESULTS)
     }
 
     fun playYouTubeWatchHistoryItem(
@@ -1885,7 +1890,7 @@ class SnapMusicViewModel(
         val normalizedIndex = startIndex.coerceIn(0, items.lastIndex)
         val current = _youtubeState.value
         val target = items[normalizedIndex]
-        val seededWatchNextItems = initialWatchNextItems(items, normalizedIndex)
+        val seededWatchNextItems = initialWatchNextItems(items, normalizedIndex, sourceLabel)
         if (
             current.playbackQueue.map(YouTubeFeedItem::url) == items.map(YouTubeFeedItem::url) &&
             current.currentQueueIndex == normalizedIndex &&
@@ -1940,7 +1945,11 @@ class SnapMusicViewModel(
         val target = queueItems[normalizedIndex]
         val resumePositionMs = consumePendingYouTubeHistoryResumePosition(target)
         val keepMiniPlayer = current.showMiniPlayer && !current.showPlayer
-        val seededWatchNextItems = initialWatchNextItems(queueItems, normalizedIndex)
+        val seededWatchNextItems = initialWatchNextItems(
+            queueItems,
+            normalizedIndex,
+            seedOriginForWatchNext(current),
+        )
         if (current.featured.sourceUrl == target.url && current.featured.isReady) {
             resetPlaybackFallbacks(target.url)
             _youtubeState.value = current.copy(
@@ -2300,7 +2309,7 @@ class SnapMusicViewModel(
                     items = snapshot.queue,
                     nextCursor = null,
                     hasMoreSearchResults = false,
-                    watchNextItems = initialWatchNextItems(snapshot.queue, snapshot.currentQueueIndex),
+                    watchNextItems = initialWatchNextItems(snapshot.queue, snapshot.currentQueueIndex, snapshot.origin),
                     playbackQueue = snapshot.queue,
                     currentQueueIndex = snapshot.currentQueueIndex,
                     autoplayEnabled = snapshot.autoplayEnabled,
@@ -2376,7 +2385,7 @@ class SnapMusicViewModel(
         _youtubeState.value = current.copy(
             currentQueueIndex = nextIndex,
             featured = cached ?: transitionedItem.toLoadingFeaturedVideo(),
-            watchNextItems = initialWatchNextItems(queueItems, nextIndex),
+            watchNextItems = initialWatchNextItems(queueItems, nextIndex, seedOriginForWatchNext(current)),
             nextUpItem = if (current.autoplayEnabled) {
                 nextQueueItem(queueItems, nextIndex, current.continuationMode)
             } else {
@@ -2405,14 +2414,24 @@ class SnapMusicViewModel(
     private fun initialWatchNextItems(
         queueItems: List<YouTubeFeedItem>,
         currentIndex: Int,
+        queueOrigin: YouTubeQueueOrigin,
     ): List<YouTubeFeedItem> {
         if (queueItems.isEmpty()) return emptyList()
+        if (queueOrigin == YouTubeQueueOrigin.SEARCH_RESULTS) return emptyList()
         val normalizedIndex = currentIndex.coerceIn(0, queueItems.lastIndex)
         val currentUrl = queueItems[normalizedIndex].url
         return queueItems
             .drop((normalizedIndex + 1).coerceAtMost(queueItems.size))
             .filter { it.url != currentUrl }
             .distinctBy(YouTubeFeedItem::url)
+    }
+
+    private fun seedOriginForWatchNext(state: YouTubeUiState): YouTubeQueueOrigin {
+        return if (state.queueOrigin == YouTubeQueueOrigin.SEARCH_RESULTS && state.watchNextItems.isNotEmpty()) {
+            YouTubeQueueOrigin.HOME_FEED
+        } else {
+            state.queueOrigin
+        }
     }
 
     private fun rebuildQueueWithWatchNext(
@@ -2428,6 +2447,16 @@ class SnapMusicViewModel(
             .filter { it.url !in prefixUrls }
             .distinctBy(YouTubeFeedItem::url)
         return (queuePrefix + visibleWatchNext).distinctBy(YouTubeFeedItem::url) to visibleWatchNext
+    }
+
+    private fun relatedQueueBlocklist(
+        queueItems: List<YouTubeFeedItem>,
+        currentIndex: Int,
+        queueOrigin: YouTubeQueueOrigin,
+    ): List<YouTubeFeedItem> {
+        if (queueOrigin != YouTubeQueueOrigin.SEARCH_RESULTS) return queueItems
+        val normalizedIndex = currentIndex.coerceIn(0, queueItems.lastIndex)
+        return queueItems.take(normalizedIndex + 1)
     }
 
     private fun retryYouTubePlaybackSource(rawMessage: String?): Boolean {
@@ -2642,10 +2671,13 @@ class SnapMusicViewModel(
             if (current.featured.sourceUrl != item.url) return@launch
             val existingQueue = current.playbackQueue.ifEmpty { current.items }.ifEmpty { listOf(item) }
             val currentIndex = resolveCurrentQueueIndex(current, existingQueue)
-            val existingWatchNext = current.watchNextItems.ifEmpty { initialWatchNextItems(existingQueue, currentIndex) }
+            val existingWatchNext = current.watchNextItems.ifEmpty {
+                initialWatchNextItems(existingQueue, currentIndex, current.queueOrigin)
+            }
+            val blockedQueueItems = relatedQueueBlocklist(existingQueue, currentIndex, current.queueOrigin)
             val appendedRelated = related.filterNot { candidate ->
                 candidate.url == item.url ||
-                    existingQueue.any { queued -> queued.url == candidate.url } ||
+                    blockedQueueItems.any { queued -> queued.url == candidate.url } ||
                     existingWatchNext.any { queued -> queued.url == candidate.url }
             }
             val mergedCandidates = (existingWatchNext + appendedRelated)
@@ -2689,7 +2721,10 @@ class SnapMusicViewModel(
         val featuredItem = currentYouTubeQueueItem(current) ?: return null
         val existingQueue = current.playbackQueue.ifEmpty { listOf(featuredItem) }
         val currentIndex = resolveCurrentQueueIndex(current, existingQueue)
-        val existingWatchNext = current.watchNextItems.ifEmpty { initialWatchNextItems(existingQueue, currentIndex) }
+        val existingWatchNext = current.watchNextItems.ifEmpty {
+            initialWatchNextItems(existingQueue, currentIndex, current.queueOrigin)
+        }
+        val blockedQueueItems = relatedQueueBlocklist(existingQueue, currentIndex, current.queueOrigin)
         _youtubeState.value = current.copy(isLoadingMore = true)
         return viewModelScope.launch {
             val currentRelatedCount = existingWatchNext.size
@@ -2707,7 +2742,7 @@ class SnapMusicViewModel(
                     if (latest.featured.sourceUrl != featuredItem.url) return@onSuccess
                     val newRelated = related.filterNot { candidate ->
                         candidate.url == featuredItem.url ||
-                            existingQueue.any { existing -> existing.url == candidate.url } ||
+                            blockedQueueItems.any { existing -> existing.url == candidate.url } ||
                             existingWatchNext.any { existing -> existing.url == candidate.url }
                     }
                     val mergedCandidates = (existingWatchNext + newRelated)
