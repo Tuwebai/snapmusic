@@ -15,13 +15,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 @androidx.media3.common.util.UnstableApi
 class SnapMusicPlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    private companion object {
+        const val WIDGET_PROGRESS_TICK_MS = 5_000L
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -94,6 +100,9 @@ class SnapMusicPlaybackService : MediaSessionService() {
                     subtitle = currentItem?.mediaMetadata?.artist?.toString()
                         ?: currentItem?.mediaMetadata?.subtitle?.toString(),
                     artworkUri = currentItem?.mediaMetadata?.artworkUri,
+                    artworkData = currentItem?.mediaMetadata?.artworkData,
+                    positionMs = player.currentPosition.coerceAtLeast(0L),
+                    durationMs = player.knownDurationMs(),
                     playWhenReady = player.playWhenReady,
                     isPlaying = player.isPlaying,
                     playbackState = player.playbackState,
@@ -129,6 +138,9 @@ class SnapMusicPlaybackService : MediaSessionService() {
             subtitle = player.currentMediaItem?.mediaMetadata?.artist?.toString()
                 ?: player.currentMediaItem?.mediaMetadata?.subtitle?.toString(),
             artworkUri = player.currentMediaItem?.mediaMetadata?.artworkUri,
+            artworkData = player.currentMediaItem?.mediaMetadata?.artworkData,
+            positionMs = player.currentPosition.coerceAtLeast(0L),
+            durationMs = player.knownDurationMs(),
             playWhenReady = player.playWhenReady,
             isPlaying = player.isPlaying,
             playbackState = player.playbackState,
@@ -174,7 +186,22 @@ class SnapMusicPlaybackService : MediaSessionService() {
                         )
                     }
                 }
+                serviceScope.launch {
+                    while (isActive) {
+                        if (player.playWhenReady && player.playbackState != Player.STATE_ENDED) {
+                            PlaybackSessionStateStore.updateProgress(
+                                positionMs = player.currentPosition.coerceAtLeast(0L),
+                                durationMs = player.knownDurationMs(),
+                            )
+                        }
+                        delay(WIDGET_PROGRESS_TICK_MS)
+                    }
+                }
             }
+    }
+
+    private fun Player.knownDurationMs(): Long {
+        return duration.takeIf { it != C.TIME_UNSET && it > 0L } ?: 0L
     }
 
     private fun buildNotificationPlayerCommands(state: PlaybackSessionState): Player.Commands {

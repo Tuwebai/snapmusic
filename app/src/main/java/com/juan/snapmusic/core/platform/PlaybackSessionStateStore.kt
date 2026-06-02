@@ -1,6 +1,7 @@
 package com.juan.snapmusic.core.platform
 
 import android.net.Uri
+import android.os.SystemClock
 import androidx.compose.runtime.Immutable
 import androidx.media3.common.Player
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +22,10 @@ data class PlaybackSessionState(
     val title: String? = null,
     val subtitle: String? = null,
     val artworkUri: Uri? = null,
+    val artworkData: ByteArray? = null,
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val progressUpdatedAtMs: Long = 0L,
     val playWhenReady: Boolean = false,
     val isPlaying: Boolean = false,
     val playbackState: Int = Player.STATE_IDLE,
@@ -41,6 +46,9 @@ object PlaybackSessionStateStore {
         title: String? = null,
         subtitle: String? = null,
         artworkUri: Uri? = null,
+        artworkData: ByteArray? = null,
+        positionMs: Long = 0L,
+        durationMs: Long = 0L,
         playWhenReady: Boolean,
         isPlaying: Boolean,
         playbackState: Int,
@@ -54,6 +62,9 @@ object PlaybackSessionStateStore {
                 current.title == title &&
                 current.subtitle == subtitle &&
                 current.artworkUri == artworkUri &&
+                current.artworkData.contentEqualsNullable(artworkData) &&
+                current.positionMs == positionMs &&
+                current.durationMs == durationMs &&
                 current.playWhenReady == playWhenReady &&
                 current.isPlaying == isPlaying &&
                 current.playbackState == playbackState
@@ -67,9 +78,32 @@ object PlaybackSessionStateStore {
                     title = title,
                     subtitle = subtitle,
                     artworkUri = artworkUri,
+                    artworkData = artworkData,
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    progressUpdatedAtMs = SystemClock.elapsedRealtime(),
                     playWhenReady = playWhenReady,
                     isPlaying = isPlaying,
                     playbackState = playbackState,
+                )
+            }
+        }
+    }
+
+    fun updateProgress(
+        positionMs: Long,
+        durationMs: Long,
+    ) {
+        _state.update { current ->
+            val safePosition = positionMs.coerceAtLeast(0L)
+            val safeDuration = durationMs.coerceAtLeast(0L)
+            if (current.positionMs == safePosition && current.durationMs == safeDuration) {
+                current
+            } else {
+                current.copy(
+                    positionMs = safePosition,
+                    durationMs = safeDuration,
+                    progressUpdatedAtMs = SystemClock.elapsedRealtime(),
                 )
             }
         }
@@ -104,5 +138,13 @@ object PlaybackSessionStateStore {
             mediaUri?.scheme in setOf("content", "file") -> PlaybackSessionTarget.PREVIEW
             else -> PlaybackSessionTarget.NONE
         }
+    }
+}
+
+private fun ByteArray?.contentEqualsNullable(other: ByteArray?): Boolean {
+    return when {
+        this === other -> true
+        this == null || other == null -> false
+        else -> contentEquals(other)
     }
 }

@@ -6,6 +6,9 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.os.SystemClock
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
 import androidx.media3.session.MediaController
@@ -71,6 +74,10 @@ class HomePlaybackWidgetProvider : AppWidgetProvider() {
         private const val ACTION_PLAY_PAUSE = "com.juan.snapmusic.widget.PLAY_PAUSE"
         private const val ACTION_NEXT = "com.juan.snapmusic.widget.NEXT"
         private const val ACTION_PREVIOUS = "com.juan.snapmusic.widget.PREVIOUS"
+        private const val WIDGET_PROGRESS_MAX = 1_000
+        private const val WIDGET_ARTWORK_MAX_PX = 192
+        private var lastArtworkHash: Int? = null
+        private var lastArtworkBitmap: Bitmap? = null
 
         fun updateAll(context: Context, state: PlaybackSessionState = PlaybackSessionStateStore.state.value) {
             val appContext = context.applicationContext
@@ -92,24 +99,89 @@ class HomePlaybackWidgetProvider : AppWidgetProvider() {
                 }
 
             return RemoteViews(context.packageName, R.layout.widget_home_playback).apply {
+                val positionMs = state.effectivePositionMs()
+                val durationMs = state.durationMs.coerceAtLeast(0L)
+                val progress = if (durationMs > 0L) {
+                    ((positionMs.coerceAtMost(durationMs) * WIDGET_PROGRESS_MAX) / durationMs).toInt()
+                } else {
+                    0
+                }
                 setTextViewText(R.id.widget_title, title)
                 setTextViewText(R.id.widget_subtitle, subtitle)
+                setTextViewText(R.id.widget_elapsed, positionMs.formatDuration())
+                setTextViewText(R.id.widget_duration, durationMs.formatDuration())
+                setProgressBar(R.id.widget_progress, WIDGET_PROGRESS_MAX, progress, false)
                 setImageViewResource(
                     R.id.widget_play_pause,
                     if (state.showPauseButton) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
                 )
-                val artworkUri = state.artworkUri
-                if (artworkUri?.scheme in setOf("content", "file", "android.resource")) {
-                    setImageViewUri(R.id.widget_artwork, artworkUri)
+                val artworkBitmap = decodeWidgetArtwork(state.artworkData)
+                if (artworkBitmap != null) {
+                    setImageViewBitmap(R.id.widget_artwork, artworkBitmap)
                 } else {
-                    setImageViewResource(R.id.widget_artwork, R.drawable.snapmusic_logo)
+                    val artworkUri = state.artworkUri
+                    if (artworkUri?.scheme in setOf("content", "file", "android.resource")) {
+                        setImageViewUri(R.id.widget_artwork, artworkUri)
+                    } else {
+                        setImageViewResource(R.id.widget_artwork, R.drawable.snapmusic_logo)
+                    }
                 }
                 setOnClickPendingIntent(R.id.widget_root, MainActivity.buildOpenPlaybackPendingIntent(context))
                 setOnClickPendingIntent(R.id.widget_previous, actionIntent(context, ACTION_PREVIOUS, 4101))
                 setOnClickPendingIntent(R.id.widget_play_pause, actionIntent(context, ACTION_PLAY_PAUSE, 4102))
                 setOnClickPendingIntent(R.id.widget_next, actionIntent(context, ACTION_NEXT, 4103))
-                setInt(R.id.widget_previous, "setAlpha", if (state.youtubeHasPrevious) 255 else 120)
-                setInt(R.id.widget_next, "setAlpha", if (state.youtubeHasNext) 255 else 120)
+                setInt(R.id.widget_previous, "setAlpha", if (state.hasPreviousWidgetAction()) 255 else 120)
+                setInt(R.id.widget_next, "setAlpha", if (state.hasNextWidgetAction()) 255 else 120)
+            }
+        }
+
+        private fun PlaybackSessionState.effectivePositionMs(): Long {
+            val safePosition = positionMs.coerceAtLeast(0L)
+            if (!isPlaying || progressUpdatedAtMs <= 0L) return safePosition
+            val elapsed = (SystemClock.elapsedRealtime() - progressUpdatedAtMs).coerceAtLeast(0L)
+            return if (durationMs > 0L) {
+                (safePosition + elapsed).coerceAtMost(durationMs)
+            } else {
+                safePosition + elapsed
+            }
+        }
+
+        private fun PlaybackSessionState.hasPreviousWidgetAction(): Boolean {
+            return when (target) {
+                PlaybackSessionTarget.NONE -> false
+                PlaybackSessionTarget.YOUTUBE -> youtubeHasPrevious
+                PlaybackSessionTarget.PREVIEW -> true
+            }
+        }
+
+        private fun PlaybackSessionState.hasNextWidgetAction(): Boolean {
+            return when (target) {
+                PlaybackSessionTarget.NONE -> false
+                PlaybackSessionTarget.YOUTUBE -> youtubeHasNext
+                PlaybackSessionTarget.PREVIEW -> true
+            }
+        }
+
+        private fun Long.formatDuration(): String {
+            val totalSeconds = (this / 1_000L).coerceAtLeast(0L)
+            val minutes = totalSeconds / 60L
+            val seconds = totalSeconds % 60L
+            return "$minutes:${seconds.toString().padStart(2, '0')}"
+        }
+
+        private fun decodeWidgetArtwork(artworkData: ByteArray?): Bitmap? {
+            if (artworkData == null || artworkData.isEmpty()) return null
+            val artworkHash = artworkData.contentHashCode()
+            if (lastArtworkHash == artworkHash) return lastArtworkBitmap
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(artworkData, 0, artworkData.size, bounds)
+            val largestSide = maxOf(bounds.outWidth, bounds.outHeight)
+            val sampleSize = generateSequence(1) { it * 2 }
+                .first { sample -> largestSide / sample <= WIDGET_ARTWORK_MAX_PX }
+            val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            return BitmapFactory.decodeByteArray(artworkData, 0, artworkData.size, options).also { bitmap ->
+                lastArtworkHash = artworkHash
+                lastArtworkBitmap = bitmap
             }
         }
 
