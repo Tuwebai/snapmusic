@@ -197,7 +197,7 @@ class MusicHomeFeedRepository(
         val profile = buildProfile()
         val impressions = recentImpressions()
         val classification = engine.classify(currentItem)
-        val relatedLimit = (limit * 2).coerceIn(24, 96)
+        val relatedLimit = (limit * 2).coerceAtLeast(24)
         val directRelated = runCatching {
             resolverRepository.loadRelatedVideos(currentItem.url, limit = relatedLimit)
         }.getOrDefault(emptyList())
@@ -205,8 +205,8 @@ class MusicHomeFeedRepository(
         val directRelatedUrls = directRelated.mapTo(linkedSetOf()) { it.url }
         val shouldAugment = directRelated.size < limit
         val queryLimit = when {
-            directRelated.size >= limit -> (limit + 6).coerceIn(16, 24)
-            else -> (limit + 10).coerceIn(18, 30)
+            directRelated.size >= limit -> (limit + 6).coerceAtLeast(16)
+            else -> (limit + 10).coerceAtLeast(18)
         }
         val styleQueries = if (!shouldAugment) {
             emptyList()
