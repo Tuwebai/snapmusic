@@ -269,7 +269,7 @@ private fun WatchHistoryPreviewCard(
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            watchHistoryResumeLabel(item.lastPositionMs) ?: item.author,
+            item.author,
             color = TextSecondary,
             style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
@@ -286,14 +286,9 @@ private fun YouTubeWatchHistoryEntry.toFeedItem(): YouTubeFeedItem {
         thumbnailUrl = thumbnailUrl,
         durationSeconds = durationSeconds,
         viewCount = viewCount,
-        publishedText = watchHistoryResumeLabel(lastPositionMs) ?: publishedText,
+        publishedText = publishedText,
         description = description,
     )
-}
-
-private fun watchHistoryResumeLabel(positionMs: Long): String? {
-    if (positionMs <= 0L) return null
-    return "Visto hasta ${formatDuration((positionMs / 1_000L).coerceAtLeast(1L))}"
 }
 
 private fun watchProgressFraction(item: YouTubeWatchHistoryEntry): Float {
