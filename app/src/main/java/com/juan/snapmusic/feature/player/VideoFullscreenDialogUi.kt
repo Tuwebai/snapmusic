@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
+import android.os.SystemClock
 import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -68,6 +69,8 @@ import com.juan.snapmusic.core.designsystem.TextPrimary
 import com.juan.snapmusic.core.designsystem.TextSecondary
 import kotlinx.coroutines.delay
 
+private const val FULLSCREEN_EXIT_GUARD_MS = 650L
+
 @Composable
 internal fun LandscapeFullscreenVideoDialog(
     visible: Boolean,
@@ -95,6 +98,7 @@ internal fun LandscapeFullscreenVideoDialog(
     var showControls by rememberSaveable(mediaKey) { mutableStateOf(true) }
     var hasInteracted by rememberSaveable(mediaKey) { mutableStateOf(false) }
     var isSeekingPreview by remember(mediaKey) { mutableStateOf(false) }
+    var fullscreenOpenedAtMs by remember(mediaKey) { mutableStateOf(0L) }
     val gestureController = rememberVideoGestureController()
     var adjustmentFeedback by remember { mutableStateOf<VideoAdjustmentFeedback?>(null) }
     var adjustmentFeedbackTick by remember { mutableStateOf(0) }
@@ -114,6 +118,7 @@ internal fun LandscapeFullscreenVideoDialog(
 
     LaunchedEffect(visible, mediaKey) {
         if (visible) {
+            fullscreenOpenedAtMs = SystemClock.elapsedRealtime()
             hasInteracted = false
             showControls = true
             adjustmentFeedback = null
@@ -250,8 +255,10 @@ internal fun LandscapeFullscreenVideoDialog(
                     },
                     onToggleResize = {
                         hasInteracted = true
-                        showControls = false
-                        onDismiss()
+                        if (SystemClock.elapsedRealtime() - fullscreenOpenedAtMs >= FULLSCREEN_EXIT_GUARD_MS) {
+                            showControls = false
+                            onDismiss()
+                        }
                     },
                 )
                 VideoAdjustmentFeedbackOverlay(
