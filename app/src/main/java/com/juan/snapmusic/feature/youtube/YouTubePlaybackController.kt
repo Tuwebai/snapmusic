@@ -76,11 +76,7 @@ private fun buildYouTubeQueueMediaItems(
     artworkData: ByteArray?,
 ): List<MediaItem> {
     val currentItem = featured.toMediaItem(artworkData = artworkData).takeIf { it != MediaItem.EMPTY } ?: return emptyList()
-    val nextItem = preloadedNextFeatured
-        ?.takeIf { it.sourceUrl.isNotBlank() && it.playbackUrl != null && it.sourceUrl != featured.sourceUrl }
-        ?.toMediaItem()
-        ?.takeIf { it != MediaItem.EMPTY }
-    return listOfNotNull(currentItem, nextItem)
+    return listOf(currentItem)
 }
 
 private fun MediaController.sameYouTubeQueueAs(queueItems: List<MediaItem>): Boolean {
@@ -255,7 +251,6 @@ fun rememberYouTubePlayer(
 
                 override fun onTracksChanged(tracks: Tracks) {
                     if (mediaController.currentMediaItem?.mediaId != currentFeaturedSourceUrl) return
-                    maybeApplyPreferredAudioTrackSelection(mediaController, tracks)
                     onPlaybackQualityChanged(
                         resolveAvailableVideoHeights(tracks),
                         resolveActualVideoHeight(tracks),
@@ -370,7 +365,12 @@ fun rememberYouTubePlayer(
         val currentUri = current.localConfiguration?.uri
         val artworkUri = withArtwork.localConfiguration?.uri
         val sameStreamUri = currentUri == artworkUri
-        if (sameStreamUri && !current.sameArtworkAs(withArtwork)) {
+        if (
+            sameStreamUri &&
+            !current.sameArtworkAs(withArtwork) &&
+            !mediaController.isPlaying &&
+            mediaController.playbackState != Player.STATE_BUFFERING
+        ) {
             mediaController.replaceMediaItem(0, withArtwork)
         }
     }

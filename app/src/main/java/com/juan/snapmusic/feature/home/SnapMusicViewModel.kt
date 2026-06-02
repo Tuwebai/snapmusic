@@ -1983,7 +1983,6 @@ class SnapMusicViewModel(
             recordPlaybackSignal(target, MusicSignalType.REPLAY)
             maybeRecordYouTubeWatchHistory(target, resumePositionMs, force = true)
             persistCurrentYouTubeSnapshot()
-            preResolveNextQueueItem(queueItems, normalizedIndex, current.continuationMode)
             return
         }
 
@@ -2041,7 +2040,6 @@ class SnapMusicViewModel(
                     recordPlaybackSignal(target, MusicSignalType.PLAY_START)
                     maybeRecordYouTubeWatchHistory(target, resumePositionMs, force = true)
                     persistCurrentYouTubeSnapshot()
-                    preResolveNextQueueItem(queueItems, normalizedIndex, latest.continuationMode)
                 }
                 .onFailure { error ->
                     handleYouTubePlaybackFailure(

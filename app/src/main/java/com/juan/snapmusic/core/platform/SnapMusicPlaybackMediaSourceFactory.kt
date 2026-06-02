@@ -6,11 +6,7 @@ import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.cache.CacheDataSource
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
-import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.datasource.okhttp.OkHttpDataSource
-import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
@@ -18,7 +14,6 @@ import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
-import java.io.File
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 import java.util.concurrent.TimeUnit
@@ -30,11 +25,7 @@ class SnapMusicPlaybackMediaSourceFactory(
     private val httpDataSourceFactory = OkHttpDataSource.Factory(PlaybackHttpClientHolder.client)
         .setDefaultRequestProperties(YouTubePlaybackHeaders.DEFAULT)
     private val upstreamDataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
-    private val cacheDataSourceFactory = CacheDataSource.Factory()
-        .setCache(PlaybackCacheHolder.cache(context.applicationContext))
-        .setUpstreamDataSourceFactory(upstreamDataSourceFactory)
-        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
-    private val delegate = DefaultMediaSourceFactory(cacheDataSourceFactory)
+    private val delegate = DefaultMediaSourceFactory(upstreamDataSourceFactory)
 
     override fun createMediaSource(mediaItem: MediaItem): MediaSource {
         val merged = MergedPlaybackUri.parse(mediaItem.localConfiguration?.uri)
@@ -81,23 +72,6 @@ private object PlaybackHttpClientHolder {
         .writeTimeout(15, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
-}
-
-private object PlaybackCacheHolder {
-    private const val MAX_BYTES = 256L * 1024L * 1024L
-
-    @Volatile
-    private var cache: SimpleCache? = null
-
-    @Synchronized
-    fun cache(context: Context): SimpleCache {
-        cache?.let { return it }
-        return SimpleCache(
-            File(context.cacheDir, "youtube-playback-cache"),
-            LeastRecentlyUsedCacheEvictor(MAX_BYTES),
-            StandaloneDatabaseProvider(context),
-        ).also { cache = it }
-    }
 }
 
 object MergedPlaybackUri {

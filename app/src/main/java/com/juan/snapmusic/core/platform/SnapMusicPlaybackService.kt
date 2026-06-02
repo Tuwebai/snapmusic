@@ -67,8 +67,8 @@ class SnapMusicPlaybackService : MediaSessionService() {
                     .setBufferDurationsMs(
                         30_000,
                         120_000,
+                        500,
                         1_200,
-                        3_000,
                     )
                     .setBackBuffer(15_000, true)
                     .build(),
