@@ -26,15 +26,12 @@ import androidx.media3.session.SessionToken
 import com.juan.snapmusic.core.model.YouTubeFeaturedVideo
 import com.juan.snapmusic.core.model.YouTubePlayerSeekState
 import com.juan.snapmusic.core.model.YouTubePlayerSessionState
-import com.juan.snapmusic.core.platform.PlaybackArtworkBadgeHelper
 import com.juan.snapmusic.core.platform.SnapMusicPlaybackService
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
-private fun YouTubeFeaturedVideo.toMediaItem(
-    artworkData: ByteArray? = null,
-): MediaItem {
+private fun YouTubeFeaturedVideo.toMediaItem(): MediaItem {
     val resolvedPlaybackUrl = playbackUrl ?: return MediaItem.EMPTY
     return MediaItem.Builder()
         .setMediaId(sourceUrl)
@@ -43,13 +40,7 @@ private fun YouTubeFeaturedVideo.toMediaItem(
             MediaMetadata.Builder()
                 .setTitle(title)
                 .setArtist(author)
-                .apply {
-                    if (artworkData != null) {
-                        setArtworkData(artworkData, MediaMetadata.PICTURE_TYPE_FRONT_COVER.toInt())
-                    } else {
-                        setArtworkUri(thumbnailUrl.takeIf { it.isNotBlank() }?.toUri())
-                    }
-                }
+                .setArtworkUri(thumbnailUrl.takeIf { it.isNotBlank() }?.toUri())
                 .build(),
         )
         .build()
@@ -60,22 +51,11 @@ private fun MediaItem.samePlaybackAs(other: MediaItem): Boolean {
         localConfiguration?.uri == other.localConfiguration?.uri
 }
 
-private fun MediaItem.sameArtworkAs(other: MediaItem): Boolean {
-    val currentData = mediaMetadata.artworkData
-    val otherData = other.mediaMetadata.artworkData
-    return when {
-        currentData != null && otherData != null -> currentData.contentEquals(otherData)
-        currentData == null && otherData == null -> mediaMetadata.artworkUri == other.mediaMetadata.artworkUri
-        else -> false
-    }
-}
-
 private fun buildYouTubeQueueMediaItems(
     featured: YouTubeFeaturedVideo,
     preloadedNextFeatured: YouTubeFeaturedVideo?,
-    artworkData: ByteArray?,
 ): List<MediaItem> {
-    val currentItem = featured.toMediaItem(artworkData = artworkData).takeIf { it != MediaItem.EMPTY } ?: return emptyList()
+    val currentItem = featured.toMediaItem().takeIf { it != MediaItem.EMPTY } ?: return emptyList()
     return listOf(currentItem)
 }
 
@@ -122,7 +102,6 @@ fun rememberYouTubePlayer(
     val context = LocalContext.current
     val featured = sessionState.featured
     val preloadedNextFeatured = sessionState.preloadedNextFeatured
-    var artworkData by remember(featured.sourceUrl, featured.thumbnailUrl) { mutableStateOf<ByteArray?>(null) }
     val future = remember(context) {
         MediaController.Builder(
             context,
@@ -144,13 +123,6 @@ fun rememberYouTubePlayer(
             controller?.release()
             controller = null
         }
-    }
-
-    LaunchedEffect(featured.sourceUrl, featured.thumbnailUrl) {
-        artworkData = PlaybackArtworkBadgeHelper.resolve(
-            context = context,
-            artworkSource = featured.thumbnailUrl.takeIf { it.isNotBlank() },
-        )
     }
 
     val currentFeaturedSourceUrl by rememberUpdatedState(featured.sourceUrl)
@@ -286,7 +258,6 @@ fun rememberYouTubePlayer(
         val queueItems = buildYouTubeQueueMediaItems(
             featured = featured.copy(playbackUrl = playbackUrl),
             preloadedNextFeatured = preloadedNextFeatured,
-            artworkData = artworkData,
         )
         if (queueItems.isEmpty()) return@LaunchedEffect
         val sameQueue = mediaController.sameYouTubeQueueAs(queueItems)
@@ -299,9 +270,6 @@ fun rememberYouTubePlayer(
             ) {
                 mediaController.seekTo(seekState.positionMs.coerceAtLeast(0L))
             }
-            if (!mediaController.getMediaItemAt(0).sameArtworkAs(queueItems[0])) {
-                mediaController.replaceMediaItem(0, queueItems[0])
-            }
             mediaController.syncNextYouTubeQueueItem(queueItems)
         } else if (!sameQueue) {
             val resumePositionMs =
@@ -313,8 +281,6 @@ fun rememberYouTubePlayer(
             mediaController.setMediaItems(queueItems, 0, resumePositionMs)
             mediaController.playWhenReady = shouldAutoPlayCurrent
             mediaController.prepare()
-        } else if (!mediaController.getMediaItemAt(0).sameArtworkAs(queueItems[0])) {
-            mediaController.replaceMediaItem(0, queueItems[0])
         }
 
         applyYouTubePlaybackQuality(
@@ -346,32 +312,6 @@ fun rememberYouTubePlayer(
         } else if (!mediaController.playWhenReady) {
             mediaController.playWhenReady = true
             mediaController.play()
-        }
-    }
-
-    LaunchedEffect(controller, featured.sourceUrl, artworkData) {
-        val mediaController = controller ?: return@LaunchedEffect
-        val artwork = artworkData ?: return@LaunchedEffect
-        if (mediaController.mediaItemCount == 0) return@LaunchedEffect
-        val current = mediaController.getMediaItemAt(0)
-        if (current.mediaId != featured.sourceUrl) return@LaunchedEffect
-        val withArtwork = current.buildUpon()
-            .setMediaMetadata(
-                current.mediaMetadata.buildUpon()
-                    .setArtworkData(artwork, MediaMetadata.PICTURE_TYPE_FRONT_COVER.toInt())
-                    .build(),
-            )
-            .build()
-        val currentUri = current.localConfiguration?.uri
-        val artworkUri = withArtwork.localConfiguration?.uri
-        val sameStreamUri = currentUri == artworkUri
-        if (
-            sameStreamUri &&
-            !current.sameArtworkAs(withArtwork) &&
-            !mediaController.isPlaying &&
-            mediaController.playbackState != Player.STATE_BUFFERING
-        ) {
-            mediaController.replaceMediaItem(0, withArtwork)
         }
     }
 

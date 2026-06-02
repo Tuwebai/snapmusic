@@ -78,6 +78,11 @@ private enum class YouTubePlaybackSourceMode {
     PROGRESSIVE,
 }
 
+private const val YOUTUBE_REBUFFER_WINDOW_MS = 20_000L
+private const val YOUTUBE_LONG_REBUFFER_MS = 2_000L
+private val YOUTUBE_STABLE_MERGED_AUTO_HEIGHTS = listOf(480, 360, 720, 240, 144, 1080)
+private val YOUTUBE_STABLE_PROGRESSIVE_AUTO_HEIGHTS = listOf(360, 480, 240, 144, 720)
+
 class SnapMusicViewModel(
     private val graph: SnapMusicGraph,
 ) : ViewModel() {
@@ -163,6 +168,7 @@ class SnapMusicViewModel(
     private var lastExpiredStreamRetrySourceUrl: String? = null
     private val refreshedAdaptivePlaybackSources = linkedSetOf<String>()
     private val playbackFallbackModes = linkedMapOf<String, MutableSet<YouTubePlaybackSourceMode>>()
+    private val playbackStabilityFallbacks = linkedMapOf<String, MutableSet<String>>()
     private val youtubeRebufferEvents = linkedMapOf<String, MutableList<Long>>()
     private val youtubeWatchHistoryLastRecordedPositions = linkedMapOf<String, Long>()
     private val pendingYouTubeHistoryResumePositions = linkedMapOf<String, Long>()
@@ -1374,6 +1380,7 @@ class SnapMusicViewModel(
         lastExpiredStreamRetrySourceUrl = null
         refreshedAdaptivePlaybackSources.clear()
         playbackFallbackModes.clear()
+        playbackStabilityFallbacks.clear()
         youtubeRebufferEvents.clear()
         val current = _youtubeState.value
         _youtubeState.value = current.copy(
@@ -2250,12 +2257,22 @@ class SnapMusicViewModel(
         if (sourceUrl.isBlank() || featured.selectedVideoQualityId != "auto") return
         val now = System.currentTimeMillis()
         val events = youtubeRebufferEvents.getOrPut(sourceUrl) { mutableListOf() }
-        events.removeAll { now - it > 20_000L }
+        events.removeAll { now - it > YOUTUBE_REBUFFER_WINDOW_MS }
         events += now
+        val mode = playbackSourceMode(featured)
         Log.w(
             YOUTUBE_PLAYBACK_LOG_TAG,
-            "source=$sourceUrl rebuffer durationMs=$durationMs positionMs=$positionMs events=${events.size} autoQualityStable=true",
+            "source=$sourceUrl rebuffer durationMs=$durationMs positionMs=$positionMs events=${events.size} mode=${mode?.name.orEmpty()}",
         )
+        if (durationMs >= YOUTUBE_LONG_REBUFFER_MS || events.size >= 2) {
+            applyYouTubeStabilityFallback(
+                current = current,
+                mode = mode ?: return,
+                positionMs = positionMs,
+                durationMs = durationMs,
+                events = events.size,
+            )
+        }
     }
 
     fun requestYouTubeDownloadSheet() {
@@ -2538,6 +2555,47 @@ class SnapMusicViewModel(
         )
         persistCurrentYouTubeSnapshot()
         return true
+    }
+
+    private fun applyYouTubeStabilityFallback(
+        current: YouTubeUiState,
+        mode: YouTubePlaybackSourceMode,
+        positionMs: Long,
+        durationMs: Long,
+        events: Int,
+    ) {
+        val featured = current.featured
+        val media = featured.resolvedMedia ?: return
+        val sourceUrl = featured.sourceUrl
+        val fallbackSelection = resolveStabilityPlaybackSelection(
+            media = media,
+            featured = featured,
+            currentMode = mode,
+        ) ?: return
+        if (fallbackSelection.playbackUrl == featured.playbackUrl) return
+        val fallbackKey = "${mode.name}:${featured.actualVideoHeight ?: 0}->${fallbackSelection.sourceMode.name}:${fallbackSelection.expectedHeight ?: 0}"
+        val appliedFallbacks = playbackStabilityFallbacks.getOrPut(sourceUrl) { linkedSetOf() }
+        if (!appliedFallbacks.add(fallbackKey)) return
+        Log.w(
+            YOUTUBE_PLAYBACK_LOG_TAG,
+            "source=$sourceUrl stabilityFallback=$fallbackKey durationMs=$durationMs positionMs=$positionMs events=$events",
+        )
+        val updatedFeatured = featured.copy(
+            playbackUrl = fallbackSelection.playbackUrl,
+            actualVideoHeight = fallbackSelection.expectedHeight,
+            actualPlaybackLabel = playbackLabelForSelection(media, "auto", fallbackSelection.expectedHeight),
+            isReady = true,
+        )
+        youTubeResolveCache[sourceUrl] = updatedFeatured
+        _youtubeState.value = current.copy(
+            featured = updatedFeatured,
+            currentPositionMs = positionMs.coerceAtLeast(0L),
+            isRefreshingVideo = false,
+            pendingTransition = false,
+            shouldAutoPlayCurrent = true,
+            errorMessage = null,
+        )
+        persistCurrentYouTubeSnapshot()
     }
 
     private fun refreshAdaptiveYouTubePlaybackSource(
@@ -3707,16 +3765,25 @@ class SnapMusicViewModel(
             lower.startsWith("https://manifest")
     }
 
-    private fun fallbackAutomaticPlaybackUrl(resolved: com.juan.snapmusic.core.model.ResolvedMedia): String? {
+    private fun fallbackAutomaticPlaybackSelection(
+        resolved: com.juan.snapmusic.core.model.ResolvedMedia,
+    ): PlaybackSelection? {
         val playbackCandidates = resolved.videoVariants.filter { !it.directUrl.isNullOrBlank() }
         val mergedCandidates = playbackCandidates.filter { it.requiresMux && !it.secondaryUrl.isNullOrBlank() }
         val progressiveCandidates = playbackCandidates.filterNot { it.requiresMux }
-        val fallbackVariant = resolveAutomaticPlaybackVariant(mergedCandidates)
-            ?: resolveAutomaticPlaybackVariant(progressiveCandidates)
-            ?: return resolved.playbackUrl
+        val fallbackVariant = resolveStableAutomaticPlaybackVariant(mergedCandidates, YOUTUBE_STABLE_MERGED_AUTO_HEIGHTS)
+            ?: resolveStableAutomaticPlaybackVariant(progressiveCandidates, YOUTUBE_STABLE_PROGRESSIVE_AUTO_HEIGHTS)
+        val fallbackUrl = fallbackVariant?.let(::fallbackPlaybackUrl)
+            ?: resolved.playbackUrl
             ?: progressiveCandidates.firstOrNull()?.directUrl
             ?: playbackCandidates.firstOrNull()?.directUrl
-        return fallbackPlaybackUrl(fallbackVariant)
+            ?: return null
+        return PlaybackSelection(
+            playbackUrl = fallbackUrl,
+            expectedHeight = fallbackVariant?.resolution?.substringBefore('p')?.toIntOrNull()
+                ?: playbackUrlHeightHint(playbackCandidates, fallbackUrl),
+            sourceMode = playbackSourceMode(fallbackUrl, resolved.adaptivePlaybackUrl),
+        )
     }
 
     private fun fallbackProgressivePlaybackUrl(resolved: com.juan.snapmusic.core.model.ResolvedMedia): PlaybackSelection? {
@@ -3765,7 +3832,8 @@ class SnapMusicViewModel(
 
         if (requestedVariantId == "auto") {
             val automaticHeight = preferredAutomaticPlaybackHeight(media)
-            val playbackUrl = adaptivePlaybackUrl ?: fallbackAutomaticPlaybackUrl(media) ?: return null
+            if (adaptivePlaybackUrl == null) return fallbackAutomaticPlaybackSelection(media)
+            val playbackUrl = adaptivePlaybackUrl
             return PlaybackSelection(
                 playbackUrl = playbackUrl,
                 expectedHeight = automaticHeight,
@@ -3788,6 +3856,34 @@ class SnapMusicViewModel(
             expectedHeight = chosenProgressive.resolution?.substringBefore('p')?.toIntOrNull(),
             sourceMode = playbackSourceMode(playbackUrl, adaptivePlaybackUrl),
         )
+    }
+
+    private fun resolveStabilityPlaybackSelection(
+        media: com.juan.snapmusic.core.model.ResolvedMedia,
+        featured: YouTubeFeaturedVideo,
+        currentMode: YouTubePlaybackSourceMode,
+    ): PlaybackSelection? {
+        val playbackCandidates = media.videoVariants.filter { !it.directUrl.isNullOrBlank() }
+        val currentHeight = featured.actualVideoHeight
+            ?: featured.playbackUrl?.let { playbackUrlHeightHint(playbackCandidates, it) }
+        val mergedCandidates = playbackCandidates.filter { it.requiresMux && !it.secondaryUrl.isNullOrBlank() }
+        val progressiveCandidates = playbackCandidates.filterNot { it.requiresMux }
+        val variant = when (currentMode) {
+            YouTubePlaybackSourceMode.ADAPTIVE -> {
+                resolveStableAutomaticPlaybackVariant(progressiveCandidates, YOUTUBE_STABLE_PROGRESSIVE_AUTO_HEIGHTS)
+                    ?: resolveStableAutomaticPlaybackVariant(mergedCandidates, YOUTUBE_STABLE_MERGED_AUTO_HEIGHTS)
+            }
+
+            YouTubePlaybackSourceMode.MERGED -> {
+                resolveLowerStableVariant(mergedCandidates, currentHeight, YOUTUBE_STABLE_MERGED_AUTO_HEIGHTS)
+                    ?: resolveStableAutomaticPlaybackVariant(progressiveCandidates, YOUTUBE_STABLE_PROGRESSIVE_AUTO_HEIGHTS)
+            }
+
+            YouTubePlaybackSourceMode.PROGRESSIVE -> {
+                resolveLowerStableVariant(progressiveCandidates, currentHeight, YOUTUBE_STABLE_PROGRESSIVE_AUTO_HEIGHTS)
+            }
+        } ?: return null
+        return playbackSelectionForVariant(media, variant)
     }
 
     private fun resolveFallbackPlaybackSelection(
@@ -3915,6 +4011,7 @@ class SnapMusicViewModel(
         if (sourceUrl.isBlank()) return
         refreshedAdaptivePlaybackSources.remove(sourceUrl)
         playbackFallbackModes.remove(sourceUrl)
+        playbackStabilityFallbacks.remove(sourceUrl)
         youtubeRebufferEvents.remove(sourceUrl)
     }
 
@@ -3998,6 +4095,57 @@ class SnapMusicViewModel(
                 !it.requiresMux
             },
         )
+    }
+
+    private fun resolveStableAutomaticPlaybackVariant(
+        candidates: List<com.juan.snapmusic.core.model.MediaVariant>,
+        preferredHeights: List<Int>,
+    ): com.juan.snapmusic.core.model.MediaVariant? {
+        if (candidates.isEmpty()) return null
+        val candidatesByHeight = candidates
+            .mapNotNull { variant -> variantHeight(variant)?.let { it to variant } }
+            .groupBy({ it.first }, { it.second })
+        preferredHeights.forEach { preferredHeight ->
+            candidatesByHeight[preferredHeight]
+                ?.sortedBy { it.requiresMux }
+                ?.firstOrNull()
+                ?.let { return it }
+        }
+        return resolveAutomaticPlaybackVariant(candidates)
+    }
+
+    private fun resolveLowerStableVariant(
+        candidates: List<com.juan.snapmusic.core.model.MediaVariant>,
+        currentHeight: Int?,
+        preferredHeights: List<Int>,
+    ): com.juan.snapmusic.core.model.MediaVariant? {
+        if (candidates.isEmpty()) return null
+        val stableCandidates = preferredHeights.mapNotNull { preferredHeight ->
+            candidates
+                .filter { variantHeight(it) == preferredHeight }
+                .sortedBy { it.requiresMux }
+                .firstOrNull()
+        }
+        val belowCurrent = currentHeight?.let { height ->
+            stableCandidates.firstOrNull { (variantHeight(it) ?: Int.MAX_VALUE) < height }
+        }
+        return belowCurrent ?: stableCandidates.firstOrNull()
+    }
+
+    private fun playbackSelectionForVariant(
+        media: com.juan.snapmusic.core.model.ResolvedMedia,
+        variant: com.juan.snapmusic.core.model.MediaVariant,
+    ): PlaybackSelection? {
+        val playbackUrl = fallbackPlaybackUrl(variant) ?: return null
+        return PlaybackSelection(
+            playbackUrl = playbackUrl,
+            expectedHeight = variantHeight(variant),
+            sourceMode = playbackSourceMode(playbackUrl, media.adaptivePlaybackUrl),
+        )
+    }
+
+    private fun variantHeight(variant: com.juan.snapmusic.core.model.MediaVariant): Int? {
+        return variant.resolution?.substringBefore('p')?.toIntOrNull()
     }
 
     private fun watchPlaybackQualityLabel(height: Int): String = when {
