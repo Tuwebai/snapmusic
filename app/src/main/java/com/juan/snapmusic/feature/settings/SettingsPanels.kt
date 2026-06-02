@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Notifications
@@ -62,6 +63,7 @@ import com.juan.snapmusic.core.designsystem.SurfaceElevated
 import com.juan.snapmusic.core.designsystem.TextPrimary
 import com.juan.snapmusic.core.designsystem.TextSecondary
 import com.juan.snapmusic.core.model.AppThemeMode
+import com.juan.snapmusic.core.model.CacheCleanupUiState
 import com.juan.snapmusic.core.model.UserPreferences
 import com.juan.snapmusic.core.model.YouTubeWatchHistoryEntry
 
@@ -93,6 +95,7 @@ internal fun SettingsRootScreen(
     onDownloads: () -> Unit,
     onNotifications: () -> Unit,
     onTheme: () -> Unit,
+    onCacheCleanup: () -> Unit,
     onShare: () -> Unit,
     onAbout: () -> Unit,
 ) {
@@ -116,6 +119,7 @@ internal fun SettingsRootScreen(
                 SettingsActionRow(Icons.Outlined.Download, "Configuración de descarga", onClick = onDownloads)
                 SettingsActionRow(Icons.Outlined.Notifications, "Configuración de notificaciones", onClick = onNotifications)
                 SettingsActionRow(Icons.Outlined.DarkMode, "Tema", onClick = onTheme)
+                SettingsActionRow(Icons.Outlined.Delete, "Limpieza de caché", onClick = onCacheCleanup)
                 Spacer(modifier = Modifier.height(10.dp))
                 SettingsSectionLabel("Información")
                 SettingsActionRow(Icons.Outlined.Share, "Compartir SnapMusic", onClick = onShare)
@@ -210,6 +214,52 @@ internal fun DownloadSettingsPane(
                 checked = prefs.allowMobileDataDownloads,
                 onCheckedChange = onAllowMobileDataChange,
             )
+        }
+    }
+}
+
+@Composable
+internal fun CacheCleanupPane(
+    state: CacheCleanupUiState,
+    onBack: () -> Unit,
+    onClean: () -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundPrimary),
+    ) {
+        item { SettingsPaneHeader("Limpieza de caché", onBack) }
+        item { SettingsSectionSpacer() }
+        item {
+            Column(
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("Archivos que se limpian", color = TextPrimary, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Miniaturas cacheadas, temporales de FFmpeg y descargas http-transfer incompletas.",
+                    color = TextSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+        item {
+            SettingsTextAction(
+                text = if (state.isRunning) "Limpiando caché..." else "Limpiar caché ahora",
+                enabled = !state.isRunning,
+                onClick = onClean,
+            )
+        }
+        state.feedback?.let { feedback ->
+            item {
+                Text(
+                    text = feedback,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                    color = TextSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         }
     }
 }

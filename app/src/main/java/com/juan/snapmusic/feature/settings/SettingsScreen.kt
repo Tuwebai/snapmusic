@@ -33,6 +33,7 @@ private enum class SettingsPane(val depth: Int) {
     DOWNLOADS(1),
     NOTIFICATIONS(1),
     THEME(1),
+    CACHE(1),
     ABOUT(1),
 }
 
@@ -45,6 +46,7 @@ fun SettingsScreen(
 ) {
     val prefs by viewModel.preferences.collectAsStateWithLifecycle()
     val youtubeWatchHistory by viewModel.youtubeWatchHistory.collectAsStateWithLifecycle()
+    val cacheCleanupState by viewModel.cacheCleanupState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var pane by remember { mutableStateOf(SettingsPane.ROOT) }
     ReportPerformanceScene(screen = "settings", detail = pane.name.lowercase())
@@ -74,6 +76,7 @@ fun SettingsScreen(
                 onDownloads = { pane = SettingsPane.DOWNLOADS },
                 onNotifications = { pane = SettingsPane.NOTIFICATIONS },
                 onTheme = { pane = SettingsPane.THEME },
+                onCacheCleanup = { pane = SettingsPane.CACHE },
                 onShare = {
                     context.startActivity(
                         Intent.createChooser(
@@ -121,6 +124,12 @@ fun SettingsScreen(
                 prefs = prefs,
                 onBack = { pane = SettingsPane.ROOT },
                 onThemeChange = viewModel::updateThemeMode,
+            )
+
+            SettingsPane.CACHE -> CacheCleanupPane(
+                state = cacheCleanupState,
+                onBack = { pane = SettingsPane.ROOT },
+                onClean = viewModel::cleanManualCache,
             )
 
             SettingsPane.ABOUT -> AboutSettingsPane(

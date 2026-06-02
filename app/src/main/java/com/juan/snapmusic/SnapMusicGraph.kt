@@ -2,6 +2,7 @@ package com.juan.snapmusic
 
 import android.content.Context
 import androidx.room.Room
+import com.juan.snapmusic.data.cleanup.CacheCleanupRepository
 import com.juan.snapmusic.data.download.DownloadCoordinator
 import com.juan.snapmusic.data.download.DownloadNetworkPolicy
 import com.juan.snapmusic.data.download.DownloadOutputValidator
@@ -116,6 +117,10 @@ class SnapMusicGraph(
 
     val downloadOutputValidator by lazy {
         DownloadOutputValidator(appContext)
+    }
+
+    val cacheCleanupRepository by lazy {
+        CacheCleanupRepository(appContext)
     }
 
     val downloadCoordinator by lazy {

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.juan.snapmusic.core.model.QueueEntry
 import com.juan.snapmusic.SnapMusicGraph
 import com.juan.snapmusic.core.model.AppThemeMode
+import com.juan.snapmusic.core.model.CacheCleanupUiState
 import com.juan.snapmusic.core.model.ContainerFormat
 import com.juan.snapmusic.core.model.ConversionRequest
 import com.juan.snapmusic.core.model.DownloadBadgeState
@@ -172,6 +173,8 @@ class SnapMusicViewModel(
 
     val queueFeedback: StateFlow<String?> = _queueFeedback.asStateFlow()
     val previewDownloadsRequestId: StateFlow<Long> = _previewDownloadsRequestId.asStateFlow()
+    private val _cacheCleanupState = MutableStateFlow(CacheCleanupUiState())
+    val cacheCleanupState: StateFlow<CacheCleanupUiState> = _cacheCleanupState.asStateFlow()
     val youtubeState: StateFlow<YouTubeUiState> = _youtubeState.asStateFlow()
     val youtubeDownloadSheet: StateFlow<YouTubeDownloadSheetState> = _youtubeDownloadSheet.asStateFlow()
     val previewLibrary: StateFlow<List<LocalMediaItem>> = _previewLibrary.asStateFlow()
@@ -3394,6 +3397,35 @@ class SnapMusicViewModel(
         }
     }
 
+    fun cleanManualCache() {
+        if (_cacheCleanupState.value.isRunning) return
+        if (_queue.value.any { entry ->
+                entry.status == com.juan.snapmusic.core.model.QueueStatus.RUNNING ||
+                    entry.status == com.juan.snapmusic.core.model.QueueStatus.PENDING ||
+                    entry.status == com.juan.snapmusic.core.model.QueueStatus.PAUSED
+            }
+        ) {
+            _cacheCleanupState.value = CacheCleanupUiState(
+                feedback = "Terminá o pausá las descargas activas antes de limpiar temporales.",
+            )
+            return
+        }
+        _cacheCleanupState.value = CacheCleanupUiState(isRunning = true)
+        viewModelScope.launch {
+            runCatching { graph.cacheCleanupRepository.cleanManualCache() }
+                .onSuccess { result ->
+                    _cacheCleanupState.value = CacheCleanupUiState(
+                        feedback = "Caché limpiada. Espacio liberado: ${formatCacheBytes(result.bytesFreed)}.",
+                    )
+                }
+                .onFailure {
+                    _cacheCleanupState.value = CacheCleanupUiState(
+                        feedback = "No pude limpiar la caché. Intentá de nuevo.",
+                    )
+                }
+        }
+    }
+
     fun updateAudioFormat(format: String) {
         viewModelScope.launch {
             val target = runCatching { com.juan.snapmusic.core.model.ContainerFormat.valueOf(format) }.getOrNull() ?: return@launch
@@ -3449,6 +3481,17 @@ class SnapMusicViewModel(
         viewModelScope.launch {
             graph.preferencesRepository.updateThemeMode(value)
             graph.launchPreferencesRepository.setThemeMode(value)
+        }
+    }
+
+    private fun formatCacheBytes(bytes: Long): String {
+        val safeBytes = bytes.coerceAtLeast(0L)
+        val mb = safeBytes / (1024.0 * 1024.0)
+        return when {
+            safeBytes < 1024L -> "$safeBytes B"
+            safeBytes < 1024L * 1024L -> "${safeBytes / 1024L} KB"
+            mb < 10.0 -> String.format(java.util.Locale.US, "%.1f MB", mb)
+            else -> "${mb.toLong()} MB"
         }
     }
 

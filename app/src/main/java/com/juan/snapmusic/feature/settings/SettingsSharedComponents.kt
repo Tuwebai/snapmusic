@@ -203,6 +203,7 @@ internal fun ThemeChoiceRow(
 @Composable
 internal fun SettingsTextAction(
     text: String,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     Text(
@@ -210,9 +211,9 @@ internal fun SettingsTextAction(
         modifier = Modifier
             .padding(horizontal = 24.dp, vertical = 2.dp)
             .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 8.dp),
-        color = AccentRed,
+        color = if (enabled) AccentRed else TextSecondary,
         style = MaterialTheme.typography.bodyLarge,
         fontWeight = FontWeight.SemiBold,
     )
