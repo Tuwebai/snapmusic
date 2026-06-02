@@ -81,7 +81,10 @@ internal fun applyYouTubePlaybackQuality(
         }
     }
 
-    mediaController.trackSelectionParameters = builder.build()
+    val parameters = builder.build()
+    if (mediaController.trackSelectionParameters != parameters) {
+        mediaController.trackSelectionParameters = parameters
+    }
 }
 
 internal fun resolvePreferredAutomaticHeight(
@@ -164,11 +167,14 @@ internal fun maybeApplyPreferredAudioTrackSelection(
     ) {
         return
     }
-    mediaController.trackSelectionParameters = mediaController.trackSelectionParameters
+    val parameters = mediaController.trackSelectionParameters
         .buildUpon()
         .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
         .setOverrideForType(TrackSelectionOverride(preferred.group.mediaTrackGroup, listOf(preferred.index)))
         .build()
+    if (mediaController.trackSelectionParameters != parameters) {
+        mediaController.trackSelectionParameters = parameters
+    }
 }
 
 internal fun resolveCurrentAudioTrackCandidate(

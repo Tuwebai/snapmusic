@@ -162,7 +162,6 @@ class SnapMusicViewModel(
     private val refreshedAdaptivePlaybackSources = linkedSetOf<String>()
     private val playbackFallbackModes = linkedMapOf<String, MutableSet<YouTubePlaybackSourceMode>>()
     private val youtubeRebufferEvents = linkedMapOf<String, MutableList<Long>>()
-    private val youtubeLastQualityDowngradeAt = linkedMapOf<String, Long>()
     private val youtubeWatchHistoryLastRecordedPositions = linkedMapOf<String, Long>()
     private val pendingYouTubeHistoryResumePositions = linkedMapOf<String, Long>()
     private var cachedYouTubeHomeFeed: List<YouTubeFeedItem> = emptyList()
@@ -1361,7 +1360,6 @@ class SnapMusicViewModel(
         refreshedAdaptivePlaybackSources.clear()
         playbackFallbackModes.clear()
         youtubeRebufferEvents.clear()
-        youtubeLastQualityDowngradeAt.clear()
         val current = _youtubeState.value
         _youtubeState.value = current.copy(
             showPlayer = false,
@@ -2178,53 +2176,15 @@ class SnapMusicViewModel(
         val current = _youtubeState.value
         val featured = current.featured
         val sourceUrl = featured.sourceUrl
-        val media = featured.resolvedMedia ?: return
         if (sourceUrl.isBlank() || featured.selectedVideoQualityId != "auto") return
         val now = System.currentTimeMillis()
         val events = youtubeRebufferEvents.getOrPut(sourceUrl) { mutableListOf() }
         events.removeAll { now - it > 20_000L }
         events += now
-        val shouldDowngrade = durationMs >= 1_500L || events.size >= 2
-        if (!shouldDowngrade) return
-        if (now - (youtubeLastQualityDowngradeAt[sourceUrl] ?: 0L) < 20_000L) return
-        val targetHeight = nextLowerPlaybackHeight(featured) ?: return
-        val targetVariantId = resolvePlaybackVariantIdForHeight(featured, targetHeight) ?: return
-        youtubeLastQualityDowngradeAt[sourceUrl] = now
         Log.w(
             YOUTUBE_PLAYBACK_LOG_TAG,
-            "source=$sourceUrl rebuffer durationMs=$durationMs positionMs=$positionMs fallbackQuality=$targetVariantId",
+            "source=$sourceUrl rebuffer durationMs=$durationMs positionMs=$positionMs events=${events.size} autoQualityStable=true",
         )
-        switchYouTubePlaybackQuality(targetVariantId)
-    }
-
-    private fun nextLowerPlaybackHeight(featured: YouTubeFeaturedVideo): Int? {
-        val media = featured.resolvedMedia ?: return null
-        val currentHeight = featured.actualVideoHeight
-            ?: preferredAutomaticPlaybackHeight(media)
-            ?: 720
-        val heights = (featured.availablePlaybackHeights + media.videoVariants.mapNotNull { it.resolution?.substringBefore('p')?.toIntOrNull() })
-            .filter { it > 0 }
-            .distinct()
-            .sortedDescending()
-        return heights.filter { it < currentHeight }.maxOrNull()
-            ?: heights.filter { it < 720 }.maxOrNull()
-    }
-
-    private fun resolvePlaybackVariantIdForHeight(
-        featured: YouTubeFeaturedVideo,
-        targetHeight: Int,
-    ): String? {
-        val media = featured.resolvedMedia ?: return null
-        val adaptive = media.adaptivePlaybackUrl?.takeIf(::isAdaptivePlaybackUrl)
-        if (adaptive != null) return "adaptive-$targetHeight"
-        return media.videoVariants
-            .filter { !it.directUrl.isNullOrBlank() }
-            .minWithOrNull(
-                compareBy<com.juan.snapmusic.core.model.MediaVariant> {
-                    kotlin.math.abs((it.resolution?.substringBefore('p')?.toIntOrNull() ?: targetHeight) - targetHeight)
-                }.thenBy { it.requiresMux },
-            )
-            ?.id
     }
 
     fun requestYouTubeDownloadSheet() {
@@ -3706,7 +3666,6 @@ class SnapMusicViewModel(
         refreshedAdaptivePlaybackSources.remove(sourceUrl)
         playbackFallbackModes.remove(sourceUrl)
         youtubeRebufferEvents.remove(sourceUrl)
-        youtubeLastQualityDowngradeAt.remove(sourceUrl)
     }
 
     private fun playbackLabelForSelection(

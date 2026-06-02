@@ -136,7 +136,13 @@ fun FeaturedVideoCard(
     }
     var sheetMode by remember(featured.sourceUrl) { mutableStateOf<WatchSheetMode?>(null) }
     val qualityOptions = remember(featured.playbackUrl, featured.resolvedMedia) { featured.toWatchQualityOptions() }
-    val currentQualityLabel = remember(featured.playbackUrl, featured.resolvedMedia) {
+    val currentQualityLabel = remember(
+        featured.playbackUrl,
+        featured.resolvedMedia,
+        featured.selectedVideoQualityId,
+        featured.actualVideoHeight,
+        featured.actualPlaybackLabel,
+    ) {
         featured.currentQualityLabel()
     }
     var playbackSpeed by remember(featured.sourceUrl, player) { mutableStateOf(player?.playbackParameters?.speed ?: 1f) }
