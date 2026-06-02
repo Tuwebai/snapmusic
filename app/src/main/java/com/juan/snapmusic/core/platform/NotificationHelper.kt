@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
 
 private const val CHANNEL_ID = "snapmusic_downloads"
+private const val SNAPMUSIC_RED = 0xFFFF3131.toInt()
 
 class NotificationHelper(
     context: Context,
@@ -71,7 +72,9 @@ class NotificationHelper(
         )
 
         return NotificationCompat.Builder(appContext, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_downloading)
+            .setSmallIcon(R.drawable.ic_stat_snapmusic)
+            .setColor(SNAPMUSIC_RED)
+            .setColorized(true)
             .setContentTitle("Descargando")
             .setContentText(shortTitle(title))
             .setCustomContentView(contentView)
@@ -122,6 +125,8 @@ class NotificationHelper(
         )
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_snapmusic)
+            .setColor(SNAPMUSIC_RED)
+            .setColorized(true)
             .setContentTitle("Descarga completa")
             .setContentText(shortTitle(title))
             .setCustomContentView(contentView)
@@ -148,6 +153,8 @@ class NotificationHelper(
         )
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_snapmusic)
+            .setColor(SNAPMUSIC_RED)
+            .setColorized(true)
             .setContentTitle("No pude terminar la descarga")
             .setContentText(shortTitle(title))
             .setCustomContentView(contentView)
