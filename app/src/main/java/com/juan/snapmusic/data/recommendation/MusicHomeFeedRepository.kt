@@ -240,6 +240,23 @@ class MusicHomeFeedRepository(
         engine.rankRelatedCandidates(currentItem, candidates, profile, impressions, limit, primaryUrls = directRelatedUrls)
     }
 
+    suspend fun rankWatchNextCandidates(
+        currentItem: YouTubeFeedItem,
+        candidates: List<YouTubeFeedItem>,
+        limit: Int,
+    ): List<YouTubeFeedItem> = withContext(Dispatchers.IO) {
+        if (candidates.isEmpty()) return@withContext emptyList()
+        engine.rankRelatedCandidates(
+            currentItem = currentItem,
+            candidates = candidates
+                .filter { it.url != currentItem.url }
+                .distinctBy(YouTubeFeedItem::url),
+            profile = buildProfile(),
+            impressions = recentImpressions(),
+            limit = limit,
+        )
+    }
+
     private suspend fun limitedSearch(
         queries: List<String>,
         concurrency: Int,

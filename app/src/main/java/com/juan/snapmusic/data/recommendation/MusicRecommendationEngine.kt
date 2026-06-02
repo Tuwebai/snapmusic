@@ -329,6 +329,7 @@ class MusicRecommendationEngine {
 
         candidates.forEach { recommendation ->
             if (selected.size >= limit) return@forEach
+            if (recommendation.item.url in selectedUrls) return@forEach
             val artist = recommendation.classification.artistKey
             val channel = recommendation.classification.channelKey
             val recentWindow = selected.takeLast(if (strictArtistDiversity) 8 else 12)

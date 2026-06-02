@@ -2387,7 +2387,26 @@ class SnapMusicViewModel(
     ): List<YouTubeFeedItem> {
         if (queueItems.isEmpty()) return emptyList()
         val normalizedIndex = currentIndex.coerceIn(0, queueItems.lastIndex)
-        return queueItems.drop((normalizedIndex + 1).coerceAtMost(queueItems.size))
+        val currentUrl = queueItems[normalizedIndex].url
+        return queueItems
+            .drop((normalizedIndex + 1).coerceAtMost(queueItems.size))
+            .filter { it.url != currentUrl }
+            .distinctBy(YouTubeFeedItem::url)
+    }
+
+    private fun rebuildQueueWithWatchNext(
+        queueItems: List<YouTubeFeedItem>,
+        currentIndex: Int,
+        rankedWatchNext: List<YouTubeFeedItem>,
+    ): Pair<List<YouTubeFeedItem>, List<YouTubeFeedItem>> {
+        if (queueItems.isEmpty()) return rankedWatchNext to rankedWatchNext
+        val normalizedIndex = currentIndex.coerceIn(0, queueItems.lastIndex)
+        val queuePrefix = queueItems.take(normalizedIndex + 1)
+        val prefixUrls = queuePrefix.mapTo(linkedSetOf(), YouTubeFeedItem::url)
+        val visibleWatchNext = rankedWatchNext
+            .filter { it.url !in prefixUrls }
+            .distinctBy(YouTubeFeedItem::url)
+        return (queuePrefix + visibleWatchNext).distinctBy(YouTubeFeedItem::url) to visibleWatchNext
     }
 
     private fun retryYouTubePlaybackSource(rawMessage: String?): Boolean {
@@ -2608,15 +2627,26 @@ class SnapMusicViewModel(
                     existingQueue.any { queued -> queued.url == candidate.url } ||
                     existingWatchNext.any { queued -> queued.url == candidate.url }
             }
-            if (appendedRelated.isEmpty()) {
+            val mergedCandidates = (existingWatchNext + appendedRelated)
+                .filter { candidate -> candidate.url != item.url }
+                .distinctBy(YouTubeFeedItem::url)
+            val rankedWatchNext = graph.musicHomeFeedRepository.rankWatchNextCandidates(
+                currentItem = item,
+                candidates = mergedCandidates,
+                limit = mergedCandidates.size.coerceAtLeast(existingWatchNext.size),
+            )
+            val (queueItems, watchNextItems) = rebuildQueueWithWatchNext(
+                queueItems = existingQueue,
+                currentIndex = currentIndex,
+                rankedWatchNext = rankedWatchNext.ifEmpty { existingWatchNext },
+            )
+            if (watchNextItems == existingWatchNext && appendedRelated.isEmpty()) {
                 _youtubeState.value = current.copy(
                     watchNextItems = existingWatchNext,
                     canLoadMoreWatchNext = related.size >= YOUTUBE_WATCH_NEXT_PAGE_SIZE,
                 )
                 return@launch
             }
-            val queueItems = existingQueue + appendedRelated
-            val watchNextItems = existingWatchNext + appendedRelated
             _youtubeState.value = current.copy(
                 playbackQueue = queueItems,
                 watchNextItems = watchNextItems,
@@ -2659,16 +2689,19 @@ class SnapMusicViewModel(
                             existingQueue.any { existing -> existing.url == candidate.url } ||
                             existingWatchNext.any { existing -> existing.url == candidate.url }
                     }
-                    val updatedQueue = if (newRelated.isEmpty()) {
-                        existingQueue
-                    } else {
-                        existingQueue + newRelated
-                    }
-                    val updatedWatchNext = if (newRelated.isEmpty()) {
-                        existingWatchNext
-                    } else {
-                        existingWatchNext + newRelated
-                    }
+                    val mergedCandidates = (existingWatchNext + newRelated)
+                        .filter { candidate -> candidate.url != featuredItem.url }
+                        .distinctBy(YouTubeFeedItem::url)
+                    val rankedWatchNext = graph.musicHomeFeedRepository.rankWatchNextCandidates(
+                        currentItem = featuredItem,
+                        candidates = mergedCandidates,
+                        limit = mergedCandidates.size.coerceAtLeast(existingWatchNext.size),
+                    )
+                    val (updatedQueue, updatedWatchNext) = rebuildQueueWithWatchNext(
+                        queueItems = existingQueue,
+                        currentIndex = currentIndex,
+                        rankedWatchNext = rankedWatchNext.ifEmpty { existingWatchNext },
+                    )
                     _youtubeState.value = latest.copy(
                         playbackQueue = updatedQueue,
                         watchNextItems = updatedWatchNext,
