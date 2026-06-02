@@ -109,6 +109,7 @@ dependencies {
     implementation(libs.androidx.media3.datasource.okhttp)
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.ui)
+    implementation(libs.google.play.services.cast.framework)
     implementation(libs.okhttp)
     implementation(libs.google.material)
     implementation(libs.newpipe.extractor)

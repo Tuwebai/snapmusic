@@ -465,7 +465,7 @@ internal fun FeaturedVideoMetadataPanel(
 
             Row(
                 modifier = Modifier.padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(0.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Button(
@@ -487,6 +487,7 @@ internal fun FeaturedVideoMetadataPanel(
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
+                YouTubeCastRouteButton(modifier = Modifier.size(48.dp))
             }
         }
     }

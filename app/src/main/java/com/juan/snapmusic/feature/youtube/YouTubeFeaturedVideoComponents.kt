@@ -124,6 +124,7 @@ fun FeaturedVideoCard(
 ) {
     val context = LocalContext.current
     var showFullscreenShell by rememberSaveable(featured.sourceUrl) { mutableStateOf(false) }
+    YouTubeCastPlaybackEffect(featured = featured, player = player)
     val featuredThumbnailModel = remember(featured.thumbnailUrl) {
         ImageRequest.Builder(context)
             .data(featured.thumbnailUrl)
