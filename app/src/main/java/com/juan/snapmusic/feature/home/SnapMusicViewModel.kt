@@ -94,6 +94,7 @@ class SnapMusicViewModel(
         const val YOUTUBE_WATCH_NEXT_LOOKAHEAD_SIZE = 12
         const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 75_000L
         const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 60_000L
+        const val YOUTUBE_NEXT_PRE_RESOLVE_STABLE_WINDOW_MS = 45_000L
         const val HOME_TAB_YOUTUBE_INDEX = 1
         const val YOUTUBE_WATCH_COMMENT_FALLBACK = "Elegí un formato y mandalo a la cola sin salir de esta pantalla."
         private const val YOUTUBE_FEED_DUPLICATE_PAGE_RETRY_LIMIT = 2
@@ -2342,7 +2343,8 @@ class SnapMusicViewModel(
             safePosition >= YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS &&
             current.autoplayEnabled &&
             current.preloadedNextFeatured == null &&
-            nextQueuePreResolveJob?.isActive != true
+            nextQueuePreResolveJob?.isActive != true &&
+            isYouTubePlaybackStableForPreResolve(current)
         ) {
             val queueItems = current.playbackQueue.ifEmpty { current.items }
             if (queueItems.isNotEmpty()) {
@@ -3139,12 +3141,7 @@ class SnapMusicViewModel(
         }
         if (!allowNetwork) return
         val warmState = _youtubeState.value
-        if (
-            warmState.currentPositionMs < YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS ||
-            warmState.isRefreshingVideo ||
-            warmState.pendingTransition ||
-            (!warmState.showPlayer && !warmState.showMiniPlayer)
-        ) {
+        if (!isYouTubePlaybackStableForPreResolve(warmState)) {
             return
         }
         nextQueuePreResolveJob = viewModelScope.launch(Dispatchers.IO) {
@@ -3158,6 +3155,24 @@ class SnapMusicViewModel(
                     }
             }
         }
+    }
+
+    private fun isYouTubePlaybackStableForPreResolve(state: YouTubeUiState): Boolean {
+        val sourceUrl = state.featured.sourceUrl
+        return sourceUrl.isNotBlank() &&
+            state.featured.isReady &&
+            state.currentPositionMs >= YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS &&
+            !state.isRefreshingVideo &&
+            !state.pendingTransition &&
+            (state.showPlayer || state.showMiniPlayer) &&
+            !hasRecentYouTubeRebuffer(sourceUrl)
+    }
+
+    private fun hasRecentYouTubeRebuffer(sourceUrl: String): Boolean {
+        val events = youtubeRebufferEvents[sourceUrl] ?: return false
+        val now = System.currentTimeMillis()
+        events.removeAll { now - it > YOUTUBE_NEXT_PRE_RESOLVE_STABLE_WINDOW_MS }
+        return events.isNotEmpty()
     }
 
     private fun nextYouTubePlaybackSeekRequestId(state: YouTubeUiState): Long {
