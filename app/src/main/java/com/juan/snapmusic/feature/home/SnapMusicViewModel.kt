@@ -151,6 +151,7 @@ class SnapMusicViewModel(
     private val _youtubeDownloadSheet = MutableStateFlow(YouTubeDownloadSheetState())
     private val _youtubeSearchSuggestions = MutableStateFlow<List<String>>(emptyList())
     private val _youtubeSearchSuggestionsLoading = MutableStateFlow(false)
+    private val _recentSearchQueries = MutableStateFlow<List<String>>(emptyList())
     private val youTubeResolveCache = object : LinkedHashMap<String, YouTubeFeaturedVideo>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, YouTubeFeaturedVideo>?): Boolean {
             return size > 50
@@ -659,9 +660,10 @@ class SnapMusicViewModel(
     private val searchSuggestionCorpus = combine(
         youtubeState.map { it.items }.distinctUntilChanged(),
         _downloadSearchState.map { it.popularQueries }.distinctUntilChanged(),
-    ) { items, popularQueries ->
+        _recentSearchQueries,
+    ) { items, popularQueries, recentQueries ->
         buildSearchSuggestionCorpus(
-            popularQueries = popularQueries,
+            popularQueries = recentQueries + popularQueries,
             items = items,
         )
     }
@@ -902,6 +904,9 @@ class SnapMusicViewModel(
         )
 
     init {
+        viewModelScope.launch(Dispatchers.IO) {
+            _recentSearchQueries.value = graph.preferencesRepository.readRecentSearchQueries()
+        }
         viewModelScope.launch {
             graph.launchPreferencesRepository.youtubeAutoplayEnabled.collect { youtubeAutoplayEnabled ->
                 val current = _youtubeState.value
@@ -1485,6 +1490,7 @@ class SnapMusicViewModel(
             refreshYoutubeHome()
             return
         }
+        rememberSearchQuery(query)
         viewModelScope.launch {
             _youtubeState.value = _youtubeState.value.copy(
                 isLoading = true,
@@ -1665,9 +1671,11 @@ class SnapMusicViewModel(
             val remoteSuggestions = runCatching {
                 graph.resolverRepository.searchSuggestions(query)
             }.getOrDefault(emptyList())
+            val localSuggestions = filterSuggestionCorpus(query, _recentSearchQueries.value, 4)
             val fallbackSuggestions = buildFallbackSearchSuggestions(query)
             val merged = buildList {
                 add(query)
+                addAll(localSuggestions)
                 addAll(remoteSuggestions)
                 addAll(fallbackSuggestions)
             }
@@ -1699,9 +1707,11 @@ class SnapMusicViewModel(
             delay(160)
             _downloadSearchState.value = _downloadSearchState.value.copy(isLoadingSuggestions = true)
             val remoteSuggestions = runCatching { graph.resolverRepository.searchSuggestions(query) }.getOrDefault(emptyList())
+            val localSuggestions = filterSuggestionCorpus(query, _recentSearchQueries.value, 4)
             val fallbackSuggestions = filterSuggestionCorpus(query, searchSuggestionCorpus.value, 8)
             val merged = buildList {
                 add(query)
+                addAll(localSuggestions)
                 addAll(remoteSuggestions)
                 addAll(fallbackSuggestions)
             }
@@ -1767,6 +1777,17 @@ class SnapMusicViewModel(
         val normalized = query.trim()
         if (normalized.isBlank()) return emptyList()
         return filterSuggestionCorpus(normalized, searchSuggestionCorpus.value, 8)
+    }
+
+    private fun rememberSearchQuery(query: String) {
+        val normalized = query.trim()
+        if (normalized.isBlank()) return
+        _recentSearchQueries.value = (listOf(normalized) + _recentSearchQueries.value)
+            .distinctBy { it.lowercase() }
+            .take(20)
+        viewModelScope.launch(Dispatchers.IO) {
+            _recentSearchQueries.value = graph.preferencesRepository.rememberRecentSearchQuery(normalized)
+        }
     }
 
     private fun filterSuggestionCorpus(

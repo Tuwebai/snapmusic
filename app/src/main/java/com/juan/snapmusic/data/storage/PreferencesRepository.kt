@@ -45,6 +45,7 @@ class PreferencesRepository(
     private val youtubeHomeFeedCacheKey = stringPreferencesKey("youtube_home_feed_cache")
     private val musicAffinitySignalsKey = stringPreferencesKey("music_affinity_signals")
     private val musicFeedImpressionsKey = stringPreferencesKey("music_feed_impressions")
+    private val recentSearchQueriesKey = stringPreferencesKey("recent_search_queries")
     private val themeModeKey = stringPreferencesKey("theme_mode")
     private val previewVolumeKey = floatPreferencesKey("preview_volume")
 
@@ -226,6 +227,31 @@ class PreferencesRepository(
     suspend fun readMusicAffinitySignals(): List<MusicAffinitySignal> {
         val prefs = context.snapMusicStore.data.first()
         return MusicRecommendationCodec.decodeSignals(prefs[musicAffinitySignalsKey])
+    }
+
+    suspend fun rememberRecentSearchQuery(
+        query: String,
+        maxItems: Int = 20,
+    ): List<String> {
+        val normalized = query.trim()
+        if (normalized.isBlank()) return readRecentSearchQueries()
+        val updated = (listOf(normalized) + readRecentSearchQueries())
+            .distinctBy { it.lowercase() }
+            .take(maxItems)
+        val encoded = MusicRecommendationCodec.encodeSearchQueries(updated)
+        context.snapMusicStore.edit { prefs ->
+            if (encoded.isBlank()) {
+                prefs.remove(recentSearchQueriesKey)
+            } else {
+                prefs[recentSearchQueriesKey] = encoded
+            }
+        }
+        return updated
+    }
+
+    suspend fun readRecentSearchQueries(): List<String> {
+        val prefs = context.snapMusicStore.data.first()
+        return MusicRecommendationCodec.decodeSearchQueries(prefs[recentSearchQueriesKey]).take(20)
     }
 
     suspend fun saveMusicFeedImpressions(items: List<FeedImpression>) {

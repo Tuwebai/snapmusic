@@ -83,6 +83,28 @@ internal object MusicRecommendationCodec {
         }.getOrDefault(emptyList())
     }
 
+    fun encodeSearchQueries(items: List<String>): String {
+        val normalized = items
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .distinctBy { it.lowercase() }
+        if (normalized.isEmpty()) return ""
+        return JSONArray().apply { normalized.forEach(::put) }.toString()
+    }
+
+    fun decodeSearchQueries(raw: String?): List<String> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val query = array.optString(index).trim()
+                    if (query.isNotBlank()) add(query)
+                }
+            }.distinctBy { it.lowercase() }
+        }.getOrDefault(emptyList())
+    }
+
     private fun JSONArray?.toStringList(): List<String> {
         if (this == null) return emptyList()
         return buildList {

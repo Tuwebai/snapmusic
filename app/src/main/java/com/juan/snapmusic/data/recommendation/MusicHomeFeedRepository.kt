@@ -271,6 +271,7 @@ class MusicHomeFeedRepository(
     }
 
     suspend fun recordSearch(query: String) {
+        preferencesRepository.rememberRecentSearchQuery(query)
         val classification = engine.classifyQuery(query)
         preferencesRepository.appendMusicAffinitySignal(
             MusicAffinitySignal(
