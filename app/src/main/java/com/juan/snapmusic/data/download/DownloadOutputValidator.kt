@@ -31,6 +31,10 @@ class DownloadOutputValidator(
                     error("El M4A final no se pudo reproducir correctamente.")
                 }
 
+                ContainerFormat.WEBM -> if (hasAudio == "no") {
+                    error("El OPUS/WEBM final no se pudo reproducir correctamente.")
+                }
+
                 ContainerFormat.MP4 -> {
                     val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO)
                     if (hasVideo != "yes") error("El MP4 final no contiene video reproducible.")

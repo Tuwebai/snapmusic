@@ -107,6 +107,7 @@ private fun ContainerFormat.toMimeType(): String {
     return when (this) {
         ContainerFormat.MP3 -> "audio/mpeg"
         ContainerFormat.M4A -> "audio/mp4"
+        ContainerFormat.WEBM -> "audio/webm"
         ContainerFormat.MP4 -> "video/mp4"
     }
 }

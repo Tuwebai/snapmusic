@@ -5,7 +5,7 @@ import com.juan.snapmusic.core.model.ContainerFormat
 
 class NoOpTranscodeEngine : TranscodeEngine {
     override suspend fun extractAudio(input: Uri, format: ContainerFormat, quality: String): Uri {
-        if (format == ContainerFormat.M4A) return input
+        if (format == ContainerFormat.M4A || format == ContainerFormat.WEBM) return input
         error("La transcodificación avanzada todavía no está conectada al bundle local de FFmpegKit.")
     }
 

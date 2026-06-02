@@ -12,6 +12,7 @@ enum class MediaKind {
 enum class ContainerFormat {
     MP3,
     M4A,
+    WEBM,
     MP4,
 }
 

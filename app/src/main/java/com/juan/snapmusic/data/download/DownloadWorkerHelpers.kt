@@ -89,6 +89,7 @@ internal fun buildFileName(title: String, format: ContainerFormat): String {
     val suffix = when (format) {
         ContainerFormat.MP3 -> ".mp3"
         ContainerFormat.M4A -> ".m4a"
+        ContainerFormat.WEBM -> ".webm"
         ContainerFormat.MP4 -> ".mp4"
     }
     return sanitizeFileName(title) + suffix
@@ -97,6 +98,7 @@ internal fun buildFileName(title: String, format: ContainerFormat): String {
 internal fun mimeTypeFor(format: ContainerFormat): String = when (format) {
     ContainerFormat.MP3 -> "audio/mpeg"
     ContainerFormat.M4A -> "audio/mp4"
+    ContainerFormat.WEBM -> "audio/webm"
     ContainerFormat.MP4 -> "video/mp4"
 }
 

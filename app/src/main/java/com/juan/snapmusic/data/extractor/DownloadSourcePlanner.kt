@@ -66,6 +66,31 @@ internal object DownloadSourcePlanner {
                 allowTranscodeFallback = true,
             )
         }
+        compatible
+            .filter { it.isDirectWebmOpus() }
+            .sortedWith(
+                compareByDescending<AudioSourceCandidate> { sanitizeBitrate(it.bitrateKbps) ?: 0 }
+                    .thenBy { audioTrackPriority(it) }
+                    .thenBy { it.id },
+            )
+            .distinctBy { sanitizeBitrate(it.bitrateKbps) ?: -1 }
+            .forEach { candidate ->
+                val bitrate = sanitizeBitrate(candidate.bitrateKbps)
+                variants += MediaVariant(
+                    id = "audio-webm-${candidate.id}",
+                    label = buildWebmOpusLabel(bitrate),
+                    kind = MediaKind.AUDIO,
+                    container = ContainerFormat.WEBM,
+                    bitrateKbps = bitrate,
+                    directUrl = candidate.url,
+                    requiresTranscode = false,
+                    isSyntheticOutput = false,
+                    sourceId = candidate.id,
+                    sourceContainerHint = candidate.sourceContainerHint,
+                    sourceBitrateKbps = bitrate,
+                    allowTranscodeFallback = false,
+                )
+            }
         val ceiling = compatible.maxOfOrNull { sanitizeBitrate(it.bitrateKbps) ?: 0 }?.takeIf { it > 0 }
         preferredMp3Targets(ceiling).forEach { targetBitrate ->
             val source = pickBestAudioSource(compatible, targetBitrate, null, null) ?: return@forEach
@@ -77,6 +102,7 @@ internal object DownloadSourcePlanner {
             .sortedWith(
                 compareByDescending<MediaVariant> { it.container == ContainerFormat.MP3 }
                     .thenByDescending { it.container == ContainerFormat.M4A }
+                    .thenByDescending { it.container == ContainerFormat.WEBM }
                     .thenByDescending { it.bitrateKbps ?: 0 },
             )
     }
@@ -230,7 +256,28 @@ internal object DownloadSourcePlanner {
                 )
             }
 
-            else -> error("Solo soportamos descargas de audio finales en MP3 o M4A.")
+            ContainerFormat.WEBM -> {
+                val direct = pickBestDirectWebmSource(
+                    candidates = compatible,
+                    targetBitrate = targetBitrate,
+                    preferredSourceId = selection.preferredSourceId,
+                ) ?: error("No hay una fuente OPUS/WEBM directa compatible para esa calidad.")
+                val effectiveBitrate = outputBitrateFor(ContainerFormat.WEBM, direct.bitrateKbps ?: targetBitrate)
+                DownloadExecutionPlan.Direct(
+                    selection = selection.copy(
+                        targetBitrateKbps = effectiveBitrate,
+                        strategy = DownloadStrategy.DIRECT,
+                        preferredSourceId = direct.id,
+                        sourceContainerHint = direct.sourceContainerHint,
+                        sourceBitrateKbps = sanitizeBitrate(direct.bitrateKbps),
+                        allowTranscodeFallback = false,
+                    ),
+                    source = direct.toTransferSource(),
+                    displayLabel = buildWebmOpusLabel(effectiveBitrate),
+                )
+            }
+
+            else -> error("Solo soportamos descargas de audio finales en MP3, M4A u OPUS/WEBM.")
         }
     }
 
@@ -324,6 +371,26 @@ internal object DownloadSourcePlanner {
             )
     }
 
+    private fun pickBestDirectWebmSource(
+        candidates: List<AudioSourceCandidate>,
+        targetBitrate: Int?,
+        preferredSourceId: String?,
+    ): AudioSourceCandidate? {
+        return candidates
+            .filter { it.isDirectWebmOpus() }
+            .minWithOrNull(
+                compareBy<AudioSourceCandidate> {
+                    if (preferredSourceId != null && it.id == preferredSourceId) 0 else 1
+                }.thenBy {
+                    audioTrackPriority(it)
+                }.thenBy {
+                    audioDistance(sanitizeBitrate(it.bitrateKbps), targetBitrate)
+                }.thenByDescending {
+                    sanitizeBitrate(it.bitrateKbps) ?: 0
+                },
+            )
+    }
+
     private fun pickBestAudioSource(
         candidates: List<AudioSourceCandidate>,
         targetBitrate: Int?,
@@ -376,6 +443,10 @@ internal object DownloadSourcePlanner {
         return if (bitrateKbps != null) "${container.name} ${bitrateKbps}kbps" else container.name
     }
 
+    private fun buildWebmOpusLabel(bitrateKbps: Int?): String {
+        return if (bitrateKbps != null) "WEBM OPUS ${bitrateKbps}kbps" else "WEBM OPUS"
+    }
+
     private fun buildVideoLabel(height: Int?): String {
         return if (height != null) "MP4 ${height}p" else "MP4"
     }
@@ -398,6 +469,12 @@ internal object DownloadSourcePlanner {
 
     private fun sanitizeBitrate(value: Int?): Int? =
         value?.takeIf { it > 0 }
+
+    private fun AudioSourceCandidate.isDirectWebmOpus(): Boolean {
+        if (!isAudioOnly || url.isBlank()) return false
+        val hint = sourceContainerHint.uppercase()
+        return "WEBM" in hint || "WEBMA" in hint || "OPUS" in hint
+    }
 
     private fun outputBitrateFor(container: ContainerFormat, value: Int?): Int? {
         val sanitized = sanitizeBitrate(value) ?: return null
