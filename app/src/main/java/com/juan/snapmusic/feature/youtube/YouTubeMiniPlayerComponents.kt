@@ -140,8 +140,10 @@ fun YouTubeMiniPlayer(
                 onOpen = onOpen,
             )
             Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                verticalArrangement = Arrangement.SpaceBetween,
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -248,35 +250,35 @@ private fun YouTubeMiniPlaybackControls(
         }
     }
     Row(
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onPrevious, modifier = Modifier.size(28.dp)) {
+        IconButton(onClick = onPrevious, modifier = Modifier.size(34.dp)) {
             Icon(
                 imageVector = Icons.Outlined.SkipPrevious,
                 contentDescription = "Video anterior",
                 tint = TextPrimary,
-                modifier = Modifier.size(17.dp),
+                modifier = Modifier.size(21.dp),
             )
         }
         IconButton(
             onClick = onTogglePlayPause,
             enabled = player != null,
-            modifier = Modifier.size(30.dp),
+            modifier = Modifier.size(38.dp),
         ) {
             Icon(
                 imageVector = if (isPlaying) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
                 contentDescription = if (isPlaying) "Pausar" else "Reproducir",
                 tint = TextPrimary,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(24.dp),
             )
         }
-        IconButton(onClick = onNext, modifier = Modifier.size(28.dp)) {
+        IconButton(onClick = onNext, modifier = Modifier.size(34.dp)) {
             Icon(
                 imageVector = Icons.Outlined.SkipNext,
                 contentDescription = "Video siguiente",
                 tint = TextPrimary,
-                modifier = Modifier.size(17.dp),
+                modifier = Modifier.size(21.dp),
             )
         }
     }
