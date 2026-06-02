@@ -86,7 +86,7 @@ class SnapMusicViewModel(
         const val YOUTUBE_HOME_FEED_PAGE_SIZE = 18
         const val YOUTUBE_HOME_CACHE_PRIME_COUNT = YOUTUBE_HOME_FEED_PAGE_SIZE
         const val YOUTUBE_WATCH_NEXT_PAGE_SIZE = 18
-        const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 12_000L
+        const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 75_000L
         const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 60_000L
         const val HOME_TAB_YOUTUBE_INDEX = 1
         const val YOUTUBE_WATCH_COMMENT_FALLBACK = "Elegí un formato y mandalo a la cola sin salir de esta pantalla."
@@ -1979,6 +1979,8 @@ class SnapMusicViewModel(
         userInitiated: Boolean,
     ) {
         watchNextEnrichmentJob?.cancel()
+        youtubeFeedPrefetchJob?.cancel()
+        youtubeLoadMoreJob?.cancel()
         val current = _youtubeState.value
         val queueItems = current.playbackQueue.ifEmpty { current.items }
         if (queueItems.isEmpty()) return
@@ -3371,7 +3373,7 @@ class SnapMusicViewModel(
     private fun prefetchFeedItems(items: List<YouTubeFeedItem>) {
         if (startupPrefetchDone) return
         val current = _youtubeState.value
-        if (!current.showPlayer && !current.showMiniPlayer) return
+        if (current.showPlayer || current.showMiniPlayer) return
         startupPrefetchDone = true
         youtubeFeedPrefetchJob?.cancel()
         val itemsToPrefetch = items.asSequence()

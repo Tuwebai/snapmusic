@@ -13,6 +13,7 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import okhttp3.ConnectionPool
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import java.nio.charset.StandardCharsets
 import java.util.Base64
@@ -65,10 +66,16 @@ object YouTubePlaybackHeaders {
 }
 
 private object PlaybackHttpClientHolder {
+    private val dispatcher = Dispatcher().apply {
+        maxRequests = 24
+        maxRequestsPerHost = 12
+    }
+
     val client: OkHttpClient = OkHttpClient.Builder()
+        .dispatcher(dispatcher)
         .connectionPool(ConnectionPool(8, 5, TimeUnit.MINUTES))
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(45, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
