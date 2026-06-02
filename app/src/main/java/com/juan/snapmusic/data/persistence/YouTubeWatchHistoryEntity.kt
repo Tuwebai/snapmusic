@@ -18,6 +18,7 @@ data class YouTubeWatchHistoryEntity(
     val viewCount: Long?,
     val publishedText: String?,
     val description: String?,
+    val lastPositionMs: Long,
     val watchedAt: Long,
 )
 
@@ -30,5 +31,6 @@ fun YouTubeWatchHistoryEntity.toModel() = YouTubeWatchHistoryEntry(
     viewCount = viewCount,
     publishedText = publishedText,
     description = description,
+    lastPositionMs = lastPositionMs,
     watchedAt = watchedAt,
 )

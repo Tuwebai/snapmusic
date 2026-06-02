@@ -226,6 +226,16 @@ private fun WatchHistoryPreviewCard(
                     .clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Crop,
             )
+            val progress = watchProgressFraction(item)
+            if (progress > 0f) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth(progress)
+                        .height(3.dp)
+                        .background(Color.Red),
+                )
+            }
             if (item.durationSeconds > 0) {
                 Text(
                     text = formatDuration(item.durationSeconds),
@@ -247,7 +257,7 @@ private fun WatchHistoryPreviewCard(
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            item.author,
+            watchHistoryResumeLabel(item.lastPositionMs) ?: item.author,
             color = TextSecondary,
             style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
@@ -264,9 +274,20 @@ private fun YouTubeWatchHistoryEntry.toFeedItem(): YouTubeFeedItem {
         thumbnailUrl = thumbnailUrl,
         durationSeconds = durationSeconds,
         viewCount = viewCount,
-        publishedText = publishedText,
+        publishedText = watchHistoryResumeLabel(lastPositionMs) ?: publishedText,
         description = description,
     )
+}
+
+private fun watchHistoryResumeLabel(positionMs: Long): String? {
+    if (positionMs <= 0L) return null
+    return "Visto hasta ${formatDuration((positionMs / 1_000L).coerceAtLeast(1L))}"
+}
+
+private fun watchProgressFraction(item: YouTubeWatchHistoryEntry): Float {
+    val durationMs = item.durationSeconds * 1_000L
+    if (durationMs <= 0L || item.lastPositionMs <= 0L) return 0f
+    return (item.lastPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
 }
 
 private fun watchHistoryDayLabel(timestampMs: Long): String {

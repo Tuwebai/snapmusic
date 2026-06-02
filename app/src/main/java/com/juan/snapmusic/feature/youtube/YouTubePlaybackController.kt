@@ -389,10 +389,10 @@ fun rememberYouTubePlayer(
                 val playWhenReady = mediaController.playWhenReady
                 val buffering = !activelyPlaying
                 val shouldReport =
-                    lastReportedPlayWhenReady != playWhenReady ||
+                        lastReportedPlayWhenReady != playWhenReady ||
                         lastReportedBuffering != buffering ||
                         lastReportedPosition < 0L ||
-                        kotlin.math.abs(currentPosition - lastReportedPosition) >= 10_000L
+                        kotlin.math.abs(currentPosition - lastReportedPosition) >= 2_000L
                 if (shouldReport) {
                     lastReportedPosition = currentPosition
                     lastReportedPlayWhenReady = playWhenReady

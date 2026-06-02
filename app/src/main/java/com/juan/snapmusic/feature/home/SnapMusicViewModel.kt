@@ -163,6 +163,8 @@ class SnapMusicViewModel(
     private val playbackFallbackModes = linkedMapOf<String, MutableSet<YouTubePlaybackSourceMode>>()
     private val youtubeRebufferEvents = linkedMapOf<String, MutableList<Long>>()
     private val youtubeLastQualityDowngradeAt = linkedMapOf<String, Long>()
+    private val youtubeWatchHistoryLastRecordedPositions = linkedMapOf<String, Long>()
+    private val pendingYouTubeHistoryResumePositions = linkedMapOf<String, Long>()
     private var cachedYouTubeHomeFeed: List<YouTubeFeedItem> = emptyList()
     private var queueObservationStarted = false
     private var historyObservationStarted = false
@@ -1784,12 +1786,20 @@ class SnapMusicViewModel(
         val current = _youtubeState.value
         maybeRecordFastSkip(current, item)
         if (current.featured.sourceUrl == item.url && current.featured.resolvedMedia != null) {
+            val resumePositionMs = consumePendingYouTubeHistoryResumePosition(item)
             _youtubeState.value = current.copy(
                 showPlayer = true,
                 showMiniPlayer = false,
+                currentPositionMs = resumePositionMs,
+                playbackSeekRequestId = if (resumePositionMs > 0L) {
+                    nextYouTubePlaybackSeekRequestId(current)
+                } else {
+                    current.playbackSeekRequestId
+                },
                 shouldAutoPlayCurrent = true,
                 errorMessage = null,
             )
+            maybeRecordYouTubeWatchHistory(item, resumePositionMs, force = true)
             persistCurrentYouTubeSnapshot()
             return
         }
@@ -1808,6 +1818,11 @@ class SnapMusicViewModel(
     }
 
     fun playYouTubeWatchHistoryItem(entry: YouTubeWatchHistoryEntry) {
+        val resumePositionMs = normalizedYouTubeResumePosition(
+            positionMs = entry.lastPositionMs,
+            durationSeconds = entry.durationSeconds,
+        )
+        pendingYouTubeHistoryResumePositions[entry.sourceUrl] = resumePositionMs
         selectYouTubeItem(
             YouTubeFeedItem(
                 url = entry.sourceUrl,
@@ -1893,6 +1908,7 @@ class SnapMusicViewModel(
         if (queueItems.isEmpty()) return
         val normalizedIndex = index.coerceIn(0, queueItems.lastIndex)
         val target = queueItems[normalizedIndex]
+        val resumePositionMs = consumePendingYouTubeHistoryResumePosition(target)
         val keepMiniPlayer = current.showMiniPlayer && !current.showPlayer
         val seededWatchNextItems = initialWatchNextItems(queueItems, normalizedIndex)
         if (current.featured.sourceUrl == target.url && current.featured.isReady) {
@@ -1907,7 +1923,7 @@ class SnapMusicViewModel(
                     null
                 },
                 preloadedNextFeatured = nextQueueItem(queueItems, normalizedIndex, current.continuationMode)?.let { youTubeResolveCache[it.url] },
-                currentPositionMs = 0L,
+                currentPositionMs = resumePositionMs,
                 playbackSeekRequestId = nextYouTubePlaybackSeekRequestId(current),
                 isRefreshingVideo = false,
                 pendingTransition = false,
@@ -1917,6 +1933,7 @@ class SnapMusicViewModel(
                 errorMessage = null,
             )
             recordPlaybackSignal(target, MusicSignalType.REPLAY)
+            maybeRecordYouTubeWatchHistory(target, resumePositionMs, force = true)
             persistCurrentYouTubeSnapshot()
             preResolveNextQueueItem(queueItems, normalizedIndex, current.continuationMode)
             return
@@ -1931,7 +1948,7 @@ class SnapMusicViewModel(
             featured = target.toLoadingFeaturedVideo(),
             showPlayer = !keepMiniPlayer,
             showMiniPlayer = keepMiniPlayer,
-            currentPositionMs = 0L,
+            currentPositionMs = resumePositionMs,
             playbackSeekRequestId = nextYouTubePlaybackSeekRequestId(current),
             shouldAutoPlayCurrent = userInitiated,
             nextUpItem = if (current.autoplayEnabled) {
@@ -1964,12 +1981,17 @@ class SnapMusicViewModel(
                             null
                         },
                         preloadedNextFeatured = nextQueueItem(queueItems, normalizedIndex, latest.continuationMode)?.let { youTubeResolveCache[it.url] },
-                        currentPositionMs = 0L,
-                        playbackSeekRequestId = latest.playbackSeekRequestId,
+                        currentPositionMs = resumePositionMs,
+                        playbackSeekRequestId = if (resumePositionMs > 0L) {
+                            nextYouTubePlaybackSeekRequestId(latest)
+                        } else {
+                            latest.playbackSeekRequestId
+                        },
                         shouldAutoPlayCurrent = userInitiated,
                         errorMessage = null,
                     )
                     recordPlaybackSignal(target, MusicSignalType.PLAY_START)
+                    maybeRecordYouTubeWatchHistory(target, resumePositionMs, force = true)
                     persistCurrentYouTubeSnapshot()
                     preResolveNextQueueItem(queueItems, normalizedIndex, latest.continuationMode)
                 }
@@ -2254,6 +2276,11 @@ class SnapMusicViewModel(
                     continuationMode = current.continuationMode,
                     allowNetwork = true,
                 )
+            }
+        }
+        if (shouldAutoPlay || youtubeWatchHistoryLastRecordedPositions.containsKey(current.featured.sourceUrl)) {
+            currentYouTubeQueueItem(current)?.let { item ->
+                maybeRecordYouTubeWatchHistory(item, safePosition, force = persist || shouldCheckpoint)
             }
         }
         maybeRecordPlaybackMilestones(current.featured, safePosition)
@@ -2696,10 +2723,7 @@ class SnapMusicViewModel(
         val durationMs = featured.durationSeconds.coerceAtLeast(0L) * 1_000L
         val milestones = youTubePlaybackMilestones.getOrPut(featured.sourceUrl) { mutableSetOf() }
         if (positionMs >= 30_000L && milestones.add(MusicSignalType.PLAY_30S)) {
-            currentYouTubeQueueItem()?.let { item ->
-                recordPlaybackSignal(item, MusicSignalType.PLAY_30S)
-                recordYouTubeWatchHistory(item)
-            }
+            currentYouTubeQueueItem()?.let { recordPlaybackSignal(it, MusicSignalType.PLAY_30S) }
         }
         if (durationMs > 0L && positionMs >= (durationMs * 0.7).toLong() && milestones.add(MusicSignalType.PLAY_70_PERCENT)) {
             currentYouTubeQueueItem()?.let { recordPlaybackSignal(it, MusicSignalType.PLAY_70_PERCENT) }
@@ -2711,6 +2735,28 @@ class SnapMusicViewModel(
     ): YouTubeFeedItem? {
         val queueItems = state.playbackQueue.ifEmpty { state.items }
         return queueItems.getOrNull(resolveCurrentQueueIndex(state, queueItems))
+    }
+
+    private fun consumePendingYouTubeHistoryResumePosition(item: YouTubeFeedItem): Long {
+        val pendingPosition = pendingYouTubeHistoryResumePositions.remove(item.url) ?: return 0L
+        return normalizedYouTubeResumePosition(
+            positionMs = pendingPosition,
+            durationSeconds = item.durationSeconds,
+        )
+    }
+
+    private fun normalizedYouTubeResumePosition(
+        positionMs: Long,
+        durationSeconds: Long,
+    ): Long {
+        val safePosition = positionMs.coerceAtLeast(0L)
+        val durationMs = durationSeconds.coerceAtLeast(0L) * 1_000L
+        if (safePosition <= 0L || durationMs <= 10_000L) return safePosition
+        return if (safePosition >= durationMs - 5_000L) {
+            0L
+        } else {
+            safePosition.coerceAtMost(durationMs - 5_000L)
+        }
     }
 
     private fun hasDownloadVariants(media: ResolvedMedia?): Boolean {
@@ -2759,9 +2805,23 @@ class SnapMusicViewModel(
         }
     }
 
-    private fun recordYouTubeWatchHistory(item: YouTubeFeedItem) {
+    private fun maybeRecordYouTubeWatchHistory(
+        item: YouTubeFeedItem,
+        positionMs: Long,
+        force: Boolean,
+    ) {
+        val lastPosition = youtubeWatchHistoryLastRecordedPositions[item.url]
+        if (!force && lastPosition != null && kotlin.math.abs(positionMs - lastPosition) < 2_000L) return
+        youtubeWatchHistoryLastRecordedPositions[item.url] = positionMs
+        recordYouTubeWatchHistory(item, positionMs)
+    }
+
+    private fun recordYouTubeWatchHistory(
+        item: YouTubeFeedItem,
+        positionMs: Long,
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching { graph.youtubeWatchHistoryRepository.record(item) }
+            runCatching { graph.youtubeWatchHistoryRepository.record(item, positionMs) }
         }
     }
 

@@ -172,6 +172,7 @@ data class YouTubeWatchHistoryEntry(
     val viewCount: Long?,
     val publishedText: String?,
     val description: String?,
+    val lastPositionMs: Long,
     val watchedAt: Long,
 )
 

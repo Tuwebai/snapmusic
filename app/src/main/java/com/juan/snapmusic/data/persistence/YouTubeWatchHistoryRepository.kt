@@ -12,7 +12,7 @@ class YouTubeWatchHistoryRepository(
         return dao.observeYouTubeWatchHistory().map { list -> list.map { it.toModel() } }
     }
 
-    suspend fun record(item: YouTubeFeedItem) {
+    suspend fun record(item: YouTubeFeedItem, positionMs: Long) {
         if (item.url.isBlank()) return
         dao.upsertYouTubeWatchHistory(
             YouTubeWatchHistoryEntity(
@@ -24,6 +24,7 @@ class YouTubeWatchHistoryRepository(
                 viewCount = item.viewCount,
                 publishedText = item.publishedText,
                 description = item.description,
+                lastPositionMs = positionMs.coerceAtLeast(0L),
                 watchedAt = System.currentTimeMillis(),
             ),
         )
