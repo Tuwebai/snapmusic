@@ -26,5 +26,18 @@ fun validateYouTubeUrl(raw: String): UrlValidation {
     if (host !in allowedHosts) {
         return UrlValidation(message = "Por ahora SnapMusic v1 solo acepta links de YouTube.")
     }
-    return UrlValidation(normalizedUrl = normalized)
+    val playbackUrl = if (host == "music.youtube.com") {
+        URI(
+            uri.scheme,
+            uri.userInfo,
+            "www.youtube.com",
+            uri.port,
+            uri.path,
+            uri.query,
+            uri.fragment,
+        ).toString()
+    } else {
+        normalized
+    }
+    return UrlValidation(normalizedUrl = playbackUrl)
 }
