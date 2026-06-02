@@ -8,6 +8,7 @@ import com.juan.snapmusic.core.model.MusicSignalType
 import com.juan.snapmusic.core.model.YouTubeFeedItem
 import com.juan.snapmusic.data.extractor.StreamResolverRepository
 import com.juan.snapmusic.data.persistence.HistoryRepository
+import com.juan.snapmusic.data.persistence.YouTubeWatchHistoryRepository
 import com.juan.snapmusic.data.storage.PreferencesRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -20,6 +21,7 @@ class MusicHomeFeedRepository(
     private val resolverRepository: StreamResolverRepository,
     private val preferencesRepository: PreferencesRepository,
     private val historyRepository: HistoryRepository,
+    private val youtubeWatchHistoryRepository: YouTubeWatchHistoryRepository,
     private val engine: MusicRecommendationEngine,
 ) {
     private companion object {
@@ -290,6 +292,7 @@ class MusicHomeFeedRepository(
     private suspend fun buildProfile() = engine.buildUserProfile(
         signals = preferencesRepository.readMusicAffinitySignals(),
         downloadHistory = historyRepository.observeHistory().first(),
+        watchHistory = youtubeWatchHistoryRepository.observeHistory().first(),
     )
 
     private suspend fun recentImpressions(): List<FeedImpression> {

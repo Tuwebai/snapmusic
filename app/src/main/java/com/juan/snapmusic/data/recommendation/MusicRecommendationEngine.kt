@@ -9,6 +9,7 @@ import com.juan.snapmusic.core.model.MusicInterestProfile
 import com.juan.snapmusic.core.model.MusicSignalType
 import com.juan.snapmusic.core.model.RelatedMusicRecommendation
 import com.juan.snapmusic.core.model.YouTubeFeedItem
+import com.juan.snapmusic.core.model.YouTubeWatchHistoryEntry
 import java.text.Normalizer
 import kotlin.math.ln
 
@@ -20,6 +21,7 @@ class MusicRecommendationEngine {
     fun buildUserProfile(
         signals: List<MusicAffinitySignal>,
         downloadHistory: List<HistoryEntry>,
+        watchHistory: List<YouTubeWatchHistoryEntry> = emptyList(),
         nowMs: Long = System.currentTimeMillis(),
     ): MusicInterestProfile {
         val artistScores = linkedMapOf<String, Double>()
@@ -54,6 +56,31 @@ class MusicRecommendationEngine {
             }
             classification.tags.forEach { tag -> tagScores[tag] = (tagScores[tag] ?: 0.0) + weight }
             contentTypeScores[classification.contentType] = (contentTypeScores[classification.contentType] ?: 0.0) + weight
+        }
+
+        watchHistory.take(160).forEach { item ->
+            val classification = classify(item.title, item.author, item.description, item.durationSeconds)
+            if (!classification.isMusic) return@forEach
+            val durationMs = (item.durationSeconds * 1_000L).coerceAtLeast(0L)
+            val completionRate = if (durationMs > 0L) {
+                item.lastPositionMs.coerceAtLeast(0L).toDouble() / durationMs.toDouble()
+            } else {
+                0.0
+            }
+            val engagementWeight = when {
+                completionRate >= 0.7 -> 4.0
+                item.lastPositionMs >= 30_000L -> 2.5
+                item.lastPositionMs > 0L -> 1.2
+                else -> 0.8
+            }
+            val weight = recencyWeight(nowMs - item.watchedAt) * engagementWeight
+            item.sourceUrl.takeIf(String::isNotBlank)?.let(recentUrls::add)
+            if (classification.artistKey.isNotBlank()) {
+                artistScores[classification.artistKey] = (artistScores[classification.artistKey] ?: 0.0) + weight
+                recentArtists.add(classification.artistKey)
+            }
+            classification.tags.forEach { tag -> tagScores[tag] = (tagScores[tag] ?: 0.0) + (weight * 0.8) }
+            contentTypeScores[classification.contentType] = (contentTypeScores[classification.contentType] ?: 0.0) + (weight * 0.5)
         }
 
         return MusicInterestProfile(

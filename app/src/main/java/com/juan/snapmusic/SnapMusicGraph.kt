@@ -97,6 +97,7 @@ class SnapMusicGraph(
             resolverRepository = resolverRepository,
             preferencesRepository = preferencesRepository,
             historyRepository = historyRepository,
+            youtubeWatchHistoryRepository = youtubeWatchHistoryRepository,
             engine = musicRecommendationEngine,
         )
     }
