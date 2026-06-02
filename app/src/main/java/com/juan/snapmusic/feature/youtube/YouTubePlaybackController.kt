@@ -90,6 +90,15 @@ private fun MediaController.sameYouTubeQueueAs(queueItems: List<MediaItem>): Boo
     }
 }
 
+private fun MediaController.syncNextYouTubeQueueItem(queueItems: List<MediaItem>) {
+    val nextItem = queueItems.getOrNull(1)
+    when {
+        nextItem == null && mediaItemCount > 1 -> removeMediaItems(1, mediaItemCount)
+        nextItem != null && mediaItemCount > 1 && !getMediaItemAt(1).samePlaybackAs(nextItem) -> replaceMediaItem(1, nextItem)
+        nextItem != null && mediaItemCount == 1 -> addMediaItem(nextItem)
+    }
+}
+
 private fun androidx.media3.common.PlaybackException.isExpiredStream403(): Boolean {
     var cursor: Throwable? = this
     var has403Cause = false
@@ -284,7 +293,14 @@ fun rememberYouTubePlayer(
         )
         if (queueItems.isEmpty()) return@LaunchedEffect
         val sameQueue = mediaController.sameYouTubeQueueAs(queueItems)
-        if (!sameQueue) {
+        val sameCurrent = mediaController.mediaItemCount > 0 &&
+            mediaController.getMediaItemAt(0).samePlaybackAs(queueItems[0])
+        if (sameCurrent) {
+            if (!mediaController.getMediaItemAt(0).sameArtworkAs(queueItems[0])) {
+                mediaController.replaceMediaItem(0, queueItems[0])
+            }
+            mediaController.syncNextYouTubeQueueItem(queueItems)
+        } else if (!sameQueue) {
             val resumePositionMs =
                 if (mediaController.currentMediaItem?.mediaId == featured.sourceUrl) {
                     mediaController.currentPosition.coerceAtLeast(0L)
