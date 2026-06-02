@@ -138,10 +138,10 @@ internal fun LandscapeFullscreenVideoDialog(
     BackHandler(enabled = visible) { onDismiss() }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {},
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
-            dismissOnBackPress = true,
+            dismissOnBackPress = false,
             dismissOnClickOutside = false,
         ),
     ) {
