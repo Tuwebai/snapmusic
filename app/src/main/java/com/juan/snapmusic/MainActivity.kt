@@ -6,6 +6,8 @@ import android.app.RemoteAction
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
@@ -49,8 +51,12 @@ class MainActivity : ComponentActivity() {
         const val ROUTE_QUEUE = "queue"
         const val ROUTE_PREVIEW = "preview"
         const val ROUTE_HOME = "home"
+        const val ROUTE_SEARCH = "search"
         const val ROUTE_PLAYBACK = "playback"
         private const val EXTRA_PERFORMANCE_TELEMETRY = "extra_performance_telemetry"
+        private const val SHORTCUT_SEARCH = "shortcut_search"
+        private const val SHORTCUT_DOWNLOADS = "shortcut_downloads"
+        private const val SHORTCUT_LAST_SONG = "shortcut_last_song"
         private val YOUTUBE_URL_REGEX = Regex("""https?://\S+""")
 
         fun buildOpenQueuePendingIntent(context: Context): PendingIntent {
@@ -107,6 +113,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         window.decorView.post {
+            publishAppShortcuts()
             if (isFrameTelemetryEnabled() && jankStats == null) {
                 jankStats = JankStats.createAndTrack(window) { frameData ->
                     PerformanceTelemetry.recordFrame(frameData)
@@ -145,6 +152,71 @@ class MainActivity : ComponentActivity() {
 
     private fun isFrameTelemetryEnabled(): Boolean {
         return BuildConfig.DEBUG || intent?.getBooleanExtra(EXTRA_PERFORMANCE_TELEMETRY, false) == true
+    }
+
+    private fun publishAppShortcuts() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) return
+        val shortcutManager = getSystemService(ShortcutManager::class.java) ?: return
+        val shortcutIds = listOf(SHORTCUT_SEARCH, SHORTCUT_DOWNLOADS, SHORTCUT_LAST_SONG)
+        val shortcuts = listOf(
+            buildRouteShortcut(
+                id = SHORTCUT_SEARCH,
+                shortLabel = "Buscar",
+                longLabel = "Buscar en SnapMusic",
+                disabledMessage = "Abrí SnapMusic para buscar música.",
+                iconResId = android.R.drawable.ic_menu_search,
+                route = ROUTE_SEARCH,
+                rank = 0,
+            ),
+            buildRouteShortcut(
+                id = SHORTCUT_DOWNLOADS,
+                shortLabel = "Mis descargas",
+                longLabel = "Abrir mis descargas",
+                disabledMessage = "Abrí SnapMusic para ver tus descargas.",
+                iconResId = android.R.drawable.stat_sys_download_done,
+                route = ROUTE_QUEUE,
+                rank = 1,
+            ),
+            buildRouteShortcut(
+                id = SHORTCUT_LAST_SONG,
+                shortLabel = "Última canción",
+                longLabel = "Reproducir última canción",
+                disabledMessage = "Abrí SnapMusic para reproducir tu última canción.",
+                iconResId = android.R.drawable.ic_media_play,
+                route = ROUTE_PLAYBACK,
+                rank = 2,
+            ),
+        )
+        shortcutManager.removeDynamicShortcuts(shortcutIds)
+        shortcutManager.addDynamicShortcuts(shortcuts)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.N_MR1)
+    private fun buildRouteShortcut(
+        id: String,
+        shortLabel: String,
+        longLabel: String,
+        disabledMessage: String,
+        iconResId: Int,
+        route: String,
+        rank: Int,
+    ): ShortcutInfo {
+        return ShortcutInfo.Builder(this, id)
+            .setShortLabel(shortLabel)
+            .setLongLabel(longLabel)
+            .setDisabledMessage(disabledMessage)
+            .setIcon(Icon.createWithResource(this, iconResId))
+            .setIntent(buildShortcutIntent(route))
+            .setRank(rank)
+            .build()
+    }
+
+    private fun buildShortcutIntent(route: String): Intent {
+        return Intent(this, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(EXTRA_ROUTE, route)
+        }
     }
 
     override fun onDestroy() {

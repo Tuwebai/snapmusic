@@ -212,7 +212,13 @@ private fun NotificationRouteEffectHost(
 ) {
     LaunchedEffect(notificationRoute, currentRoute, state) {
         if (notificationRoute != null) {
-            if (notificationRoute == SnapMusicDestination.Queue.route) {
+            if (notificationRoute == MainActivity.ROUTE_SEARCH) {
+                viewModel.selectHomeSearchTab()
+                viewModel.openDownloadSearchOverlay()
+                if (currentRoute != SnapMusicDestination.Home.route) {
+                    onNavigate(SnapMusicDestination.Home.route)
+                }
+            } else if (notificationRoute == SnapMusicDestination.Queue.route) {
                 viewModel.requestOpenPreviewDownloads()
                 if (currentRoute != SnapMusicDestination.Preview.route) {
                     onNavigate(SnapMusicDestination.Preview.route)
