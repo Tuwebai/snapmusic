@@ -61,10 +61,10 @@ internal fun progressFor(strategy: DownloadStrategy, snapshot: DownloadProgressS
         DownloadStrategy.MUX_VIDEO_AUDIO -> when (snapshot.stage) {
             DownloadStage.PREPARING -> 0
             DownloadStage.DOWNLOADING -> scaleProgress(0, 72, fraction, snapshot.bytesDownloaded)
-            DownloadStage.MUXING -> 90
-            DownloadStage.COPYING -> scaleProgress(94, 98, fraction, snapshot.bytesDownloaded)
+            DownloadStage.MUXING -> 72
+            DownloadStage.COPYING -> scaleProgress(72, 98, fraction, snapshot.bytesDownloaded)
             DownloadStage.VALIDATING -> 99
-            else -> 90
+            else -> 72
         }
     }
 }

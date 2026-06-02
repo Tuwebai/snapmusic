@@ -93,6 +93,19 @@ class NotificationHelper(
         manager.notify(progressNotificationId(queueId), buildProgress(queueId, title, variantLabel, 0, thumbnailUrl))
     }
 
+    fun showProgress(
+        queueId: String,
+        title: String,
+        variantLabel: String,
+        progress: Int,
+        thumbnailUrl: String,
+    ) {
+        manager.notify(
+            progressNotificationId(queueId),
+            buildProgress(queueId, title, variantLabel, progress, thumbnailUrl),
+        )
+    }
+
     fun showSuccess(
         queueId: String,
         title: String,

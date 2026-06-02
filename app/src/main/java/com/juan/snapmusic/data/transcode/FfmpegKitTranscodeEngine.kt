@@ -21,7 +21,7 @@ class FfmpegKitTranscodeEngine(
 ) : TranscodeEngine {
     private val workDir = File(context.cacheDir, "ffmpeg").apply { mkdirs() }
 
-    override suspend fun extractAudio(input: Uri, format: ContainerFormat, quality: String): Uri = withContext(Dispatchers.IO) {
+    override suspend fun extractAudio(input: Uri, format: ContainerFormat, quality: String, artwork: Uri?): Uri = withContext(Dispatchers.IO) {
         when (format) {
             ContainerFormat.MP3 -> {
                 val outputFile = File.createTempFile("snapmusic-audio-", ".mp3", workDir)
@@ -29,8 +29,12 @@ class FfmpegKitTranscodeEngine(
                     buildString {
                         append("-y -i ")
                         append(ffmpegPath(input.toFile().absolutePath))
-                        append(" -map 0:a:0 -vn -c:a libmp3lame -b:a ")
+                        appendArtworkInput(artwork)
+                        append(" -map 0:a:0 ")
+                        appendArtworkMap(artwork)
+                        append(" -c:a libmp3lame -b:a ")
                         append("${normalizeBitrate(quality)}k")
+                        appendMp3ArtworkOptions(artwork)
                         append(" -id3v2_version 3 ")
                         append(ffmpegPath(outputFile.absolutePath))
                     },
@@ -44,8 +48,12 @@ class FfmpegKitTranscodeEngine(
                     buildString {
                         append("-y -i ")
                         append(ffmpegPath(input.toFile().absolutePath))
-                        append(" -map 0:a:0 -vn -c:a aac -b:a ")
+                        appendArtworkInput(artwork)
+                        append(" -map 0:a:0 ")
+                        appendArtworkMap(artwork)
+                        append(" -c:a aac -b:a ")
                         append("${normalizeBitrate(quality)}k")
+                        appendM4aArtworkOptions(artwork)
                         append(" -movflags +faststart ")
                         append(ffmpegPath(outputFile.absolutePath))
                     },
@@ -54,6 +62,49 @@ class FfmpegKitTranscodeEngine(
             }
 
             else -> error("Solo podemos extraer audio real en MP3 o M4A.")
+        }
+    }
+
+    override suspend fun tagAudio(input: Uri, format: ContainerFormat, artwork: Uri?): Uri = withContext(Dispatchers.IO) {
+        val cover = artwork ?: return@withContext input
+        when (format) {
+            ContainerFormat.MP3 -> {
+                val outputFile = File.createTempFile("snapmusic-tagged-", ".mp3", workDir)
+                executeOrThrow(
+                    buildString {
+                        append("-y -i ")
+                        append(ffmpegPath(input.toFile().absolutePath))
+                        appendArtworkInput(cover)
+                        append(" -map 0:a:0 ")
+                        appendArtworkMap(cover)
+                        append(" -c:a copy")
+                        appendMp3ArtworkOptions(cover)
+                        append(" -id3v2_version 3 ")
+                        append(ffmpegPath(outputFile.absolutePath))
+                    },
+                )
+                Uri.fromFile(outputFile)
+            }
+
+            ContainerFormat.M4A -> {
+                val outputFile = File.createTempFile("snapmusic-tagged-", ".m4a", workDir)
+                executeOrThrow(
+                    buildString {
+                        append("-y -i ")
+                        append(ffmpegPath(input.toFile().absolutePath))
+                        appendArtworkInput(cover)
+                        append(" -map 0:a:0 ")
+                        appendArtworkMap(cover)
+                        append(" -c:a copy")
+                        appendM4aArtworkOptions(cover)
+                        append(" -movflags +faststart ")
+                        append(ffmpegPath(outputFile.absolutePath))
+                    },
+                )
+                Uri.fromFile(outputFile)
+            }
+
+            else -> input
         }
     }
 
@@ -105,6 +156,30 @@ class FfmpegKitTranscodeEngine(
     }
 
     private fun ffmpegPath(path: String): String = "\"${path.replace("\"", "\\\"")}\""
+
+    private fun StringBuilder.appendArtworkInput(artwork: Uri?) {
+        if (artwork == null) return
+        append(" -i ")
+        append(ffmpegPath(artwork.toFile().absolutePath))
+    }
+
+    private fun StringBuilder.appendArtworkMap(artwork: Uri?) {
+        if (artwork == null) {
+            append(" -vn")
+        } else {
+            append(" -map 1:v:0")
+        }
+    }
+
+    private fun StringBuilder.appendMp3ArtworkOptions(artwork: Uri?) {
+        if (artwork == null) return
+        append(" -c:v mjpeg -metadata:s:v title=\"Album cover\" -metadata:s:v comment=\"Cover (front)\"")
+    }
+
+    private fun StringBuilder.appendM4aArtworkOptions(artwork: Uri?) {
+        if (artwork == null) return
+        append(" -c:v mjpeg -disposition:v:0 attached_pic")
+    }
 
     private fun normalizeBitrate(raw: String): Int {
         return raw.filter(Char::isDigit).toIntOrNull()?.coerceIn(96, 320) ?: 320

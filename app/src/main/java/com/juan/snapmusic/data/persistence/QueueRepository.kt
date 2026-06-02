@@ -94,6 +94,7 @@ class QueueRepository(
         outputUri: String? = null,
         errorMessage: String? = null,
         variantLabel: String? = null,
+        thumbnailUrl: String? = null,
     ) {
         val current = dao.getQueueById(id) ?: return
         dao.upsertQueue(
@@ -103,6 +104,7 @@ class QueueRepository(
                 outputUri = outputUri ?: current.outputUri,
                 errorMessage = errorMessage,
                 variantLabel = variantLabel ?: current.variantLabel,
+                thumbnailUrl = thumbnailUrl ?: current.thumbnailUrl,
             ),
         )
     }

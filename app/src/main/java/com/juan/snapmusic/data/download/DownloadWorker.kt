@@ -5,6 +5,7 @@ import android.content.pm.ServiceInfo
 import android.net.Uri
 import android.os.Build
 import androidx.core.net.toFile
+import androidx.core.net.toUri
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
@@ -85,6 +86,7 @@ class DownloadWorker(
                 100,
                 outputUri = reservedTargetUri.toString(),
                 variantLabel = resolvedVariantLabel,
+                thumbnailUrl = localThumbnailUrl,
             )
             graph.historyRepository.append(
                 id = queueId,
@@ -207,10 +209,26 @@ class DownloadWorker(
                 snapshot = snapshot,
             )
         }
+        var taggedUri: Uri? = null
         try {
-            copyInto(Uri.fromFile(tempFile), targetUri, plan.selection.strategy, queueId, entry, variantLabel)
+            val sourceUri = Uri.fromFile(tempFile)
+            val copySource = if (entry.container == ContainerFormat.MP3 || entry.container == ContainerFormat.M4A) {
+                taggedUri = graph.transcodeEngine.tagAudio(
+                    input = sourceUri,
+                    format = entry.container,
+                    artwork = localArtworkUri(entry.sourceUrl, entry.thumbnailUrl),
+                )
+                taggedUri ?: sourceUri
+            } else {
+                sourceUri
+            }
+            copyInto(copySource, targetUri, plan.selection.strategy, queueId, entry, variantLabel)
         } finally {
             tempFile.delete()
+            taggedUri
+                ?.takeIf { it.scheme == "file" && it != Uri.fromFile(tempFile) }
+                ?.toFile()
+                ?.delete()
         }
     }
 
@@ -239,7 +257,12 @@ class DownloadWorker(
         var transcodedUri: Uri? = null
         try {
             publishStage(queueId, entry, variantLabel, DownloadStage.TRANSCODING, plan.selection.strategy)
-            transcodedUri = graph.transcodeEngine.extractAudio(Uri.fromFile(sourceFile), entry.container, variantLabel)
+            transcodedUri = graph.transcodeEngine.extractAudio(
+                input = Uri.fromFile(sourceFile),
+                format = entry.container,
+                quality = variantLabel,
+                artwork = localArtworkUri(entry.sourceUrl, entry.thumbnailUrl),
+            )
             graph.downloadOutputValidator.validate(transcodedUri, entry.container)
             copyInto(transcodedUri, targetUri, plan.selection.strategy, queueId, entry, variantLabel)
         } finally {
@@ -363,6 +386,7 @@ class DownloadWorker(
             ),
         )
         setForeground(createForegroundInfo(queueId, title, variantLabel, thumbnailUrl, safeProgress))
+        notifications.showProgress(queueId, title, variantLabel, safeProgress, thumbnailUrl)
     }
 
     private suspend fun createForegroundInfo(
@@ -408,6 +432,15 @@ class DownloadWorker(
             artworkFile.delete()
             thumbnailUrl
         }
+    }
+
+    private suspend fun localArtworkUri(
+        sourceUrl: String,
+        thumbnailUrl: String,
+    ): Uri? {
+        return downloadThumbnailForHistory(sourceUrl, thumbnailUrl)
+            .takeIf { it.startsWith("file:", ignoreCase = true) }
+            ?.toUri()
     }
 
     private suspend fun copyInto(
