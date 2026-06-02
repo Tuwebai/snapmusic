@@ -104,13 +104,6 @@ fun DownloadFormatSheet(
                     onSelect = { selectedVariantId = it },
                 )
             }
-            selected?.takeIf { it.requiresTranscode || it.requiresMux }?.let {
-                Text(
-                    text = "Ese formato usa el motor local de SnapMusic para convertir o unir streams antes de guardarlo.",
-                    color = TextSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 TextButton(
                     onClick = onDismiss,
