@@ -202,6 +202,7 @@ data class YouTubeFeedProjection(
 
 @Immutable
 data class YouTubeSuggestionsUiState(
+    val query: String = "",
     val isPlayerVisible: Boolean = false,
     val items: List<YouTubeFeedItem> = emptyList(),
     val isRefreshing: Boolean = false,

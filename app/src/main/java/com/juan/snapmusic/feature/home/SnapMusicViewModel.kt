@@ -637,6 +637,7 @@ class SnapMusicViewModel(
     val youtubeSuggestionsScreen = youtubeFeedProjection
         .map { state ->
             YouTubeSuggestionsUiState(
+                query = state.query,
                 isPlayerVisible = state.showPlayer,
                 items = if (state.showPlayer) {
                     state.watchNextItems

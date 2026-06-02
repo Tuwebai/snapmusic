@@ -153,11 +153,29 @@ private fun YouTubeSuggestionsHost(
     val suggestionsState by viewModel.youtubeSuggestionsScreen.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val visibleItems = suggestionsState.items
+    var lastResultsAnchor by remember { mutableStateOf<String?>(null) }
+    val resultsAnchor = if (suggestionsState.isPlayerVisible) {
+        null
+    } else {
+        visibleItems.firstOrNull()?.url?.let { firstUrl -> "${suggestionsState.query}|$firstUrl" }
+    }
     YouTubeThumbnailPrefetcher(
         items = visibleItems,
         listState = listState,
         isActive = isActive,
     )
+
+    LaunchedEffect(resultsAnchor) {
+        val anchor = resultsAnchor ?: return@LaunchedEffect
+        if (lastResultsAnchor == null) {
+            lastResultsAnchor = anchor
+            return@LaunchedEffect
+        }
+        if (lastResultsAnchor != anchor) {
+            lastResultsAnchor = anchor
+            listState.scrollToItem(0)
+        }
+    }
 
     LaunchedEffect(listState, visibleItems.size, suggestionsState.canLoadMore, suggestionsState.isLoadingMore, isActive) {
         if (!isActive || !suggestionsState.canLoadMore || suggestionsState.isLoadingMore || visibleItems.isEmpty()) {
