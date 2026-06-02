@@ -273,6 +273,8 @@ fun rememberYouTubePlayer(
         controller,
         featured.sourceUrl,
         featured.playbackUrl,
+        seekState.requestId,
+        seekState.positionMs,
         preloadedNextFeatured?.sourceUrl,
         preloadedNextFeatured?.playbackUrl,
     ) {
@@ -296,6 +298,12 @@ fun rememberYouTubePlayer(
         val sameCurrent = mediaController.mediaItemCount > 0 &&
             mediaController.getMediaItemAt(0).samePlaybackAs(queueItems[0])
         if (sameCurrent) {
+            if (
+                seekState.requestId > 0L &&
+                abs(mediaController.currentPosition - seekState.positionMs) > 1_200L
+            ) {
+                mediaController.seekTo(seekState.positionMs.coerceAtLeast(0L))
+            }
             if (!mediaController.getMediaItemAt(0).sameArtworkAs(queueItems[0])) {
                 mediaController.replaceMediaItem(0, queueItems[0])
             }
