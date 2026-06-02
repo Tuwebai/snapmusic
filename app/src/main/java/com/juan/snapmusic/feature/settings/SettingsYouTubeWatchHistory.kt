@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -79,16 +81,23 @@ internal fun SettingsHistoryHero(
         }
         if (items.isEmpty()) {
             Text(
-                "Los videos que reproduzcas más de 30 segundos aparecerán acá.",
+                "Los videos que reproduzcas aparecerán acá.",
                 color = TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
         } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items.take(2).forEach { item ->
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(
+                    items = items.take(8),
+                    key = YouTubeWatchHistoryEntry::sourceUrl,
+                    contentType = { "settings_watch_history_preview" },
+                ) { item ->
                     WatchHistoryPreviewCard(
                         item = item,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.width(168.dp),
                     )
                 }
             }
@@ -197,8 +206,8 @@ private fun WatchHistoryPreviewCard(
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
-    val widthPx = remember(density) { with(density) { 156.dp.roundToPx() } }
-    val heightPx = remember(density) { with(density) { 88.dp.roundToPx() } }
+    val widthPx = remember(density) { with(density) { 168.dp.roundToPx() } }
+    val heightPx = remember(density) { with(density) { 104.dp.roundToPx() } }
     val thumbnailRequest = remember(context, item.thumbnailUrl, widthPx, heightPx) {
         buildYouTubeThumbnailRequest(
             context = context,
@@ -222,7 +231,7 @@ private fun WatchHistoryPreviewCard(
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(86.dp)
+                    .height(104.dp)
                     .clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Crop,
             )
