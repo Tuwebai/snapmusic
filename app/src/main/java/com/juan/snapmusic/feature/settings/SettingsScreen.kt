@@ -28,6 +28,7 @@ import com.juan.snapmusic.feature.home.SnapMusicViewModel
 
 private enum class SettingsPane(val depth: Int) {
     ROOT(0),
+    WATCH_HISTORY(1),
     DOWNLOADS(1),
     NOTIFICATIONS(1),
     THEME(1),
@@ -41,6 +42,7 @@ fun SettingsScreen(
     padding: PaddingValues,
 ) {
     val prefs by viewModel.preferences.collectAsStateWithLifecycle()
+    val youtubeWatchHistory by viewModel.youtubeWatchHistory.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var pane by remember { mutableStateOf(SettingsPane.ROOT) }
     ReportPerformanceScene(screen = "settings", detail = pane.name.lowercase())
@@ -61,6 +63,8 @@ fun SettingsScreen(
     ) { currentPane ->
         when (currentPane) {
             SettingsPane.ROOT -> SettingsRootScreen(
+                youtubeWatchHistory = youtubeWatchHistory,
+                onWatchHistory = { pane = SettingsPane.WATCH_HISTORY },
                 onDownloads = { pane = SettingsPane.DOWNLOADS },
                 onNotifications = { pane = SettingsPane.NOTIFICATIONS },
                 onTheme = { pane = SettingsPane.THEME },
@@ -79,6 +83,12 @@ fun SettingsScreen(
                     )
                 },
                 onAbout = { pane = SettingsPane.ABOUT },
+            )
+
+            SettingsPane.WATCH_HISTORY -> YouTubeWatchHistoryPane(
+                items = youtubeWatchHistory,
+                onBack = { pane = SettingsPane.ROOT },
+                onPlay = viewModel::playYouTubeWatchHistoryItem,
             )
 
             SettingsPane.DOWNLOADS -> DownloadSettingsPane(

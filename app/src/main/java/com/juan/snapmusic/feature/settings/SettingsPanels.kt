@@ -63,6 +63,7 @@ import com.juan.snapmusic.core.designsystem.TextPrimary
 import com.juan.snapmusic.core.designsystem.TextSecondary
 import com.juan.snapmusic.core.model.AppThemeMode
 import com.juan.snapmusic.core.model.UserPreferences
+import com.juan.snapmusic.core.model.YouTubeWatchHistoryEntry
 
 private data class TaskPreset(
     val wifi: Int,
@@ -86,6 +87,8 @@ private val speedOptions = listOf(
 
 @Composable
 internal fun SettingsRootScreen(
+    youtubeWatchHistory: List<YouTubeWatchHistoryEntry>,
+    onWatchHistory: () -> Unit,
     onDownloads: () -> Unit,
     onNotifications: () -> Unit,
     onTheme: () -> Unit,
@@ -103,6 +106,10 @@ internal fun SettingsRootScreen(
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 Text("Configuración", style = MaterialTheme.typography.titleLarge, color = TextPrimary)
+                SettingsHistoryHero(
+                    items = youtubeWatchHistory,
+                    onClick = onWatchHistory,
+                )
                 SettingsSectionLabel("General")
                 SettingsActionRow(Icons.Outlined.Download, "Configuración de descarga", onClick = onDownloads)
                 SettingsActionRow(Icons.Outlined.Notifications, "Configuración de notificaciones", onClick = onNotifications)

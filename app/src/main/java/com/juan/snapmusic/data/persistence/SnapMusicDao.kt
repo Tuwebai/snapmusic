@@ -17,11 +17,17 @@ interface SnapMusicDao {
     @Query("SELECT * FROM history_entries ORDER BY createdAt DESC LIMIT 1")
     fun observeLatestHistory(): Flow<HistoryEntity?>
 
+    @Query("SELECT * FROM youtube_watch_history ORDER BY watchedAt DESC")
+    fun observeYouTubeWatchHistory(): Flow<List<YouTubeWatchHistoryEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertQueue(entity: QueueEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertHistory(entity: HistoryEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertYouTubeWatchHistory(entity: YouTubeWatchHistoryEntity)
 
     @Query("SELECT * FROM queue_entries WHERE id = :id LIMIT 1")
     suspend fun getQueueById(id: String): QueueEntity?

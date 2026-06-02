@@ -33,6 +33,7 @@ import com.juan.snapmusic.core.model.YouTubePlaybackRenderState
 import com.juan.snapmusic.core.model.YouTubePlaybackSnapshot
 import com.juan.snapmusic.core.model.YouTubeQueueOrigin
 import com.juan.snapmusic.core.model.YouTubeUiState
+import com.juan.snapmusic.core.model.YouTubeWatchHistoryEntry
 import com.juan.snapmusic.core.platform.MergedPlaybackUri
 import com.juan.snapmusic.core.platform.PlaybackNotificationRouteStore
 import com.juan.snapmusic.core.platform.PlaybackNotificationRouteTarget
@@ -191,6 +192,14 @@ class SnapMusicViewModel(
     val queue: StateFlow<List<QueueEntry>> = _queue.asStateFlow()
 
     val history: StateFlow<List<HistoryEntry>> = _history.asStateFlow()
+
+    val youtubeWatchHistory: StateFlow<List<YouTubeWatchHistoryEntry>> = graph.youtubeWatchHistoryRepository
+        .observeHistory()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
 
     val downloadBadgeState = queue
         .map { items ->
@@ -1798,6 +1807,21 @@ class SnapMusicViewModel(
         enrichWatchNextQueue(item)
     }
 
+    fun playYouTubeWatchHistoryItem(entry: YouTubeWatchHistoryEntry) {
+        selectYouTubeItem(
+            YouTubeFeedItem(
+                url = entry.sourceUrl,
+                title = entry.title,
+                author = entry.author,
+                thumbnailUrl = entry.thumbnailUrl,
+                durationSeconds = entry.durationSeconds,
+                viewCount = entry.viewCount,
+                publishedText = entry.publishedText,
+                description = entry.description,
+            ),
+        )
+    }
+
     fun prepareYouTubeDownload(item: YouTubeFeedItem) {
         val current = _youtubeState.value
         if (current.featured.sourceUrl == item.url && hasDownloadVariants(current.featured.resolvedMedia)) {
@@ -2672,7 +2696,10 @@ class SnapMusicViewModel(
         val durationMs = featured.durationSeconds.coerceAtLeast(0L) * 1_000L
         val milestones = youTubePlaybackMilestones.getOrPut(featured.sourceUrl) { mutableSetOf() }
         if (positionMs >= 30_000L && milestones.add(MusicSignalType.PLAY_30S)) {
-            currentYouTubeQueueItem()?.let { recordPlaybackSignal(it, MusicSignalType.PLAY_30S) }
+            currentYouTubeQueueItem()?.let { item ->
+                recordPlaybackSignal(item, MusicSignalType.PLAY_30S)
+                recordYouTubeWatchHistory(item)
+            }
         }
         if (durationMs > 0L && positionMs >= (durationMs * 0.7).toLong() && milestones.add(MusicSignalType.PLAY_70_PERCENT)) {
             currentYouTubeQueueItem()?.let { recordPlaybackSignal(it, MusicSignalType.PLAY_70_PERCENT) }
@@ -2729,6 +2756,12 @@ class SnapMusicViewModel(
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { graph.musicHomeFeedRepository.recordPlaybackSignal(type, item) }
+        }
+    }
+
+    private fun recordYouTubeWatchHistory(item: YouTubeFeedItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { graph.youtubeWatchHistoryRepository.record(item) }
         }
     }
 

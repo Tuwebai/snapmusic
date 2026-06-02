@@ -163,6 +163,19 @@ data class HistoryEntry(
 )
 
 @Immutable
+data class YouTubeWatchHistoryEntry(
+    val sourceUrl: String,
+    val title: String,
+    val author: String,
+    val thumbnailUrl: String,
+    val durationSeconds: Long,
+    val viewCount: Long?,
+    val publishedText: String?,
+    val description: String?,
+    val watchedAt: Long,
+)
+
+@Immutable
 data class DownloadStatus(
     val queueId: String,
     val status: QueueStatus,

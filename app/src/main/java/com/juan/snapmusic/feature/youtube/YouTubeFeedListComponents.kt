@@ -83,7 +83,7 @@ fun InlineStatusCard(
 fun YouTubeFeedRow(
     item: YouTubeFeedItem,
     onClick: (YouTubeFeedItem) -> Unit,
-    onDownload: (YouTubeFeedItem) -> Unit,
+    onDownload: ((YouTubeFeedItem) -> Unit)?,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -130,8 +130,10 @@ fun YouTubeFeedRow(
                 Text(metaLabel, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 1)
             }
         }
-        IconButton(onClick = { onDownload(item) }) {
-            Icon(Icons.Outlined.Download, contentDescription = "Descargar", tint = TextSecondary)
+        if (onDownload != null) {
+            IconButton(onClick = { onDownload(item) }) {
+                Icon(Icons.Outlined.Download, contentDescription = "Descargar", tint = TextSecondary)
+            }
         }
     }
 }

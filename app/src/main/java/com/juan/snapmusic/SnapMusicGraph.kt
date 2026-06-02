@@ -11,6 +11,7 @@ import com.juan.snapmusic.data.extractor.OkHttpNewPipeDownloader
 import com.juan.snapmusic.data.persistence.HistoryRepository
 import com.juan.snapmusic.data.persistence.QueueRepository
 import com.juan.snapmusic.data.persistence.SnapMusicDatabase
+import com.juan.snapmusic.data.persistence.YouTubeWatchHistoryRepository
 import com.juan.snapmusic.data.recommendation.MusicHomeFeedRepository
 import com.juan.snapmusic.data.recommendation.MusicRecommendationEngine
 import com.juan.snapmusic.data.storage.LaunchPreferencesRepository
@@ -54,6 +55,7 @@ class SnapMusicGraph(
         Room.databaseBuilder(appContext, SnapMusicDatabase::class.java, "snapmusic.db")
             .addMigrations(SnapMusicDatabase.MIGRATION_2_3)
             .addMigrations(SnapMusicDatabase.MIGRATION_3_4)
+            .addMigrations(SnapMusicDatabase.MIGRATION_4_5)
             .build()
     }
 
@@ -75,6 +77,10 @@ class SnapMusicGraph(
 
     val historyRepository: HistoryRepository by lazy {
         HistoryRepository(database.dao())
+    }
+
+    val youtubeWatchHistoryRepository: YouTubeWatchHistoryRepository by lazy {
+        YouTubeWatchHistoryRepository(database.dao())
     }
 
     val resolverRepository by lazy {

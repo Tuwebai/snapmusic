@@ -12,8 +12,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [QueueEntity::class, HistoryEntity::class],
-    version = 4,
+    entities = [QueueEntity::class, HistoryEntity::class, YouTubeWatchHistoryEntity::class],
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(DatabaseConverters::class)
@@ -114,6 +114,27 @@ abstract class SnapMusicDatabase : RoomDatabase() {
                         END
                     """.trimIndent(),
                 )
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS youtube_watch_history (
+                        sourceUrl TEXT NOT NULL PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        author TEXT NOT NULL,
+                        thumbnailUrl TEXT NOT NULL,
+                        durationSeconds INTEGER NOT NULL,
+                        viewCount INTEGER,
+                        publishedText TEXT,
+                        description TEXT,
+                        watchedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_youtube_watch_history_watchedAt ON youtube_watch_history(watchedAt)")
             }
         }
     }
