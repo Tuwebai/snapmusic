@@ -6,9 +6,6 @@ import android.view.View
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -133,20 +130,8 @@ internal fun FeaturedVideoPlayerShell(
             } == true,
         )
     }
-    var totalVerticalDrag by remember(featured.sourceUrl) { mutableStateOf(0f) }
     var isSeekingPreview by remember(featured.sourceUrl) { mutableStateOf(false) }
     var resumeAfterSeekPreview by remember(featured.sourceUrl, player) { mutableStateOf(false) }
-    val minimizeBySwipeState = rememberDraggableState { delta ->
-        if (delta > 0f) {
-            totalVerticalDrag += delta
-        } else {
-            totalVerticalDrag = (totalVerticalDrag + delta).coerceAtLeast(0f)
-        }
-        if (totalVerticalDrag > 120f) {
-            totalVerticalDrag = 0f
-            onMinimizeVideo()
-        }
-    }
 
     DisposableEffect(player, featured.sourceUrl) {
         val currentPlayer = player
@@ -257,11 +242,6 @@ internal fun FeaturedVideoPlayerShell(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .draggable(
-                    state = minimizeBySwipeState,
-                    orientation = Orientation.Vertical,
-                    onDragStopped = { totalVerticalDrag = 0f },
-                )
                 .videoDoubleTapSeek(
                     onTap = { showOverlayControls = !showOverlayControls },
                     onSeekBack = { player?.seekByClamped(-DOUBLE_TAP_SEEK_MS) },

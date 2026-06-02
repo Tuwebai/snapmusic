@@ -3,6 +3,9 @@ package com.juan.snapmusic.feature.youtube
 
 import android.graphics.Color
 import android.view.View
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -56,6 +59,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,6 +68,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -98,6 +103,7 @@ import com.juan.snapmusic.feature.player.videoDoubleTapSeek
 import androidx.compose.ui.text.style.TextOverflow
 import java.text.DecimalFormat
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val WatchPlayerHeight = 304.dp
 
@@ -135,6 +141,10 @@ fun FeaturedVideoCard(
             .build()
     }
     var sheetMode by remember(featured.sourceUrl) { mutableStateOf<WatchSheetMode?>(null) }
+    var swipeOffsetPx by remember(featured.sourceUrl) { mutableStateOf(0f) }
+    var swipeSettleJob by remember(featured.sourceUrl) { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val swipeScope = rememberCoroutineScope()
+    val swipeProgress = (swipeOffsetPx / 360f).coerceIn(0f, 1f)
     val qualityOptions = remember(featured.playbackUrl, featured.resolvedMedia) { featured.toWatchQualityOptions() }
     val currentQualityLabel = remember(
         featured.playbackUrl,
@@ -173,7 +183,48 @@ fun FeaturedVideoCard(
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        modifier = Modifier
+            .graphicsLayer {
+                translationY = swipeOffsetPx
+                val scale = 1f - (swipeProgress * 0.035f)
+                scaleX = scale
+                scaleY = scale
+                alpha = 1f - (swipeProgress * 0.18f)
+            }
+            .draggable(
+                state = rememberDraggableState { delta ->
+                    if (delta > 0f || swipeOffsetPx > 0f) {
+                        swipeOffsetPx = (swipeOffsetPx + delta).coerceIn(0f, 460f)
+                    }
+                },
+                orientation = Orientation.Vertical,
+                enabled = !showFullscreenShell,
+                onDragStarted = { swipeSettleJob?.cancel() },
+                onDragStopped = { velocity ->
+                    swipeSettleJob?.cancel()
+                    val shouldMinimize = swipeOffsetPx > 132f || velocity > 900f
+                    swipeSettleJob = swipeScope.launch {
+                        val target = if (shouldMinimize) 560f else 0f
+                        animate(
+                            initialValue = swipeOffsetPx,
+                            targetValue = target,
+                            animationSpec = tween(
+                                durationMillis = if (shouldMinimize) 170 else 220,
+                                easing = FastOutSlowInEasing,
+                            ),
+                        ) { value, _ ->
+                            swipeOffsetPx = value
+                        }
+                        if (shouldMinimize) {
+                            swipeOffsetPx = 0f
+                            onMinimizeVideo()
+                        }
+                    }
+                },
+            ),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         FeaturedVideoPlayerShell(
             featured = featured,
             player = player,
