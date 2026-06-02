@@ -18,6 +18,9 @@ data class PlaybackSessionState(
     val target: PlaybackSessionTarget = PlaybackSessionTarget.NONE,
     val mediaId: String? = null,
     val mediaUri: Uri? = null,
+    val title: String? = null,
+    val subtitle: String? = null,
+    val artworkUri: Uri? = null,
     val playWhenReady: Boolean = false,
     val isPlaying: Boolean = false,
     val playbackState: Int = Player.STATE_IDLE,
@@ -35,6 +38,9 @@ object PlaybackSessionStateStore {
     fun updateRuntime(
         mediaId: String?,
         mediaUri: Uri?,
+        title: String? = null,
+        subtitle: String? = null,
+        artworkUri: Uri? = null,
         playWhenReady: Boolean,
         isPlaying: Boolean,
         playbackState: Int,
@@ -45,6 +51,9 @@ object PlaybackSessionStateStore {
                 current.target == target &&
                 current.mediaId == mediaId &&
                 current.mediaUri == mediaUri &&
+                current.title == title &&
+                current.subtitle == subtitle &&
+                current.artworkUri == artworkUri &&
                 current.playWhenReady == playWhenReady &&
                 current.isPlaying == isPlaying &&
                 current.playbackState == playbackState
@@ -55,6 +64,9 @@ object PlaybackSessionStateStore {
                     target = target,
                     mediaId = mediaId,
                     mediaUri = mediaUri,
+                    title = title,
+                    subtitle = subtitle,
+                    artworkUri = artworkUri,
                     playWhenReady = playWhenReady,
                     isPlaying = isPlaying,
                     playbackState = playbackState,

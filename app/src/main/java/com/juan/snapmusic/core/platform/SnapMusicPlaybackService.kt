@@ -88,6 +88,11 @@ class SnapMusicPlaybackService : MediaSessionService() {
                 PlaybackSessionStateStore.updateRuntime(
                     mediaId = currentItem?.mediaId,
                     mediaUri = currentItem?.localConfiguration?.uri,
+                    title = currentItem?.mediaMetadata?.title?.toString()
+                        ?: currentItem?.mediaMetadata?.displayTitle?.toString(),
+                    subtitle = currentItem?.mediaMetadata?.artist?.toString()
+                        ?: currentItem?.mediaMetadata?.subtitle?.toString(),
+                    artworkUri = currentItem?.mediaMetadata?.artworkUri,
                     playWhenReady = player.playWhenReady,
                     isPlaying = player.isPlaying,
                     playbackState = player.playbackState,
@@ -118,6 +123,11 @@ class SnapMusicPlaybackService : MediaSessionService() {
         PlaybackSessionStateStore.updateRuntime(
             mediaId = player.currentMediaItem?.mediaId,
             mediaUri = player.currentMediaItem?.localConfiguration?.uri,
+            title = player.currentMediaItem?.mediaMetadata?.title?.toString()
+                ?: player.currentMediaItem?.mediaMetadata?.displayTitle?.toString(),
+            subtitle = player.currentMediaItem?.mediaMetadata?.artist?.toString()
+                ?: player.currentMediaItem?.mediaMetadata?.subtitle?.toString(),
+            artworkUri = player.currentMediaItem?.mediaMetadata?.artworkUri,
             playWhenReady = player.playWhenReady,
             isPlaying = player.isPlaying,
             playbackState = player.playbackState,
@@ -147,6 +157,7 @@ class SnapMusicPlaybackService : MediaSessionService() {
                 serviceScope.launch {
                     var lastNotificationTransportState: Triple<PlaybackSessionTarget, Boolean, Boolean>? = null
                     PlaybackSessionStateStore.state.collectLatest { state ->
+                        HomePlaybackWidgetProvider.updateAll(this@SnapMusicPlaybackService, state)
                         val notificationController = session.mediaNotificationControllerInfo ?: return@collectLatest
                         val transportState = Triple(
                             state.target,
