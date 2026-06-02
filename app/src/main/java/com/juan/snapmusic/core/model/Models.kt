@@ -55,6 +55,68 @@ data class ResolvedMedia(
     val adaptivePlaybackUrl: String? = null,
     val audioVariants: List<MediaVariant>,
     val videoVariants: List<MediaVariant>,
+    val seekPreviewFramesets: List<SeekPreviewFrameset> = emptyList(),
+)
+
+@Immutable
+data class SeekPreviewFrameset(
+    val urls: List<String>,
+    val frameWidth: Int,
+    val frameHeight: Int,
+    val totalCount: Int,
+    val durationPerFrameMs: Int,
+    val framesPerPageX: Int,
+    val framesPerPageY: Int,
+) {
+    fun frameAt(positionMs: Long): SeekPreviewFrame? {
+        if (
+            urls.isEmpty() ||
+            frameWidth <= 0 ||
+            frameHeight <= 0 ||
+            totalCount <= 0 ||
+            durationPerFrameMs <= 0 ||
+            framesPerPageX <= 0 ||
+            framesPerPageY <= 0
+        ) {
+            return null
+        }
+        val framesPerPage = (framesPerPageX * framesPerPageY).coerceAtLeast(1)
+        val frameIndex = (positionMs.coerceAtLeast(0L) / durationPerFrameMs.toLong())
+            .toInt()
+            .coerceIn(0, totalCount - 1)
+        val pageIndex = (frameIndex / framesPerPage).coerceIn(0, urls.lastIndex)
+        val frameInPage = frameIndex % framesPerPage
+        val column = frameInPage % framesPerPageX
+        val row = frameInPage / framesPerPageX
+        val left = column * frameWidth
+        val top = row * frameHeight
+        return SeekPreviewFrame(
+            imageUrl = urls[pageIndex],
+            left = left,
+            top = top,
+            right = left + frameWidth,
+            bottom = top + frameHeight,
+            frameWidth = frameWidth,
+            frameHeight = frameHeight,
+            pageWidth = framesPerPageX * frameWidth,
+            pageHeight = framesPerPageY * frameHeight,
+            positionMs = frameIndex.toLong() * durationPerFrameMs.toLong(),
+        )
+    }
+}
+
+@Immutable
+data class SeekPreviewFrame(
+    val imageUrl: String,
+    val left: Int,
+    val top: Int,
+    val right: Int,
+    val bottom: Int,
+    val frameWidth: Int,
+    val frameHeight: Int,
+    val pageWidth: Int,
+    val pageHeight: Int,
+    val positionMs: Long,
 )
 
 @Immutable

@@ -4,6 +4,7 @@ import android.net.Uri
 import com.juan.snapmusic.core.model.DownloadExecutionPlan
 import com.juan.snapmusic.core.model.DownloadSelection
 import com.juan.snapmusic.core.model.ResolvedMedia
+import com.juan.snapmusic.core.model.SeekPreviewFrameset
 import com.juan.snapmusic.core.model.YouTubeFeedPage
 import com.juan.snapmusic.core.model.YouTubeFeedItem
 import com.juan.snapmusic.core.platform.YouTubePlaybackHeaders
@@ -24,6 +25,7 @@ import org.schabi.newpipe.extractor.localization.Localization
 import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.DeliveryMethod
+import org.schabi.newpipe.extractor.stream.Frameset
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import org.schabi.newpipe.extractor.stream.StreamType
@@ -79,6 +81,7 @@ class NewPipeStreamResolverRepository(
                 muxCandidates = muxCandidates,
                 audioCandidates = audioCandidates,
             ),
+            seekPreviewFramesets = info.previewFrames.mapNotNull(::toSeekPreviewFrameset),
         )
     }
 
@@ -232,6 +235,20 @@ class NewPipeStreamResolverRepository(
             viewCount = viewCount.takeIf { it > 0 },
             publishedText = textualUploadDate,
             description = shortDescription,
+        )
+    }
+
+    private fun toSeekPreviewFrameset(frameset: Frameset): SeekPreviewFrameset? {
+        val urls = frameset.urls.filter { it.isNotBlank() }
+        if (urls.isEmpty()) return null
+        return SeekPreviewFrameset(
+            urls = urls,
+            frameWidth = frameset.frameWidth,
+            frameHeight = frameset.frameHeight,
+            totalCount = frameset.totalCount,
+            durationPerFrameMs = frameset.durationPerFrame,
+            framesPerPageX = frameset.framesPerPageX,
+            framesPerPageY = frameset.framesPerPageY,
         )
     }
 

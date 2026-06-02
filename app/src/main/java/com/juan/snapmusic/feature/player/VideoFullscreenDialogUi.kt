@@ -62,6 +62,7 @@ import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
+import com.juan.snapmusic.core.model.SeekPreviewFrameset
 import com.juan.snapmusic.core.designsystem.AccentRed
 import com.juan.snapmusic.core.designsystem.TextPrimary
 import com.juan.snapmusic.core.designsystem.TextSecondary
@@ -74,6 +75,7 @@ internal fun LandscapeFullscreenVideoDialog(
     overlayState: PlaybackOverlayState,
     canGoPrevious: Boolean,
     canGoNext: Boolean,
+    seekPreviewFramesets: List<SeekPreviewFrameset> = emptyList(),
     thumbnailVisible: Boolean,
     isBuffering: Boolean = false,
     thumbnail: @Composable (() -> Unit)?,
@@ -204,6 +206,7 @@ internal fun LandscapeFullscreenVideoDialog(
                     playbackState = overlayState.copy(showControls = showControls),
                     canGoPrevious = canGoPrevious,
                     canGoNext = canGoNext,
+                    seekPreviewFramesets = seekPreviewFramesets,
                     onBack = {
                         hasInteracted = true
                         showControls = false

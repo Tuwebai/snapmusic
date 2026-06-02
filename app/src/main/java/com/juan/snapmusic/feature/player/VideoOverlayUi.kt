@@ -19,8 +19,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
@@ -53,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,9 +71,14 @@ import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.size.Size
 import com.juan.snapmusic.core.designsystem.AccentRed
 import com.juan.snapmusic.core.designsystem.TextPrimary
 import com.juan.snapmusic.core.designsystem.TextSecondary
+import com.juan.snapmusic.core.model.SeekPreviewFrame
+import com.juan.snapmusic.core.model.SeekPreviewFrameset
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -228,10 +237,128 @@ internal fun VideoAdjustmentFeedbackOverlay(
 }
 
 @Composable
+private fun SeekPreviewStrip(
+    framesets: List<SeekPreviewFrameset>,
+    positionMs: Long,
+    durationMs: Long,
+    modifier: Modifier = Modifier,
+) {
+    val frameset = remember(framesets) { framesets.bestSeekPreviewFrameset() } ?: return
+    val frames = remember(frameset, positionMs, durationMs) {
+        buildSeekPreviewFrameRow(
+            frameset = frameset,
+            positionMs = positionMs,
+            durationMs = durationMs,
+        )
+    }
+    if (frames.isEmpty()) return
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        color = Color.Black.copy(alpha = 0.62f),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                frames.forEachIndexed { index, frame ->
+                    StoryboardFrameThumbnail(
+                        frame = frame,
+                        selected = index == frames.size / 2,
+                    )
+                }
+            }
+            Text(
+                text = formatOverlayMillis(positionMs),
+                color = TextPrimary,
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
+    }
+}
+
+@Composable
+private fun StoryboardFrameThumbnail(
+    frame: SeekPreviewFrame,
+    selected: Boolean,
+) {
+    val context = LocalContext.current
+    val request = remember(frame.imageUrl, context) {
+        ImageRequest.Builder(context)
+            .data(frame.imageUrl)
+            .crossfade(false)
+            .size(Size.ORIGINAL)
+            .memoryCacheKey("seek-preview:${frame.imageUrl}")
+            .diskCacheKey("seek-preview:${frame.imageUrl}")
+            .build()
+    }
+    val thumbnailWidth = if (selected) 104.dp else 72.dp
+    val thumbnailHeight = thumbnailWidth * (frame.frameHeight.toFloat() / frame.frameWidth.toFloat())
+    val pageWidth = thumbnailWidth * (frame.pageWidth.toFloat() / frame.frameWidth.toFloat())
+    val pageHeight = thumbnailHeight * (frame.pageHeight.toFloat() / frame.frameHeight.toFloat())
+    val offsetX = -thumbnailWidth * (frame.left.toFloat() / frame.frameWidth.toFloat())
+    val offsetY = -thumbnailHeight * (frame.top.toFloat() / frame.frameHeight.toFloat())
+
+    Box(
+        modifier = Modifier
+            .size(width = thumbnailWidth, height = thumbnailHeight)
+            .clip(RoundedCornerShape(if (selected) 10.dp else 8.dp))
+            .background(Color.Black),
+    ) {
+        AsyncImage(
+            model = request,
+            contentDescription = null,
+            contentScale = ContentScale.FillBounds,
+            modifier = Modifier
+                .requiredSize(width = pageWidth, height = pageHeight)
+                .offset(x = offsetX, y = offsetY),
+        )
+    }
+}
+
+private fun List<SeekPreviewFrameset>.bestSeekPreviewFrameset(): SeekPreviewFrameset? {
+    return filter { frameset ->
+        frameset.urls.isNotEmpty() &&
+            frameset.frameWidth > 0 &&
+            frameset.frameHeight > 0 &&
+            frameset.totalCount > 0 &&
+            frameset.durationPerFrameMs > 0 &&
+            frameset.framesPerPageX > 0 &&
+            frameset.framesPerPageY > 0
+    }.minWithOrNull(
+        compareBy<SeekPreviewFrameset> { it.durationPerFrameMs }
+            .thenByDescending { it.frameWidth * it.frameHeight },
+    )
+}
+
+private fun buildSeekPreviewFrameRow(
+    frameset: SeekPreviewFrameset,
+    positionMs: Long,
+    durationMs: Long,
+): List<SeekPreviewFrame> {
+    val safeDuration = durationMs.coerceAtLeast(0L)
+    val center = positionMs.coerceIn(0L, safeDuration)
+    val step = frameset.durationPerFrameMs.toLong().coerceAtLeast(1_000L)
+    return (-2..2)
+        .mapNotNull { offset ->
+            val framePosition = (center + offset * step).coerceIn(0L, safeDuration)
+            frameset.frameAt(framePosition)
+        }
+        .distinctBy { "${it.imageUrl}:${it.left}:${it.top}:${it.right}:${it.bottom}" }
+}
+
+@Composable
 internal fun VideoFullscreenOverlay(
     playbackState: PlaybackOverlayState,
     canGoPrevious: Boolean,
     canGoNext: Boolean,
+    seekPreviewFramesets: List<SeekPreviewFrameset> = emptyList(),
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onPlayPause: () -> Unit,
@@ -337,6 +464,14 @@ internal fun VideoFullscreenOverlay(
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
+            if (sliderBindings.isDragging) {
+                SeekPreviewStrip(
+                    framesets = seekPreviewFramesets,
+                    positionMs = sliderBindings.displayedPositionMs,
+                    durationMs = playbackState.durationMs,
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

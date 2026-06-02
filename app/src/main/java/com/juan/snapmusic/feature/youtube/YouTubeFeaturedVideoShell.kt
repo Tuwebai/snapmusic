@@ -87,6 +87,7 @@ import com.juan.snapmusic.core.designsystem.WarningAmber
 import com.juan.snapmusic.core.model.YouTubeFeaturedVideo
 import com.juan.snapmusic.core.model.YouTubeFeedItem
 import com.juan.snapmusic.core.platform.formatDuration
+import com.juan.snapmusic.core.model.SeekPreviewFrameset
 import com.juan.snapmusic.feature.player.VideoFullscreenOverlay
 import com.juan.snapmusic.feature.player.LandscapeFullscreenVideoDialog
 import com.juan.snapmusic.feature.player.PlaybackOverlayState
@@ -242,6 +243,7 @@ internal fun FeaturedVideoPlayerShell(
         ) {
             FeaturedVideoOverlayHost(
                 overlayState = overlayState,
+                seekPreviewFramesets = featured.resolvedMedia?.seekPreviewFramesets.orEmpty(),
                 onBack = {
                     showOverlayControls = false
                     onMinimizeVideo()
@@ -305,6 +307,7 @@ internal fun FeaturedVideoPlayerShell(
 @Composable
 internal fun FeaturedVideoOverlayHost(
     overlayState: PlaybackOverlayState,
+    seekPreviewFramesets: List<SeekPreviewFrameset> = emptyList(),
     onBack: () -> Unit,
     onPlayPause: () -> Unit,
     onPrevious: () -> Unit,
@@ -317,6 +320,7 @@ internal fun FeaturedVideoOverlayHost(
         playbackState = overlayState,
         canGoPrevious = true,
         canGoNext = true,
+        seekPreviewFramesets = seekPreviewFramesets,
         onBack = onBack,
         onPlayPause = onPlayPause,
         onPrevious = onPrevious,
@@ -349,6 +353,7 @@ internal fun FeaturedVideoFullscreenShell(
         overlayState = overlayState,
         canGoPrevious = true,
         canGoNext = true,
+        seekPreviewFramesets = featured.resolvedMedia?.seekPreviewFramesets.orEmpty(),
         thumbnailVisible = thumbnailVisible,
         isBuffering = isBuffering,
         thumbnail = {
