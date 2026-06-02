@@ -9,7 +9,14 @@ class YouTubeWatchHistoryRepository(
     private val dao: SnapMusicDao,
 ) {
     fun observeHistory(): Flow<List<YouTubeWatchHistoryEntry>> {
-        return dao.observeYouTubeWatchHistory().map { list -> list.map { it.toModel() } }
+        return dao.observeYouTubeWatchHistory().map { list ->
+            val cutoff = System.currentTimeMillis() - WATCH_HISTORY_WINDOW_MS
+            list
+                .asSequence()
+                .filter { entry -> entry.watchedAt >= cutoff }
+                .map { entry -> entry.toModel() }
+                .toList()
+        }
     }
 
     suspend fun record(item: YouTubeFeedItem, positionMs: Long) {
@@ -28,5 +35,9 @@ class YouTubeWatchHistoryRepository(
                 watchedAt = System.currentTimeMillis(),
             ),
         )
+    }
+
+    private companion object {
+        private const val WATCH_HISTORY_WINDOW_MS = 30L * 24L * 60L * 60L * 1000L
     }
 }
