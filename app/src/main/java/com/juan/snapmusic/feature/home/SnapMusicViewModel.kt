@@ -1822,17 +1822,22 @@ class SnapMusicViewModel(
             persistCurrentYouTubeSnapshot()
             return
         }
-        val queueItems = when {
+        val sourceItems = when {
             current.showPlayer -> current.playbackQueue.ifEmpty { current.items }
             current.items.any { it.url == item.url } -> current.items
             else -> listOf(item)
         }
-        val startIndex = queueItems.indexOfFirst { it.url == item.url }.takeIf { it >= 0 } ?: 0
         val queueOrigin = when {
             current.showPlayer && current.watchNextItems.any { it.url == item.url } -> YouTubeQueueOrigin.HOME_FEED
             current.query.isBlank() -> YouTubeQueueOrigin.HOME_FEED
             else -> YouTubeQueueOrigin.SEARCH_RESULTS
         }
+        val queueItems = if (queueOrigin == YouTubeQueueOrigin.SEARCH_RESULTS) {
+            listOf(item)
+        } else {
+            sourceItems
+        }
+        val startIndex = queueItems.indexOfFirst { it.url == item.url }.takeIf { it >= 0 } ?: 0
         setYouTubeQueue(
             items = queueItems,
             startIndex = startIndex,
