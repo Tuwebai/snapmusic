@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.SystemClock
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
@@ -119,9 +120,9 @@ class HomePlaybackWidgetProvider : AppWidgetProvider() {
                 if (artworkBitmap != null) {
                     setImageViewBitmap(R.id.widget_artwork, artworkBitmap)
                 } else {
-                    val artworkUri = state.artworkUri
-                    if (artworkUri?.scheme in setOf("content", "file", "android.resource")) {
-                        setImageViewUri(R.id.widget_artwork, artworkUri)
+                    val artworkUriBitmap = decodeWidgetArtworkUri(context, state.artworkUri)
+                    if (artworkUriBitmap != null) {
+                        setImageViewBitmap(R.id.widget_artwork, artworkUriBitmap)
                     } else {
                         setImageViewResource(R.id.widget_artwork, R.drawable.snapmusic_logo)
                     }
@@ -181,6 +182,24 @@ class HomePlaybackWidgetProvider : AppWidgetProvider() {
             val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
             return BitmapFactory.decodeByteArray(artworkData, 0, artworkData.size, options).also { bitmap ->
                 lastArtworkHash = artworkHash
+                lastArtworkBitmap = bitmap
+            }
+        }
+
+        private fun decodeWidgetArtworkUri(context: Context, artworkUri: Uri?): Bitmap? {
+            if (artworkUri == null) return null
+            val scheme = artworkUri.scheme?.lowercase()
+            if (scheme !in setOf("content", "file", "android.resource")) return null
+            val cacheKey = artworkUri.toString().hashCode()
+            if (lastArtworkHash == cacheKey) return lastArtworkBitmap
+            val data = runCatching {
+                when (scheme) {
+                    "file" -> context.contentResolver.openInputStream(artworkUri)?.use { it.readBytes() }
+                    else -> context.contentResolver.openInputStream(artworkUri)?.use { it.readBytes() }
+                }
+            }.getOrNull() ?: return null
+            return decodeWidgetArtwork(data).also { bitmap ->
+                lastArtworkHash = cacheKey
                 lastArtworkBitmap = bitmap
             }
         }

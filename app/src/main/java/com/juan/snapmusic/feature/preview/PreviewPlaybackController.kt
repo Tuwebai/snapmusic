@@ -219,7 +219,10 @@ private fun buildPreviewQueueMediaItems(
             )
         }
     return basePlaylist.map { item ->
-        val artworkSource = item.thumbnailUrl.takeIfLocalArtworkSource()
+        val artworkUri = item.thumbnailUrl
+            .takeIfLocalArtworkSource()
+            ?.toUri()
+            ?.takeUnless { it.scheme?.lowercase() == "file" }
         MediaItem.Builder()
             .setMediaId(item.fileUri)
             .setUri(item.fileUri.toUri())
@@ -227,7 +230,7 @@ private fun buildPreviewQueueMediaItems(
                 MediaMetadata.Builder()
                     .setTitle(item.title)
                     .setArtist(item.subtitle)
-                    .setArtworkUri(artworkSource?.toUri())
+                    .setArtworkUri(artworkUri)
                     .build(),
             )
             .build()
