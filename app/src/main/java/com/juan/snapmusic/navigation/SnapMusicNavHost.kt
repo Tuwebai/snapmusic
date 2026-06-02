@@ -3,10 +3,13 @@ package com.juan.snapmusic.navigation
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.Alignment
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -23,8 +26,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
@@ -75,6 +80,8 @@ fun SnapMusicNavHost(
     val previewPlayer = rememberManagedPreviewPlayer(viewModel, enabled = mountPreviewPlayer)
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
+    val configuration = LocalConfiguration.current
+    val useSideNavigation = configuration.screenWidthDp >= 720
 
     fun navigateTo(route: String) {
         if (currentRoute == route) return
@@ -110,21 +117,28 @@ fun SnapMusicNavHost(
         previewPlayer = previewPlayer,
         youTubePlayer = youTubePlayer,
     ) {
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            bottomBar = {
-                SnapMusicBottomBar(
-                    viewModel = viewModel,
-                    items = items,
-                    currentRoute = currentRoute,
-                    onNavigate = ::navigateTo,
-                )
-            },
-        ) { padding ->
-            Box(modifier = Modifier.fillMaxSize()) {
+        SnapMusicAdaptiveScaffold(
+            viewModel = viewModel,
+            items = items,
+            currentRoute = currentRoute,
+            useSideNavigation = useSideNavigation,
+            onNavigate = ::navigateTo,
+        ) { padding, navigationChromeBottomPadding ->
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter,
+            ) {
                 NavHost(
                     navController = navController,
                     startDestination = SnapMusicDestination.Home.route,
+                    modifier = if (useSideNavigation) {
+                        Modifier
+                            .fillMaxHeight()
+                            .widthIn(max = 1280.dp)
+                            .fillMaxWidth()
+                    } else {
+                        Modifier.fillMaxSize()
+                    },
                 ) {
                     composable(SnapMusicDestination.Home.route) {
                         HomeScreen(
@@ -168,7 +182,8 @@ fun SnapMusicNavHost(
                     currentRoute = currentRoute,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = padding.calculateBottomPadding() + 12.dp),
+                        .sizeIn(maxWidth = if (useSideNavigation) 960.dp else Dp.Unspecified)
+                        .padding(bottom = navigationChromeBottomPadding + 12.dp),
                     onNavigatePreview = { navigateTo(SnapMusicDestination.Preview.route) },
                 )
                 YouTubeMiniPlayerHost(
@@ -177,7 +192,8 @@ fun SnapMusicNavHost(
                     currentRoute = currentRoute,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = padding.calculateBottomPadding() + 12.dp),
+                        .sizeIn(maxWidth = if (useSideNavigation) 960.dp else Dp.Unspecified)
+                        .padding(bottom = navigationChromeBottomPadding + 12.dp),
                     onNavigateHome = { navigateTo(SnapMusicDestination.Home.route) },
                 )
             }

@@ -2,6 +2,7 @@ package com.juan.snapmusic.navigation
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -12,6 +13,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationBarItem as MaterialNavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
@@ -25,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
@@ -52,6 +57,44 @@ import com.juan.snapmusic.feature.youtube.rememberYouTubePlayer
 import com.juan.snapmusic.core.designsystem.AccentRed
 import com.juan.snapmusic.core.designsystem.TextPrimary
 import com.juan.snapmusic.core.designsystem.TextSecondary
+
+@Composable
+internal fun SnapMusicAdaptiveScaffold(
+    viewModel: SnapMusicViewModel,
+    items: List<SnapMusicDestination>,
+    currentRoute: String?,
+    useSideNavigation: Boolean,
+    onNavigate: (String) -> Unit,
+    content: @Composable (PaddingValues, Dp) -> Unit,
+) {
+    if (useSideNavigation) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            SnapMusicNavigationRail(
+                viewModel = viewModel,
+                items = items,
+                currentRoute = currentRoute,
+                onNavigate = onNavigate,
+            )
+            Scaffold(modifier = Modifier.weight(1f).fillMaxSize()) { padding ->
+                content(padding, 0.dp)
+            }
+        }
+    } else {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            bottomBar = {
+                SnapMusicBottomBar(
+                    viewModel = viewModel,
+                    items = items,
+                    currentRoute = currentRoute,
+                    onNavigate = onNavigate,
+                )
+            },
+        ) { padding ->
+            content(padding, padding.calculateBottomPadding())
+        }
+    }
+}
 
 @Composable
 internal fun SnapMusicBottomBar(
@@ -137,6 +180,53 @@ private fun RowScope.PreviewNavigationItem(
         colors = snapMusicBottomBarItemColors(),
     )
 }
+
+@Composable
+private fun SnapMusicNavigationRail(
+    viewModel: SnapMusicViewModel,
+    items: List<SnapMusicDestination>,
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+) {
+    val state by viewModel.bottomBarUiState.collectAsStateWithLifecycle()
+    NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
+        items.forEach { item ->
+            NavigationRailItem(
+                selected = currentRoute == item.route,
+                onClick = {
+                    when (item) {
+                        SnapMusicDestination.Home -> if (state.youtubeCanRestore) {
+                            viewModel.restoreYouTubePlaybackShell()
+                        }
+                        SnapMusicDestination.Preview -> if (state.previewCanRestore) {
+                            viewModel.restorePreviewPlaybackShell()
+                        }
+                        else -> Unit
+                    }
+                    onNavigate(item.route)
+                },
+                icon = {
+                    if (item == SnapMusicDestination.Preview) {
+                        PreviewNavigationIcon(item = item, activeDownloadCount = state.activeDownloadCount)
+                    } else {
+                        Icon(item.icon, contentDescription = item.label)
+                    }
+                },
+                label = { Text(item.label) },
+                colors = snapMusicRailItemColors(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun snapMusicRailItemColors() = NavigationRailItemDefaults.colors(
+    selectedIconColor = AccentRed,
+    selectedTextColor = TextPrimary,
+    unselectedIconColor = TextSecondary,
+    unselectedTextColor = TextSecondary,
+    indicatorColor = Color.Transparent,
+)
 
 @Composable
 internal fun snapMusicBottomBarItemColors() = NavigationBarItemDefaults.colors(

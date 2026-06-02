@@ -66,7 +66,7 @@ class PreferencesRepository(
             notifyToolUpdates = prefs[notifyToolUpdatesKey] ?: true,
             notifyToolbarAccess = prefs[notifyToolbarAccessKey] ?: true,
             youtubeAutoplayEnabled = prefs[youtubeAutoplayEnabledKey] ?: true,
-            themeMode = prefs[themeModeKey]?.let { runCatching { AppThemeMode.valueOf(it) }.getOrNull() } ?: AppThemeMode.SYSTEM,
+            themeMode = AppThemeMode.DARK,
             previewVolume = prefs[previewVolumeKey] ?: 0.9f,
         )
     }
@@ -146,7 +146,7 @@ class PreferencesRepository(
     }
 
     suspend fun updateThemeMode(value: AppThemeMode) {
-        context.snapMusicStore.edit { it[themeModeKey] = value.name }
+        context.snapMusicStore.edit { it[themeModeKey] = AppThemeMode.DARK.name }
     }
 
     suspend fun saveYouTubePlaybackSnapshot(snapshot: YouTubePlaybackSnapshot) {

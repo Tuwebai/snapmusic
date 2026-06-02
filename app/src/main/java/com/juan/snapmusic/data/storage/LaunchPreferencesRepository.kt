@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 @Immutable
 data class LaunchPreferences(
-    val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    val themeMode: AppThemeMode = AppThemeMode.DARK,
     val youtubeAutoplayEnabled: Boolean = true,
 )
 
@@ -35,7 +35,7 @@ class LaunchPreferencesRepository(
         synchronized(lock) {
             if (isInitialized()) return
             write(
-                themeMode = preferences.themeMode,
+                themeMode = AppThemeMode.DARK,
                 youtubeAutoplayEnabled = preferences.youtubeAutoplayEnabled,
             )
         }
@@ -43,8 +43,8 @@ class LaunchPreferencesRepository(
 
     suspend fun setThemeMode(value: AppThemeMode) {
         synchronized(lock) {
-            if (_themeMode.value == value) return
-            write(themeMode = value, youtubeAutoplayEnabled = _youtubeAutoplayEnabled.value)
+            if (_themeMode.value == AppThemeMode.DARK) return
+            write(themeMode = AppThemeMode.DARK, youtubeAutoplayEnabled = _youtubeAutoplayEnabled.value)
         }
     }
 
@@ -57,15 +57,13 @@ class LaunchPreferencesRepository(
 
     private fun load(): LaunchPreferences {
         return LaunchPreferences(
-            themeMode = prefs.getString(KEY_THEME_MODE, null)
-                ?.let { runCatching { AppThemeMode.valueOf(it) }.getOrNull() }
-                ?: AppThemeMode.SYSTEM,
+            themeMode = AppThemeMode.DARK,
             youtubeAutoplayEnabled = prefs.getBoolean(KEY_YOUTUBE_AUTOPLAY_ENABLED, true),
         )
     }
 
     private fun write(
-        themeMode: AppThemeMode = _themeMode.value,
+        themeMode: AppThemeMode = AppThemeMode.DARK,
         youtubeAutoplayEnabled: Boolean = _youtubeAutoplayEnabled.value,
     ) {
         prefs.edit()
