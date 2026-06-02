@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.juan.snapmusic.core.performance.ReportPerformanceScene
+import com.juan.snapmusic.core.model.YouTubeWatchHistoryEntry
 import com.juan.snapmusic.feature.home.SnapMusicViewModel
 
 private enum class SettingsPane(val depth: Int) {
@@ -40,12 +41,16 @@ private enum class SettingsPane(val depth: Int) {
 fun SettingsScreen(
     viewModel: SnapMusicViewModel,
     padding: PaddingValues,
+    onPlayWatchHistory: (YouTubeWatchHistoryEntry, List<YouTubeWatchHistoryEntry>) -> Unit,
 ) {
     val prefs by viewModel.preferences.collectAsStateWithLifecycle()
     val youtubeWatchHistory by viewModel.youtubeWatchHistory.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var pane by remember { mutableStateOf(SettingsPane.ROOT) }
     ReportPerformanceScene(screen = "settings", detail = pane.name.lowercase())
+    val playWatchHistory = { entry: YouTubeWatchHistoryEntry ->
+        onPlayWatchHistory(entry, youtubeWatchHistory)
+    }
 
     BackHandler(enabled = pane != SettingsPane.ROOT) {
         pane = SettingsPane.ROOT
@@ -65,7 +70,7 @@ fun SettingsScreen(
             SettingsPane.ROOT -> SettingsRootScreen(
                 youtubeWatchHistory = youtubeWatchHistory,
                 onWatchHistory = { pane = SettingsPane.WATCH_HISTORY },
-                onPlayWatchHistory = viewModel::playYouTubeWatchHistoryItem,
+                onPlayWatchHistory = playWatchHistory,
                 onDownloads = { pane = SettingsPane.DOWNLOADS },
                 onNotifications = { pane = SettingsPane.NOTIFICATIONS },
                 onTheme = { pane = SettingsPane.THEME },
@@ -89,7 +94,7 @@ fun SettingsScreen(
             SettingsPane.WATCH_HISTORY -> YouTubeWatchHistoryPane(
                 items = youtubeWatchHistory,
                 onBack = { pane = SettingsPane.ROOT },
-                onPlay = viewModel::playYouTubeWatchHistoryItem,
+                onPlay = playWatchHistory,
             )
 
             SettingsPane.DOWNLOADS -> DownloadSettingsPane(

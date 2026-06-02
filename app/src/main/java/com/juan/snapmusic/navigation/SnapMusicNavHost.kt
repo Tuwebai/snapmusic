@@ -150,7 +150,16 @@ fun SnapMusicNavHost(
                         )
                     }
                     composable(SnapMusicDestination.Preview.route) { PreviewScreen(viewModel, padding, previewPlayer) }
-                    composable(SnapMusicDestination.Settings.route) { SettingsScreen(viewModel, padding) }
+                    composable(SnapMusicDestination.Settings.route) {
+                        SettingsScreen(
+                            viewModel = viewModel,
+                            padding = padding,
+                            onPlayWatchHistory = { entry, entries ->
+                                navigateTo(SnapMusicDestination.History.route)
+                                viewModel.playYouTubeWatchHistoryItem(entry, entries)
+                            },
+                        )
+                    }
                 }
 
                 PreviewMiniPlayerHost(

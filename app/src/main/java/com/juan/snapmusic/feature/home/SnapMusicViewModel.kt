@@ -1817,24 +1817,30 @@ class SnapMusicViewModel(
         enrichWatchNextQueue(item)
     }
 
-    fun playYouTubeWatchHistoryItem(entry: YouTubeWatchHistoryEntry) {
+    fun playYouTubeWatchHistoryItem(
+        entry: YouTubeWatchHistoryEntry,
+        entries: List<YouTubeWatchHistoryEntry> = listOf(entry),
+    ) {
         val resumePositionMs = normalizedYouTubeResumePosition(
             positionMs = entry.lastPositionMs,
             durationSeconds = entry.durationSeconds,
         )
         pendingYouTubeHistoryResumePositions[entry.sourceUrl] = resumePositionMs
-        selectYouTubeItem(
-            YouTubeFeedItem(
-                url = entry.sourceUrl,
-                title = entry.title,
-                author = entry.author,
-                thumbnailUrl = entry.thumbnailUrl,
-                durationSeconds = entry.durationSeconds,
-                viewCount = entry.viewCount,
-                publishedText = entry.publishedText,
-                description = entry.description,
-            ),
+        val target = entry.toYouTubeFeedItem()
+        val queueItems = entries
+            .asSequence()
+            .map { it.toYouTubeFeedItem() }
+            .distinctBy(YouTubeFeedItem::url)
+            .toList()
+            .ifEmpty { listOf(target) }
+        val startIndex = queueItems.indexOfFirst { it.url == target.url }.takeIf { it >= 0 } ?: 0
+        selectHomeYouTubeTab()
+        setYouTubeQueue(
+            items = queueItems,
+            startIndex = startIndex,
+            sourceLabel = YouTubeQueueOrigin.RESTORED_SESSION,
         )
+        enrichWatchNextQueue(target)
     }
 
     fun prepareYouTubeDownload(item: YouTubeFeedItem) {
@@ -1869,11 +1875,18 @@ class SnapMusicViewModel(
             current.featured.sourceUrl == target.url &&
             current.featured.isReady
         ) {
+            val resumePositionMs = consumePendingYouTubeHistoryResumePosition(target)
             _youtubeState.value = current.copy(
                 showPlayer = true,
                 showMiniPlayer = false,
                 watchNextItems = seededWatchNextItems,
                 canLoadMoreWatchNext = true,
+                currentPositionMs = resumePositionMs.takeIf { it > 0L } ?: current.currentPositionMs,
+                playbackSeekRequestId = if (resumePositionMs > 0L) {
+                    nextYouTubePlaybackSeekRequestId(current)
+                } else {
+                    current.playbackSeekRequestId
+                },
                 shouldAutoPlayCurrent = true,
                 errorMessage = null,
             )
@@ -2735,6 +2748,19 @@ class SnapMusicViewModel(
     ): YouTubeFeedItem? {
         val queueItems = state.playbackQueue.ifEmpty { state.items }
         return queueItems.getOrNull(resolveCurrentQueueIndex(state, queueItems))
+    }
+
+    private fun YouTubeWatchHistoryEntry.toYouTubeFeedItem(): YouTubeFeedItem {
+        return YouTubeFeedItem(
+            url = sourceUrl,
+            title = title,
+            author = author,
+            thumbnailUrl = thumbnailUrl,
+            durationSeconds = durationSeconds,
+            viewCount = viewCount,
+            publishedText = publishedText,
+            description = description,
+        )
     }
 
     private fun consumePendingYouTubeHistoryResumePosition(item: YouTubeFeedItem): Long {
