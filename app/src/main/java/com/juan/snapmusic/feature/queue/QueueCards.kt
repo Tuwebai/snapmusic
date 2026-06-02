@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FileDownloadOff
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.PauseCircle
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Schedule
@@ -78,13 +79,17 @@ import com.juan.snapmusic.feature.home.SnapMusicViewModel
 @Composable
 internal fun ActiveQueueCard(
     item: QueueEntry,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
     onCancel: () -> Unit,
     onRemove: () -> Unit,
 ) {
     val progress = item.progress.coerceIn(0, 100)
     val isResuming = item.status == QueueStatus.PENDING && progress > 0
+    val isPaused = item.status == QueueStatus.PAUSED
     val context = LocalContext.current
     val statusLabel = when {
+        isPaused -> "Descarga pausada. Podés reanudarla sin perder el avance."
         isResuming -> "Reanudando la descarga donde había quedado..."
         item.status == QueueStatus.PENDING -> "Preparando descarga..."
         else -> "Descargando ahora"
@@ -127,11 +132,13 @@ internal fun ActiveQueueCard(
                 FormatBadge(item.variantLabel)
                 StatusBadge(
                     label = when {
+                        isPaused -> "Pausada"
                         isResuming -> "Reanudando"
                         item.status == QueueStatus.PENDING -> "En cola"
                         else -> "${progress}%"
                     },
                     icon = when {
+                        isPaused -> Icons.Outlined.PauseCircle
                         isResuming -> Icons.Outlined.Downloading
                         item.status == QueueStatus.PENDING -> Icons.Outlined.Schedule
                         else -> Icons.Outlined.Downloading
@@ -143,6 +150,7 @@ internal fun ActiveQueueCard(
             LinearProgressIndicator(
                 progress = {
                     when {
+                        isPaused -> progress / 100f
                         isResuming -> progress / 100f
                         item.status == QueueStatus.PENDING -> 0.06f
                         else -> progress / 100f
@@ -164,6 +172,19 @@ internal fun ActiveQueueCard(
                 onDismissRequest = { menuExpanded = false },
                 containerColor = SurfaceElevated,
             ) {
+                DropdownMenuItem(
+                    text = { Text(if (isPaused) "Reanudar descarga" else "Pausar descarga") },
+                    onClick = {
+                        menuExpanded = false
+                        if (isPaused) onResume() else onPause()
+                    },
+                    leadingIcon = {
+                        Icon(
+                            if (isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.PauseCircle,
+                            contentDescription = null,
+                        )
+                    },
+                )
                 DropdownMenuItem(
                     text = { Text("Cancelar descarga") },
                     onClick = {
@@ -448,5 +469,6 @@ internal fun archivedVisual(status: QueueStatus): QueueVisual {
         QueueStatus.CANCELLED -> QueueVisual("Cancelado", TextSecondary, Icons.Outlined.Close)
         QueueStatus.RUNNING -> QueueVisual("Descargando", AccentRed, Icons.Outlined.Downloading)
         QueueStatus.PENDING -> QueueVisual("En cola", AccentRed, Icons.Outlined.Schedule)
+        QueueStatus.PAUSED -> QueueVisual("Pausada", TextSecondary, Icons.Outlined.PauseCircle)
     }
 }

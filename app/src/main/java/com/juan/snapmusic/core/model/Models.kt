@@ -18,6 +18,7 @@ enum class ContainerFormat {
 enum class QueueStatus {
     PENDING,
     RUNNING,
+    PAUSED,
     SUCCESS,
     ERROR,
     CANCELLED,

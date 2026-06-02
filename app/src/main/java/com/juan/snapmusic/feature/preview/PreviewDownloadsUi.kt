@@ -273,6 +273,7 @@ private fun statusLabel(status: QueueStatus): String {
     return when (status) {
         QueueStatus.RUNNING -> "Descargando"
         QueueStatus.PENDING -> "En cola"
+        QueueStatus.PAUSED -> "Pausado"
         QueueStatus.SUCCESS -> "Completado"
         QueueStatus.ERROR -> "Error"
         QueueStatus.CANCELLED -> "Cancelado"

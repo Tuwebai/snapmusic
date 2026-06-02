@@ -1,6 +1,7 @@
 package com.juan.snapmusic.data.download
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -17,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.TimeUnit
 import java.util.UUID
 
 class DownloadCoordinator(
@@ -49,20 +51,7 @@ class DownloadCoordinator(
             thumbnailUrl = request.thumbnailUrl,
         )
 
-        val workRequest = OneTimeWorkRequestBuilder<DownloadWorker>()
-            .setInputData(workDataOf(DownloadWorker.KEY_QUEUE_ID to id.toString()))
-            .addTag(id.toString())
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build(),
-            )
-            .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            "snapmusic_queue_${queueEntry.laneIndex}",
-            ExistingWorkPolicy.APPEND_OR_REPLACE,
-            workRequest,
-        )
+        scheduleWork(queueId = id.toString(), laneIndex = queueEntry.laneIndex)
         return id
     }
 
@@ -75,6 +64,52 @@ class DownloadCoordinator(
         CoroutineScope(Dispatchers.IO).launch {
             queueRepository.updateStatus(queueId, QueueStatus.CANCELLED, 0, errorMessage = "La descarga se canceló.")
         }
+    }
+
+    fun pauseByQueueId(queueId: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val current = queueRepository.get(queueId) ?: return@launch
+            if (current.status != QueueStatus.RUNNING && current.status != QueueStatus.PENDING) return@launch
+            queueRepository.updateStatus(
+                id = queueId,
+                status = QueueStatus.PAUSED,
+                progress = current.progress,
+                errorMessage = "Descarga pausada.",
+            )
+            WorkManager.getInstance(context).cancelAllWorkByTag(queueId)
+        }
+    }
+
+    fun resumeByQueueId(queueId: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val current = queueRepository.get(queueId) ?: return@launch
+            if (current.status != QueueStatus.PAUSED) return@launch
+            queueRepository.updateStatus(
+                id = queueId,
+                status = QueueStatus.PENDING,
+                progress = current.progress,
+                errorMessage = null,
+            )
+            scheduleWork(queueId = queueId, laneIndex = current.laneIndex)
+        }
+    }
+
+    private fun scheduleWork(queueId: String, laneIndex: Int) {
+        val workRequest = OneTimeWorkRequestBuilder<DownloadWorker>()
+            .setInputData(workDataOf(DownloadWorker.KEY_QUEUE_ID to queueId))
+            .addTag(queueId)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build(),
+            )
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "snapmusic_queue_$laneIndex",
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            workRequest,
+        )
     }
 
     private suspend fun resolveParallelSlots(): Int {

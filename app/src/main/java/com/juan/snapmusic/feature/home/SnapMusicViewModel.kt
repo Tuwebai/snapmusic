@@ -197,7 +197,8 @@ class SnapMusicViewModel(
             DownloadBadgeState(
                 activeCount = items.count {
                     it.status == com.juan.snapmusic.core.model.QueueStatus.RUNNING ||
-                        it.status == com.juan.snapmusic.core.model.QueueStatus.PENDING
+                        it.status == com.juan.snapmusic.core.model.QueueStatus.PENDING ||
+                        it.status == com.juan.snapmusic.core.model.QueueStatus.PAUSED
                 },
             )
         }
@@ -358,7 +359,8 @@ class SnapMusicViewModel(
             PreviewDownloadsState(
                 activeItems = items.filter {
                     it.status == com.juan.snapmusic.core.model.QueueStatus.RUNNING ||
-                        it.status == com.juan.snapmusic.core.model.QueueStatus.PENDING
+                        it.status == com.juan.snapmusic.core.model.QueueStatus.PENDING ||
+                        it.status == com.juan.snapmusic.core.model.QueueStatus.PAUSED
                 },
                 completedCount = items.count { it.status == com.juan.snapmusic.core.model.QueueStatus.SUCCESS },
             )
@@ -1100,6 +1102,14 @@ class SnapMusicViewModel(
         graph.downloadCoordinator.cancelByQueueId(id)
     }
 
+    fun pauseQueue(id: String) {
+        graph.downloadCoordinator.pauseByQueueId(id)
+    }
+
+    fun resumeQueue(id: String) {
+        graph.downloadCoordinator.resumeByQueueId(id)
+    }
+
     fun removeQueueItem(id: String) {
         viewModelScope.launch {
             graph.queueRepository.remove(id)
@@ -1266,7 +1276,8 @@ class SnapMusicViewModel(
         queue.value
             .filter {
                 it.status == com.juan.snapmusic.core.model.QueueStatus.RUNNING ||
-                    it.status == com.juan.snapmusic.core.model.QueueStatus.PENDING
+                    it.status == com.juan.snapmusic.core.model.QueueStatus.PENDING ||
+                    it.status == com.juan.snapmusic.core.model.QueueStatus.PAUSED
             }
             .forEach { item ->
                 graph.downloadCoordinator.cancelByQueueId(item.id)

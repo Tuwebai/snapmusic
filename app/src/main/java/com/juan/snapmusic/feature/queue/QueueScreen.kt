@@ -86,10 +86,10 @@ fun QueueScreen(
     val items by viewModel.queue.collectAsStateWithLifecycle()
     val feedback by viewModel.queueFeedback.collectAsStateWithLifecycle()
     val activeItems = remember(items) {
-        items.filter { it.status == QueueStatus.RUNNING || it.status == QueueStatus.PENDING }
+        items.filter { it.status == QueueStatus.RUNNING || it.status == QueueStatus.PENDING || it.status == QueueStatus.PAUSED }
     }
     val archivedItems = remember(items) {
-        items.filterNot { it.status == QueueStatus.RUNNING || it.status == QueueStatus.PENDING }
+        items.filterNot { it.status == QueueStatus.RUNNING || it.status == QueueStatus.PENDING || it.status == QueueStatus.PAUSED }
     }
     var modalItem by remember { mutableStateOf<QueueEntry?>(null) }
     var selectedTab by rememberSaveable { mutableStateOf(QueueHubTab.QUEUE) }
@@ -138,6 +138,8 @@ fun QueueScreen(
                             ) { item ->
                                 ActiveQueueCard(
                                     item = item,
+                                    onPause = { viewModel.pauseQueue(item.id) },
+                                    onResume = { viewModel.resumeQueue(item.id) },
                                     onCancel = { viewModel.cancelQueue(item.id) },
                                     onRemove = { viewModel.removeQueueItem(item.id) },
                                 )

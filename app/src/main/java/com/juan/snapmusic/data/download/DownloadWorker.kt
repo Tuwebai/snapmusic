@@ -40,6 +40,7 @@ class DownloadWorker(
 ) : CoroutineWorker(appContext, params) {
     companion object {
         const val KEY_QUEUE_ID = "queue_id"
+        private const val MAX_AUTO_RETRY_ATTEMPTS = 3
     }
 
     private val graph = (appContext as SnapMusicApplication).appGraph
@@ -50,6 +51,7 @@ class DownloadWorker(
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val queueId = inputData.getString(KEY_QUEUE_ID) ?: return@withContext Result.failure()
         val entry = graph.queueRepository.get(queueId) ?: return@withContext Result.failure()
+        if (entry.status == QueueStatus.PAUSED) return@withContext Result.failure()
         lastPublishedProgress = -1
         lastPublishedAtMs = 0L
         var targetUri: Uri? = null
@@ -62,7 +64,7 @@ class DownloadWorker(
                 variantLabel = entry.variantLabel,
                 thumbnailUrl = entry.thumbnailUrl,
                 status = QueueStatus.RUNNING,
-                progress = 0,
+                progress = entry.progress,
                 snapshot = DownloadProgressSnapshot(0L, null, 0L, DownloadStage.PREPARING),
             )
 
@@ -100,10 +102,23 @@ class DownloadWorker(
             targetUri?.let { graph.storageRepository.deleteOutput(it.toString()) }
             graph.storageRepository.invalidateLocalMediaCache()
             if (isStopped) {
-                graph.queueRepository.updateStatus(queueId, QueueStatus.CANCELLED, 0, errorMessage = "Cancelado por el usuario")
+                val latest = graph.queueRepository.get(queueId)
+                if (latest?.status != QueueStatus.PAUSED) {
+                    graph.queueRepository.updateStatus(queueId, QueueStatus.CANCELLED, 0, errorMessage = "Cancelado por el usuario")
+                }
                 Result.failure()
             } else {
                 val safeMessage = friendlyErrorMessage(cancelled.message)
+                if (runAttemptCount < MAX_AUTO_RETRY_ATTEMPTS && shouldAutoRetry(cancelled)) {
+                    val latestProgress = graph.queueRepository.get(queueId)?.progress ?: entry.progress
+                    graph.queueRepository.updateStatus(
+                        queueId,
+                        QueueStatus.PENDING,
+                        latestProgress,
+                        errorMessage = "Reintentando descarga automáticamente.",
+                    )
+                    return@withContext Result.retry()
+                }
                 graph.queueRepository.updateStatus(queueId, QueueStatus.ERROR, 0, errorMessage = safeMessage)
                 notifications.showError(queueId, entry.title, safeMessage, entry.thumbnailUrl)
                 Result.failure()
@@ -122,6 +137,34 @@ class DownloadWorker(
             if (!shouldRetryWithFreshSources(error)) throw error
             executeResolvedDownload(queueId, entry, targetUri)
         }.getOrThrow()
+    }
+
+    private fun shouldAutoRetry(error: Throwable): Boolean {
+        if (error is TransferValidationException) return false
+        val message = error.message.orEmpty().lowercase()
+        if (
+            "ffmpeg" in message ||
+            "transcod" in message ||
+            "mux" in message ||
+            "inválid" in message ||
+            "invalid" in message ||
+            "archivo final" in message
+        ) {
+            return false
+        }
+        return error is TransferExpiredException ||
+            "timeout" in message ||
+            "timed out" in message ||
+            "network" in message ||
+            "internet" in message ||
+            "connect" in message ||
+            "socket" in message ||
+            "stream" in message ||
+            "http" in message ||
+            "403" in message ||
+            "429" in message ||
+            "503" in message ||
+            "expir" in message
     }
 
     private suspend fun executeResolvedDownload(

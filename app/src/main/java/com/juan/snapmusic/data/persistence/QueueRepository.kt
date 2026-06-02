@@ -25,6 +25,7 @@ class QueueRepository(
             ).firstOrNull { candidate ->
                     candidate.status == QueueStatus.PENDING ||
                     candidate.status == QueueStatus.RUNNING ||
+                    candidate.status == QueueStatus.PAUSED ||
                     candidate.status == QueueStatus.SUCCESS
             }?.takeIf { it.matches(request) }
             if (duplicate != null) return@withLock false
