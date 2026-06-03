@@ -93,7 +93,7 @@ private object PlaybackHttpClientHolder {
         .dispatcher(dispatcher)
         .connectionPool(ConnectionPool(8, 5, TimeUnit.MINUTES))
         .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(90, TimeUnit.SECONDS)
+        .readTimeout(4, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()

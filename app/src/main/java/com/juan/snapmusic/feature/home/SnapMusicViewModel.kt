@@ -2278,17 +2278,34 @@ class SnapMusicViewModel(
         val events = youtubeRebufferEvents.getOrPut(sourceUrl) { mutableListOf() }
         events.removeAll { now - it > YOUTUBE_REBUFFER_WINDOW_MS }
         events += now
-        val mode = playbackSourceMode(featured)
+        val mode = playbackSourceMode(featured) ?: return
         Log.w(
             YOUTUBE_PLAYBACK_LOG_TAG,
-            "source=$sourceUrl rebuffer durationMs=$durationMs positionMs=$positionMs events=${events.size} mode=${mode?.name.orEmpty()}",
+            "source=$sourceUrl rebuffer durationMs=$durationMs positionMs=$positionMs events=${events.size} mode=${mode.name}",
         )
         if (durationMs >= YOUTUBE_LONG_REBUFFER_MS || events.size >= 2) {
-            Log.w(
-                YOUTUBE_PLAYBACK_LOG_TAG,
-                "source=$sourceUrl noAutoQualitySwitch=true durationMs=$durationMs positionMs=$positionMs events=${events.size}",
-            )
+            recoverYouTubePlaybackStall(current, mode, positionMs, durationMs, events.size, "completedRebuffer")
         }
+    }
+
+    fun onYouTubePlaybackStalled(
+        positionMs: Long,
+        durationMs: Long,
+    ) {
+        val current = _youtubeState.value
+        val featured = current.featured
+        val sourceUrl = featured.sourceUrl
+        if (sourceUrl.isBlank()) return
+        val mode = playbackSourceMode(featured) ?: return
+        val now = System.currentTimeMillis()
+        val events = youtubeRebufferEvents.getOrPut(sourceUrl) { mutableListOf() }
+        events.removeAll { now - it > YOUTUBE_REBUFFER_WINDOW_MS }
+        events += now
+        Log.w(
+            YOUTUBE_PLAYBACK_LOG_TAG,
+            "source=$sourceUrl activeStall durationMs=$durationMs positionMs=$positionMs events=${events.size} mode=${mode.name}",
+        )
+        recoverYouTubePlaybackStall(current, mode, positionMs, durationMs, events.size, "activeStall")
     }
 
     fun requestYouTubeDownloadSheet() {
@@ -2572,6 +2589,49 @@ class SnapMusicViewModel(
         )
         persistCurrentYouTubeSnapshot()
         return true
+    }
+
+    private fun recoverYouTubePlaybackStall(
+        current: YouTubeUiState,
+        mode: YouTubePlaybackSourceMode,
+        positionMs: Long,
+        durationMs: Long,
+        events: Int,
+        reason: String,
+    ): Boolean {
+        val featured = current.featured
+        val sourceUrl = featured.sourceUrl
+        if (sourceUrl.isBlank()) return false
+        if (current.isRefreshingVideo || current.pendingTransition) return false
+        if (
+            mode == YouTubePlaybackSourceMode.MERGED &&
+            applyAdaptiveRecovery(current, mode, positionMs, durationMs, events)
+        ) {
+            return true
+        }
+        if (mode == YouTubePlaybackSourceMode.MERGED) {
+            _youtubeState.value = current.copy(
+                currentPositionMs = positionMs.coerceAtLeast(0L),
+                shouldAutoPlayCurrent = true,
+                isRefreshingVideo = false,
+                pendingTransition = false,
+                errorMessage = null,
+            )
+            if (retryYouTubePlaybackSource("$reason ${durationMs}ms")) return true
+        }
+        if (
+            mode == YouTubePlaybackSourceMode.ADAPTIVE &&
+            featured.selectedVideoQualityId == "auto" &&
+            durationMs >= YOUTUBE_LONG_REBUFFER_MS * 2 &&
+            applyAdaptiveAutoHeightCap(current, positionMs, durationMs, events)
+        ) {
+            return true
+        }
+        Log.w(
+            YOUTUBE_PLAYBACK_LOG_TAG,
+            "source=$sourceUrl stallRecoverySkipped reason=$reason durationMs=$durationMs positionMs=$positionMs mode=${mode.name}",
+        )
+        return false
     }
 
     private fun applyYouTubeStabilityFallback(

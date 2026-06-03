@@ -31,6 +31,9 @@ import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
+private const val ACTIVE_STALL_RECOVERY_MS = 2_500L
+private const val ACTIVE_STALL_RECOVERY_REPEAT_MS = 4_000L
+
 private fun YouTubeFeaturedVideo.toMediaItem(): MediaItem {
     val resolvedPlaybackUrl = playbackUrl ?: return MediaItem.EMPTY
     return MediaItem.Builder()
@@ -102,6 +105,7 @@ fun rememberYouTubePlayer(
     onMediaTransition: (String, Long, Boolean) -> Unit,
     onPlaybackQualityChanged: (List<Int>, Int?) -> Unit,
     onPlaybackRebuffer: (Long, Long) -> Unit,
+    onPlaybackStalled: (Long, Long) -> Unit,
 ): Player? {
     val context = LocalContext.current
     val featured = sessionState.featured
@@ -295,6 +299,37 @@ fun rememberYouTubePlayer(
             resolveAvailableVideoHeights(mediaController.currentTracks),
             resolveActualVideoHeight(mediaController.currentTracks),
         )
+    }
+
+    LaunchedEffect(controller, featured.sourceUrl) {
+        val mediaController = controller ?: return@LaunchedEffect
+        var stallStartedAtMs = 0L
+        var lastRecoveryAtMs = 0L
+        while (isActive) {
+            val syncingCurrentItem = mediaController.currentMediaItem?.mediaId == featured.sourceUrl
+            val activelyBuffering = syncingCurrentItem &&
+                mediaController.playWhenReady &&
+                mediaController.playbackState == Player.STATE_BUFFERING
+            val now = SystemClock.elapsedRealtime()
+            if (activelyBuffering) {
+                if (stallStartedAtMs == 0L) stallStartedAtMs = now
+                val stalledForMs = now - stallStartedAtMs
+                if (
+                    stalledForMs >= ACTIVE_STALL_RECOVERY_MS &&
+                    now - lastRecoveryAtMs >= ACTIVE_STALL_RECOVERY_REPEAT_MS
+                ) {
+                    lastRecoveryAtMs = now
+                    onPlaybackStalled(
+                        mediaController.currentPosition.coerceAtLeast(0L),
+                        stalledForMs,
+                    )
+                }
+            } else {
+                stallStartedAtMs = 0L
+                lastRecoveryAtMs = 0L
+            }
+            delay(500L)
+        }
     }
 
     LaunchedEffect(controller, featured.sourceUrl, seekState.requestId) {
