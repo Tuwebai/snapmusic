@@ -2218,6 +2218,7 @@ class SnapMusicViewModel(
             adaptivePlaybackUrl = resolved.adaptivePlaybackUrl,
             selectedVideoQualityId = variantId,
             availablePlaybackHeights = current.featured.availablePlaybackHeights,
+            autoMaxVideoHeight = if (variantId == "auto") playbackSelection.expectedHeight else null,
             actualVideoHeight = playbackSelection.expectedHeight,
             actualPlaybackLabel = playbackLabelForSelection(resolved, variantId, playbackSelection.expectedHeight),
             isReady = true,
@@ -2283,33 +2284,10 @@ class SnapMusicViewModel(
             "source=$sourceUrl rebuffer durationMs=$durationMs positionMs=$positionMs events=${events.size} mode=${mode?.name.orEmpty()}",
         )
         if (durationMs >= YOUTUBE_LONG_REBUFFER_MS || events.size >= 2) {
-            val sourceMode = mode ?: return
-            when {
-                sourceMode == YouTubePlaybackSourceMode.ADAPTIVE -> {
-                    applyAdaptiveAutoHeightCap(
-                        current = current,
-                        positionMs = positionMs,
-                        durationMs = durationMs,
-                        events = events.size,
-                    )
-                }
-
-                applyAdaptiveRecovery(
-                    current = current,
-                    mode = sourceMode,
-                    positionMs = positionMs,
-                    durationMs = durationMs,
-                    events = events.size,
-                ) -> Unit
-
-                else -> applyYouTubeStabilityFallback(
-                    current = current,
-                    mode = sourceMode,
-                    positionMs = positionMs,
-                    durationMs = durationMs,
-                    events = events.size,
-                )
-            }
+            Log.w(
+                YOUTUBE_PLAYBACK_LOG_TAG,
+                "source=$sourceUrl noAutoQualitySwitch=true durationMs=$durationMs positionMs=$positionMs events=${events.size}",
+            )
         }
     }
 
