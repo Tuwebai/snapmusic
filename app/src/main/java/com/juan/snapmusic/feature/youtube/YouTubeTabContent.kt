@@ -278,6 +278,7 @@ private fun YouTubeDownloadSheetHost(
     DownloadFormatSheet(
         media = media,
         isPreparing = downloadSheetState.isPreparing,
+        allowedKinds = downloadSheetState.allowedKinds,
         onDismiss = viewModel::dismissYouTubeDownloadSheet,
         onConfirm = { variantId ->
             viewModel.enqueueYoutubeVariant(variantId)

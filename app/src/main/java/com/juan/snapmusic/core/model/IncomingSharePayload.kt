@@ -5,7 +5,13 @@ import androidx.compose.runtime.Immutable
 @Immutable
 data class IncomingShareItem(
     val url: String,
+    val provider: IncomingShareProvider = IncomingShareProvider.YOUTUBE,
 )
+
+enum class IncomingShareProvider {
+    YOUTUBE,
+    INSTAGRAM,
+}
 
 enum class IncomingShareSourceAction {
     SEND,

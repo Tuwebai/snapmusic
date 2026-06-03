@@ -7,6 +7,8 @@ import com.juan.snapmusic.data.download.DownloadCoordinator
 import com.juan.snapmusic.data.download.DownloadNetworkPolicy
 import com.juan.snapmusic.data.download.DownloadOutputValidator
 import com.juan.snapmusic.data.download.HttpTransferEngine
+import com.juan.snapmusic.data.extractor.CompositeStreamResolverRepository
+import com.juan.snapmusic.data.extractor.InstagramStreamResolverRepository
 import com.juan.snapmusic.data.extractor.NewPipeStreamResolverRepository
 import com.juan.snapmusic.data.extractor.OkHttpNewPipeDownloader
 import com.juan.snapmusic.data.persistence.HistoryRepository
@@ -85,8 +87,19 @@ class SnapMusicGraph(
         YouTubeWatchHistoryRepository(database.dao())
     }
 
-    val resolverRepository by lazy {
+    private val youtubeResolverRepository by lazy {
         NewPipeStreamResolverRepository(OkHttpNewPipeDownloader(extractorOkHttpClient))
+    }
+
+    private val instagramResolverRepository by lazy {
+        InstagramStreamResolverRepository(extractorOkHttpClient)
+    }
+
+    val resolverRepository by lazy {
+        CompositeStreamResolverRepository(
+            youtube = youtubeResolverRepository,
+            instagram = instagramResolverRepository,
+        )
     }
 
     val musicRecommendationEngine by lazy {

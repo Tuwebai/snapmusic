@@ -3,6 +3,7 @@ package com.juan.snapmusic.feature.home
 import androidx.compose.runtime.Immutable
 import com.juan.snapmusic.core.model.IncomingShareItem
 import com.juan.snapmusic.core.model.LocalMediaItem
+import com.juan.snapmusic.core.model.MediaKind
 import com.juan.snapmusic.core.model.PreviewState
 import com.juan.snapmusic.core.model.QueueEntry
 import com.juan.snapmusic.core.model.ResolvedMedia
@@ -233,6 +234,7 @@ data class YouTubeDownloadSheetState(
     val media: ResolvedMedia? = null,
     val visible: Boolean = false,
     val isPreparing: Boolean = false,
+    val allowedKinds: Set<MediaKind> = setOf(MediaKind.AUDIO, MediaKind.VIDEO),
 )
 
 @Immutable

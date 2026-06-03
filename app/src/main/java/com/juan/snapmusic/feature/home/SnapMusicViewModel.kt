@@ -14,6 +14,7 @@ import com.juan.snapmusic.core.model.DownloadBadgeState
 import com.juan.snapmusic.core.model.HistoryEntry
 import com.juan.snapmusic.core.model.IncomingShareItem
 import com.juan.snapmusic.core.model.IncomingSharePayload
+import com.juan.snapmusic.core.model.IncomingShareProvider
 import com.juan.snapmusic.core.model.LocalMediaItem
 import com.juan.snapmusic.core.model.MediaKind
 import com.juan.snapmusic.core.model.MediaVariant
@@ -1095,7 +1096,7 @@ class SnapMusicViewModel(
             }
             payload.items.size == 1 -> {
                 _incomingShareSelectionState.value = IncomingShareSelectionState()
-                applyIncomingSharedUrl(payload.items.first().url)
+                applyIncomingSharedItem(payload.items.first())
             }
             else -> {
                 _incomingShareSelectionState.value = IncomingShareSelectionState(
@@ -1113,7 +1114,14 @@ class SnapMusicViewModel(
 
     fun selectIncomingShareItem(item: IncomingShareItem) {
         _incomingShareSelectionState.value = IncomingShareSelectionState()
-        applyIncomingSharedUrl(item.url)
+        applyIncomingSharedItem(item)
+    }
+
+    private fun applyIncomingSharedItem(item: IncomingShareItem) {
+        when (item.provider) {
+            IncomingShareProvider.YOUTUBE -> applyIncomingSharedUrl(item.url)
+            IncomingShareProvider.INSTAGRAM -> applyIncomingInstagramUrl(item.url)
+        }
     }
 
     fun applyIncomingSharedUrl(rawUrl: String) {
@@ -1124,6 +1132,39 @@ class SnapMusicViewModel(
         selectHomeYouTubeTab()
         _youtubeState.value = _youtubeState.value.copy(query = validation.normalizedUrl)
         searchYoutube()
+    }
+
+    private fun applyIncomingInstagramUrl(url: String) {
+        selectHomeYouTubeTab()
+        _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
+            media = pendingInstagramMedia(url),
+            visible = true,
+            isPreparing = true,
+            allowedKinds = setOf(MediaKind.VIDEO),
+        )
+        viewModelScope.launch {
+            runCatching { graph.resolverRepository.resolve(url) }
+                .onSuccess { media ->
+                    val sheet = _youtubeDownloadSheet.value
+                    if (!sheet.isPreparing || sheet.media?.sourceUrl != url) return@onSuccess
+                    if (media.videoVariants.isEmpty()) {
+                        _youtubeDownloadSheet.value = YouTubeDownloadSheetState()
+                        _queueFeedback.value = "No encontramos video público descargable en ese enlace de Instagram."
+                    } else {
+                        _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
+                            media = media,
+                            visible = true,
+                            allowedKinds = setOf(MediaKind.VIDEO),
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    val sheet = _youtubeDownloadSheet.value
+                    if (!sheet.isPreparing || sheet.media?.sourceUrl != url) return@onFailure
+                    _youtubeDownloadSheet.value = YouTubeDownloadSheetState()
+                    _queueFeedback.value = userFacingError(error.message, UiFailureKind.EXTRACTION)
+                }
+        }
     }
 
     fun enqueueYoutubeVariant(variantId: String) {
@@ -3263,6 +3304,16 @@ class SnapMusicViewModel(
                 }
         }
     }
+
+    private fun pendingInstagramMedia(url: String) = ResolvedMedia(
+        sourceUrl = url,
+        title = "Video de Instagram",
+        author = "Instagram",
+        durationSeconds = 0L,
+        thumbnailUrl = "",
+        audioVariants = emptyList(),
+        videoVariants = emptyList(),
+    )
 
     private fun recordPlaybackSignal(
         item: YouTubeFeedItem,

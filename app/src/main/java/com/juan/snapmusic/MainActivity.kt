@@ -25,13 +25,12 @@ import androidx.lifecycle.lifecycleScope
 import androidx.metrics.performance.JankStats
 import com.juan.snapmusic.core.performance.PerformanceTelemetry
 import com.juan.snapmusic.core.designsystem.SnapMusicTheme
-import com.juan.snapmusic.core.model.IncomingShareItem
 import com.juan.snapmusic.core.model.IncomingSharePayload
 import com.juan.snapmusic.core.model.IncomingShareSourceAction
+import com.juan.snapmusic.core.platform.normalizeIncomingShareUrl
 import com.juan.snapmusic.core.platform.PlaybackCommandReceiver
 import com.juan.snapmusic.core.platform.PlaybackSessionState
 import com.juan.snapmusic.core.platform.PlaybackSessionTarget
-import com.juan.snapmusic.core.platform.validateYouTubeUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -57,7 +56,6 @@ class MainActivity : ComponentActivity() {
         private const val SHORTCUT_SEARCH = "shortcut_search"
         private const val SHORTCUT_DOWNLOADS = "shortcut_downloads"
         private const val SHORTCUT_LAST_SONG = "shortcut_last_song"
-        private val YOUTUBE_URL_REGEX = Regex("""https?://\S+""")
 
         fun buildOpenQueuePendingIntent(context: Context): PendingIntent {
             val intent = Intent(context, MainActivity::class.java).apply {
@@ -399,12 +397,8 @@ class MainActivity : ComponentActivity() {
         }
         val items = candidates.asSequence()
             .flatMap { candidate -> candidate.lineSequence().map(String::trim) }
-            .mapNotNull { candidate ->
-                val normalized = YOUTUBE_URL_REGEX.find(candidate)?.value ?: candidate.takeIf { it.startsWith("http") }
-                normalized?.let { value -> validateYouTubeUrl(value).normalizedUrl }
-            }
+            .mapNotNull(::normalizeIncomingShareUrl)
             .distinct()
-            .map(::IncomingShareItem)
             .toList()
         return IncomingSharePayload(
             sourceAction = sourceAction,
