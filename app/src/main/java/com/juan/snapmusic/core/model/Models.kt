@@ -311,6 +311,7 @@ data class YouTubeFeaturedVideo(
     val playbackUrl: String? = null,
     val adaptivePlaybackUrl: String? = null,
     val selectedVideoQualityId: String = "auto",
+    val autoMaxVideoHeight: Int? = null,
     val availablePlaybackHeights: List<Int> = emptyList(),
     val actualVideoHeight: Int? = null,
     val actualPlaybackLabel: String? = null,

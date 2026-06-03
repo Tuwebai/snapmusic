@@ -5,7 +5,11 @@ import android.net.Uri
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -15,6 +19,7 @@ import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
+import java.io.File
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 import java.util.concurrent.TimeUnit
@@ -26,11 +31,17 @@ class SnapMusicPlaybackMediaSourceFactory(
     private val httpDataSourceFactory = OkHttpDataSource.Factory(PlaybackHttpClientHolder.client)
         .setDefaultRequestProperties(YouTubePlaybackHeaders.DEFAULT)
     private val upstreamDataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
-    private val delegate = DefaultMediaSourceFactory(upstreamDataSourceFactory)
+    private val cachedDataSourceFactory = PlaybackCacheHolder
+        .buildCachedDataSourceFactory(context.applicationContext, upstreamDataSourceFactory)
+    private val defaultDelegate = DefaultMediaSourceFactory(upstreamDataSourceFactory)
+    private val youtubeDelegate = DefaultMediaSourceFactory(cachedDataSourceFactory)
 
     override fun createMediaSource(mediaItem: MediaItem): MediaSource {
         val merged = MergedPlaybackUri.parse(mediaItem.localConfiguration?.uri)
-            ?: return delegate.createMediaSource(mediaItem)
+        if (merged == null) {
+            val delegate = if (mediaItem.localConfiguration?.uri.isRemotePlaybackUri()) youtubeDelegate else defaultDelegate
+            return delegate.createMediaSource(mediaItem)
+        }
         val videoItem = mediaItem.buildUpon()
             .setUri(merged.videoUrl.toUri())
             .build()
@@ -39,20 +50,27 @@ class SnapMusicPlaybackMediaSourceFactory(
             .setUri(merged.audioUrl.toUri())
             .build()
         return MergingMediaSource(
-            delegate.createMediaSource(videoItem),
-            delegate.createMediaSource(audioItem),
+            youtubeDelegate.createMediaSource(videoItem),
+            youtubeDelegate.createMediaSource(audioItem),
         )
     }
 
     override fun setDrmSessionManagerProvider(drmSessionManagerProvider: DrmSessionManagerProvider): MediaSource.Factory = apply {
-        delegate.setDrmSessionManagerProvider(drmSessionManagerProvider)
+        defaultDelegate.setDrmSessionManagerProvider(drmSessionManagerProvider)
+        youtubeDelegate.setDrmSessionManagerProvider(drmSessionManagerProvider)
     }
 
     override fun setLoadErrorHandlingPolicy(loadErrorHandlingPolicy: LoadErrorHandlingPolicy): MediaSource.Factory = apply {
-        delegate.setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
+        defaultDelegate.setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
+        youtubeDelegate.setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
     }
 
-    override fun getSupportedTypes(): IntArray = delegate.supportedTypes
+    override fun getSupportedTypes(): IntArray = defaultDelegate.supportedTypes
+}
+
+private fun Uri?.isRemotePlaybackUri(): Boolean {
+    val scheme = this?.scheme?.lowercase() ?: return false
+    return scheme == "http" || scheme == "https"
 }
 
 object YouTubePlaybackHeaders {
@@ -79,6 +97,34 @@ private object PlaybackHttpClientHolder {
         .writeTimeout(15, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
+}
+
+private object PlaybackCacheHolder {
+    private const val MAX_CACHE_BYTES = 512L * 1024L * 1024L
+    @Volatile
+    private var cache: SimpleCache? = null
+
+    fun buildCachedDataSourceFactory(
+        context: Context,
+        upstreamDataSourceFactory: DefaultDataSource.Factory,
+    ): CacheDataSource.Factory {
+        val cache = getCache(context)
+        return CacheDataSource.Factory()
+            .setCache(cache)
+            .setUpstreamDataSourceFactory(upstreamDataSourceFactory)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    }
+
+    private fun getCache(context: Context): SimpleCache {
+        cache?.let { return it }
+        return synchronized(this) {
+            cache ?: SimpleCache(
+                File(context.cacheDir, "youtube-playback-cache"),
+                LeastRecentlyUsedCacheEvictor(MAX_CACHE_BYTES),
+                StandaloneDatabaseProvider(context),
+            ).also { cache = it }
+        }
+    }
 }
 
 object MergedPlaybackUri {

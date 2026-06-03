@@ -56,7 +56,11 @@ private fun buildYouTubeQueueMediaItems(
     preloadedNextFeatured: YouTubeFeaturedVideo?,
 ): List<MediaItem> {
     val currentItem = featured.toMediaItem().takeIf { it != MediaItem.EMPTY } ?: return emptyList()
-    return listOf(currentItem)
+    val nextItem = preloadedNextFeatured
+        ?.takeIf { it.sourceUrl != featured.sourceUrl && it.isReady && it.playbackUrl != null }
+        ?.toMediaItem()
+        ?.takeIf { it != MediaItem.EMPTY }
+    return if (nextItem != null) listOf(currentItem, nextItem) else listOf(currentItem)
 }
 
 private fun MediaController.sameYouTubeQueueAs(queueItems: List<MediaItem>): Boolean {
@@ -315,7 +319,7 @@ fun rememberYouTubePlayer(
         }
     }
 
-    LaunchedEffect(controller, featured.selectedVideoQualityId, featured.playbackUrl) {
+    LaunchedEffect(controller, featured.selectedVideoQualityId, featured.playbackUrl, featured.autoMaxVideoHeight) {
         val mediaController = controller ?: return@LaunchedEffect
         if (mediaController.playbackState == Player.STATE_IDLE) return@LaunchedEffect
         applyYouTubePlaybackQuality(

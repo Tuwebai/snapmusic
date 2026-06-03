@@ -48,7 +48,7 @@ internal fun applyYouTubePlaybackQuality(
     val selectedVariant = featured.resolvedMedia?.videoVariants?.firstOrNull { it.id == featured.selectedVideoQualityId }
     val adaptivePlayback = featured.adaptivePlaybackUrl?.let(::isAdaptivePlaybackUrl) == true &&
         featured.playbackUrl == featured.adaptivePlaybackUrl
-    val preferredAutomaticHeight = featured.resolvedMedia?.let(::resolvePreferredAutomaticHeight)
+    val preferredAutomaticHeight = featured.autoMaxVideoHeight ?: featured.resolvedMedia?.let(::resolvePreferredAutomaticHeight)
     val builder = mediaController.trackSelectionParameters
         .buildUpon()
         .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
