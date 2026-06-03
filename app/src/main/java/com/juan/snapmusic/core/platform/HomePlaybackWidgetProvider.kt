@@ -19,9 +19,7 @@ import com.juan.snapmusic.R
 
 class HomePlaybackWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        appWidgetIds.forEach { appWidgetId ->
-            appWidgetManager.updateAppWidget(appWidgetId, buildViews(context, PlaybackSessionStateStore.state.value))
-        }
+        PlaybackWidgetRenderer.update(context, appWidgetManager, appWidgetIds, PlaybackWidgetKind.FULL)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -81,13 +79,7 @@ class HomePlaybackWidgetProvider : AppWidgetProvider() {
         private var lastArtworkBitmap: Bitmap? = null
 
         fun updateAll(context: Context, state: PlaybackSessionState = PlaybackSessionStateStore.state.value) {
-            val appContext = context.applicationContext
-            val manager = AppWidgetManager.getInstance(appContext)
-            val component = ComponentName(appContext, HomePlaybackWidgetProvider::class.java)
-            val widgetIds = manager.getAppWidgetIds(component)
-            if (widgetIds.isEmpty()) return
-            val views = buildViews(appContext, state)
-            widgetIds.forEach { manager.updateAppWidget(it, views) }
+            PlaybackWidgetRenderer.updateAll(context, state)
         }
 
         private fun buildViews(context: Context, state: PlaybackSessionState): RemoteViews {
