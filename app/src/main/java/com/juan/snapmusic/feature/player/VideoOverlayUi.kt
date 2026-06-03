@@ -507,7 +507,7 @@ internal fun VideoFullscreenOverlay(
                     start = if (fullscreenLayout) 14.dp else 10.dp,
                     end = if (fullscreenLayout) 14.dp else 10.dp,
                     top = if (fullscreenLayout) 0.dp else 8.dp,
-                    bottom = if (fullscreenLayout) 28.dp else 8.dp,
+                    bottom = if (fullscreenLayout) 44.dp else 8.dp,
                 ),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
@@ -522,7 +522,7 @@ internal fun VideoFullscreenOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(20.dp),
+                    .height(if (fullscreenLayout) 34.dp else 20.dp),
             ) {
                 Box(
                     modifier = Modifier

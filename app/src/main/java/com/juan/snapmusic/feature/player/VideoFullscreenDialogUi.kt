@@ -108,8 +108,7 @@ internal fun LandscapeFullscreenVideoDialog(
         val controller = activity?.window?.let { WindowInsetsControllerCompat(it, it.decorView) }
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        controller?.show(WindowInsetsCompat.Type.statusBars())
-        controller?.hide(WindowInsetsCompat.Type.navigationBars())
+        controller?.hide(WindowInsetsCompat.Type.systemBars())
         onDispose {
             controller?.show(WindowInsetsCompat.Type.systemBars())
             activity?.requestedOrientation = initialOrientation
