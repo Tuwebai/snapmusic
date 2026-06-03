@@ -1135,7 +1135,7 @@ class SnapMusicViewModel(
     }
 
     private fun applyIncomingInstagramUrl(url: String) {
-        selectHomeYouTubeTab()
+        selectHomeSearchTab()
         _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
             media = pendingInstagramMedia(url),
             visible = true,
@@ -1165,7 +1165,7 @@ class SnapMusicViewModel(
                     if (!sheet.isPreparing || sheet.media?.sourceUrl != url) return@onFailure
                     keepInstagramSheetOpenWithError(
                         url = url,
-                        message = userFacingError(error.message, UiFailureKind.EXTRACTION),
+                        message = instagramUserFacingError(error.message),
                     )
                 }
         }
@@ -4491,6 +4491,25 @@ private enum class UiFailureKind {
     EXTRACTION,
     TRANSCODE,
     STORAGE,
+}
+
+private fun instagramUserFacingError(raw: String?): String {
+    val message = raw.orEmpty().lowercase()
+    return when {
+        "public" in message || "públic" in message -> {
+            "No encontramos video público descargable en ese enlace de Instagram."
+        }
+
+        "timeout" in message || "network" in message || "connect" in message || "unreachable" in message -> {
+            "Instagram no respondió a tiempo. Probá de nuevo en un rato."
+        }
+
+        "respond" in message || "response" in message || "http" in message -> {
+            "Instagram no entregó el video directo. Probá con un reel o publicación pública."
+        }
+
+        else -> "No pudimos preparar ese video de Instagram ahora mismo."
+    }
 }
 
 private fun userFacingError(

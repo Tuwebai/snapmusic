@@ -42,7 +42,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import coil.imageLoader
 import com.juan.snapmusic.core.model.YouTubeFeedItem
-import com.juan.snapmusic.feature.home.DownloadFormatSheet
 import com.juan.snapmusic.feature.home.SnapMusicViewModel
 import com.juan.snapmusic.feature.home.YouTubeSuggestionsUiState
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -104,10 +103,6 @@ fun YouTubeTabContent(
         }
     }
 
-    YouTubeDownloadSheetHost(
-        viewModel = viewModel,
-        onDownloadQueued = onDownloadQueued,
-    )
 }
 
 @androidx.media3.common.util.UnstableApi
@@ -263,29 +258,6 @@ private fun YouTubeThumbnailPrefetcher(
                 }
             }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun YouTubeDownloadSheetHost(
-    viewModel: SnapMusicViewModel,
-    onDownloadQueued: () -> Unit,
-) {
-    val downloadSheetState by viewModel.youtubeDownloadSheet.collectAsStateWithLifecycle()
-    val media = downloadSheetState.media ?: return
-    if (!downloadSheetState.visible) return
-
-    DownloadFormatSheet(
-        media = media,
-        isPreparing = downloadSheetState.isPreparing,
-        allowedKinds = downloadSheetState.allowedKinds,
-        errorMessage = downloadSheetState.errorMessage,
-        onDismiss = viewModel::dismissYouTubeDownloadSheet,
-        onConfirm = { variantId ->
-            viewModel.enqueueYoutubeVariant(variantId)
-            onDownloadQueued()
-        },
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

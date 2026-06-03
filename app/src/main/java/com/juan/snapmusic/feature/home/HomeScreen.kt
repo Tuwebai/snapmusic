@@ -69,6 +69,11 @@ fun HomeScreen(
         }
     }
 
+    HomeDownloadSheetHost(
+        viewModel = viewModel,
+        onDownloadQueued = onDownloadQueued,
+    )
+
     if (incomingShareSelection.visible) {
         IncomingShareSelectionSheet(
             items = incomingShareSelection.items,

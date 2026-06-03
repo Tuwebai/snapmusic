@@ -1,5 +1,6 @@
 package com.juan.snapmusic.data.extractor
 
+import android.util.Log
 import com.juan.snapmusic.core.model.ContainerFormat
 import com.juan.snapmusic.core.model.DownloadExecutionPlan
 import com.juan.snapmusic.core.model.DownloadSelection
@@ -20,8 +21,7 @@ class InstagramStreamResolverRepository(
 
     suspend fun resolve(url: String): ResolvedMedia = withContext(Dispatchers.IO) {
         val normalizedUrl = normalizeInstagramUrl(url) ?: error("La URL de Instagram no es válida.")
-        val page = fetchPublicPage(normalizedUrl)
-        val media = InstagramHtmlExtractor.extract(page)
+        val media = resolvePublicMedia(normalizedUrl)
         val variant = MediaVariant(
             id = INSTAGRAM_VIDEO_VARIANT_ID,
             label = "Video MP4",
@@ -42,6 +42,22 @@ class InstagramStreamResolverRepository(
             audioVariants = emptyList(),
             videoVariants = listOf(variant),
         )
+    }
+
+    private fun resolvePublicMedia(normalizedUrl: String): InstagramPageMedia {
+        val errors = mutableListOf<String>()
+        for (candidateUrl in requestCandidates(normalizedUrl)) {
+            val page = runCatching { fetchPublicPage(candidateUrl, normalizedUrl) }
+                .onFailure { error -> errors += error.message.orEmpty() }
+                .getOrNull() ?: continue
+            val media = runCatching { InstagramHtmlExtractor.extract(page) }
+                .onFailure { error -> errors += error.message.orEmpty() }
+                .getOrNull() ?: continue
+            Log.d(LOG_TAG, "resolved url=$normalizedUrl candidate=$candidateUrl hasThumbnail=${media.thumbnailUrl.isNotBlank()}")
+            return media
+        }
+        val lastError = errors.lastOrNull()?.takeIf { it.isNotBlank() }
+        error(lastError ?: "No se encontró un video público descargable de Instagram.")
     }
 
     suspend fun resolveDownloadPlan(url: String, selection: DownloadSelection): DownloadExecutionPlan = withContext(Dispatchers.IO) {
@@ -67,18 +83,31 @@ class InstagramStreamResolverRepository(
         )
     }
 
-    private fun fetchPublicPage(url: String): String {
+    private fun fetchPublicPage(
+        url: String,
+        referer: String,
+    ): String {
         val request = Request.Builder()
             .url(url)
-            .headers(requestHeaders(url))
+            .headers(requestHeaders(referer))
             .get()
             .build()
         okHttpClient.newCall(request).execute().use { response ->
+            Log.d(LOG_TAG, "fetch candidate=$url code=${response.code}")
             if (!response.isSuccessful) {
                 error("Instagram respondió ${response.code}; verificá que el video sea público.")
             }
             return response.body?.string() ?: error("Instagram no devolvió contenido.")
         }
+    }
+
+    private fun requestCandidates(normalizedUrl: String): List<String> {
+        val base = normalizedUrl.trimEnd('/')
+        return listOf(
+            "$base/",
+            "$base/?__a=1&__d=dis",
+            "$base/embed/",
+        ).distinct()
     }
 
     private fun requestHeaders(url: String) = okhttp3.Headers.Builder().apply {
@@ -93,6 +122,7 @@ class InstagramStreamResolverRepository(
     )
 
     private companion object {
+        const val LOG_TAG = "SnapMusicInstagram"
         const val INSTAGRAM_VIDEO_VARIANT_ID = "instagram-video-mp4"
         const val DESKTOP_USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
