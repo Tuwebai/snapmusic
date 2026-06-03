@@ -39,7 +39,7 @@ class SnapMusicPlaybackMediaSourceFactory(
     override fun createMediaSource(mediaItem: MediaItem): MediaSource {
         val merged = MergedPlaybackUri.parse(mediaItem.localConfiguration?.uri)
         if (merged == null) {
-            val delegate = if (mediaItem.localConfiguration?.uri.isRemotePlaybackUri()) youtubeDelegate else defaultDelegate
+            val delegate = if (mediaItem.localConfiguration?.uri.isYouTubePlaybackUri()) youtubeDelegate else defaultDelegate
             return delegate.createMediaSource(mediaItem)
         }
         val videoItem = mediaItem.buildUpon()
@@ -68,9 +68,11 @@ class SnapMusicPlaybackMediaSourceFactory(
     override fun getSupportedTypes(): IntArray = defaultDelegate.supportedTypes
 }
 
-private fun Uri?.isRemotePlaybackUri(): Boolean {
+private fun Uri?.isYouTubePlaybackUri(): Boolean {
     val scheme = this?.scheme?.lowercase() ?: return false
-    return scheme == "http" || scheme == "https"
+    return scheme == "http" ||
+        scheme == "https" ||
+        toString().startsWith("data:application/dash+xml", ignoreCase = true)
 }
 
 object YouTubePlaybackHeaders {

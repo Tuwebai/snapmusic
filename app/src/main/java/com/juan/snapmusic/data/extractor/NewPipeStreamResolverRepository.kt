@@ -31,9 +31,18 @@ import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import org.schabi.newpipe.extractor.stream.StreamType
 import org.schabi.newpipe.extractor.stream.VideoStream
+import org.w3c.dom.Document
+import org.w3c.dom.Element
+import java.io.ByteArrayInputStream
+import java.io.StringWriter
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 import java.util.LinkedHashMap
+import javax.xml.parsers.DocumentBuilderFactory
+import javax.xml.transform.OutputKeys
+import javax.xml.transform.TransformerFactory
+import javax.xml.transform.dom.DOMSource
+import javax.xml.transform.stream.StreamResult
 import kotlin.math.abs
 
 class NewPipeStreamResolverRepository(
@@ -90,32 +99,120 @@ class NewPipeStreamResolverRepository(
     private fun buildAdaptivePlaybackUrl(info: StreamInfo): String? {
         return info.dashMpdUrl
             ?: info.hlsUrl
-            ?: buildProgressiveDashDataUri(
-                streams = info.videoStreams,
+            ?: buildGeneratedDashDataUri(
+                videoStreams = info.videoOnlyStreams,
+                audioStreams = info.audioStreams,
                 durationSeconds = info.duration,
             )
     }
 
-    private fun buildProgressiveDashDataUri(
-        streams: List<VideoStream>,
+    private fun buildGeneratedDashDataUri(
+        videoStreams: List<VideoStream>,
+        audioStreams: List<AudioStream>,
         durationSeconds: Long,
     ): String? {
-        val progressive = streams
-            .filter { !it.isVideoOnly && !it.url.isNullOrBlank() }
-            .maxByOrNull { it.height }
-            ?: return null
-        val progressiveUrl = progressive.url ?: return null
-        val itagItem = progressive.itagItem ?: return null
+        val videoManifests = selectDashVideoStreams(videoStreams).mapNotNull { stream ->
+            val streamUrl = stream.url ?: return@mapNotNull null
+            val itagItem = stream.itagItem ?: return@mapNotNull null
+            runCatching {
+                YoutubeProgressiveDashManifestCreator.fromProgressiveStreamingUrl(
+                    streamUrl,
+                    itagItem,
+                    durationSeconds,
+                )
+            }.getOrNull()
+        }
+        if (videoManifests.isEmpty()) return null
+        val audioStream = selectDashAudioStream(audioStreams) ?: return null
+        val audioUrl = audioStream.url ?: return null
+        val audioItag = audioStream.itagItem ?: return null
         return runCatching {
-            val manifest = YoutubeProgressiveDashManifestCreator.fromProgressiveStreamingUrl(
-                progressiveUrl,
-                itagItem,
+            val audioManifest = YoutubeProgressiveDashManifestCreator.fromProgressiveStreamingUrl(
+                audioUrl,
+                audioItag,
                 durationSeconds,
             )
+            val manifest = combineDashManifests(videoManifests, audioManifest) ?: return@runCatching null
             val encoded = Base64.getEncoder()
                 .encodeToString(manifest.toByteArray(StandardCharsets.UTF_8))
             "data:application/dash+xml;base64,$encoded"
         }.getOrNull()
+    }
+
+    private fun selectDashVideoStreams(streams: List<VideoStream>): List<VideoStream> {
+        val candidates = streams
+            .filter { it.isVideoOnly && !it.url.isNullOrBlank() && it.itagItem != null && it.height > 0 }
+        val hardwareSafe = candidates.filter { it.format == MediaFormat.MPEG_4 }
+        return (hardwareSafe.ifEmpty { candidates })
+            .groupBy { it.height }
+            .values
+            .mapNotNull { group -> group.maxByOrNull { it.bitrate } }
+            .sortedBy { it.height }
+    }
+
+    private fun selectDashAudioStream(streams: List<AudioStream>): AudioStream? {
+        val candidates = streams.filter { !it.url.isNullOrBlank() && it.itagItem != null }
+        return candidates
+            .filter { it.format == MediaFormat.M4A }
+            .ifEmpty { candidates }
+            .maxByOrNull { it.averageBitrate }
+    }
+
+    private fun combineDashManifests(
+        videoManifests: List<String>,
+        audioManifest: String,
+    ): String? {
+        val baseDocument = parseDashDocument(videoManifests.first())
+        val period = baseDocument.firstElement("Period") ?: return null
+        period.removeChildren("AdaptationSet")
+        val videoSet = baseDocument.importNode(
+            parseDashDocument(videoManifests.first()).firstElement("AdaptationSet") ?: return null,
+            true,
+        ) as Element
+        videoManifests.drop(1).forEach { manifest ->
+            val sourceSet = parseDashDocument(manifest).firstElement("AdaptationSet") ?: return@forEach
+            sourceSet.childElements("Representation").forEach { representation ->
+                videoSet.appendChild(baseDocument.importNode(representation, true))
+            }
+        }
+        period.appendChild(videoSet)
+        val audioSet = baseDocument.importNode(
+            parseDashDocument(audioManifest).firstElement("AdaptationSet") ?: return null,
+            true,
+        )
+        period.appendChild(audioSet)
+        return serializeDashDocument(baseDocument)
+    }
+
+    private fun parseDashDocument(manifest: String): Document {
+        return DocumentBuilderFactory.newInstance()
+            .newDocumentBuilder()
+            .parse(ByteArrayInputStream(manifest.toByteArray(StandardCharsets.UTF_8)))
+    }
+
+    private fun Document.firstElement(name: String): Element? {
+        return getElementsByTagName(name).item(0) as? Element
+    }
+
+    private fun Element.childElements(name: String): List<Element> {
+        val nodes = getElementsByTagName(name)
+        return (0 until nodes.length).mapNotNull { index -> nodes.item(index) as? Element }
+    }
+
+    private fun Element.removeChildren(name: String) {
+        val nodes = getElementsByTagName(name)
+        for (index in nodes.length - 1 downTo 0) {
+            removeChild(nodes.item(index))
+        }
+    }
+
+    private fun serializeDashDocument(document: Document): String {
+        val writer = StringWriter()
+        TransformerFactory.newInstance().newTransformer().apply {
+            setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no")
+            setOutputProperty(OutputKeys.ENCODING, "UTF-8")
+        }.transform(DOMSource(document), StreamResult(writer))
+        return writer.toString()
     }
 
     override suspend fun resolveDownloadPlan(url: String, selection: DownloadSelection): DownloadExecutionPlan = withContext(Dispatchers.IO) {
