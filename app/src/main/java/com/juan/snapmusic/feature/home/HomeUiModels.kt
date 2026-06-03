@@ -235,6 +235,7 @@ data class YouTubeDownloadSheetState(
     val visible: Boolean = false,
     val isPreparing: Boolean = false,
     val allowedKinds: Set<MediaKind> = setOf(MediaKind.AUDIO, MediaKind.VIDEO),
+    val errorMessage: String? = null,
 )
 
 @Immutable

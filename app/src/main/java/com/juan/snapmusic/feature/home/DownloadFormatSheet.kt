@@ -58,6 +58,7 @@ fun DownloadFormatSheet(
     media: ResolvedMedia,
     isPreparing: Boolean = false,
     allowedKinds: Set<MediaKind> = setOf(MediaKind.AUDIO, MediaKind.VIDEO),
+    errorMessage: String? = null,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
@@ -105,6 +106,8 @@ fun DownloadFormatSheet(
             }
             if (isPreparing) {
                 PreparingFormatsStatus()
+            } else if (errorMessage != null) {
+                DownloadSheetErrorStatus(errorMessage)
             } else {
                 FormatGrid(
                     media = media,
@@ -143,6 +146,19 @@ fun DownloadFormatSheet(
             }
         }
     }
+}
+
+@Composable
+private fun DownloadSheetErrorStatus(message: String) {
+    Text(
+        text = message,
+        color = TextSecondary,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(SurfaceElevated, RoundedCornerShape(18.dp))
+            .padding(16.dp),
+    )
 }
 
 @Composable

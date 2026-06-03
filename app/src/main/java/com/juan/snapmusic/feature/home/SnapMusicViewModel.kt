@@ -1148,8 +1148,10 @@ class SnapMusicViewModel(
                     val sheet = _youtubeDownloadSheet.value
                     if (!sheet.isPreparing || sheet.media?.sourceUrl != url) return@onSuccess
                     if (media.videoVariants.isEmpty()) {
-                        _youtubeDownloadSheet.value = YouTubeDownloadSheetState()
-                        _queueFeedback.value = "No encontramos video público descargable en ese enlace de Instagram."
+                        keepInstagramSheetOpenWithError(
+                            url = url,
+                            message = "No encontramos video público descargable en ese enlace de Instagram.",
+                        )
                     } else {
                         _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
                             media = media,
@@ -1161,10 +1163,25 @@ class SnapMusicViewModel(
                 .onFailure { error ->
                     val sheet = _youtubeDownloadSheet.value
                     if (!sheet.isPreparing || sheet.media?.sourceUrl != url) return@onFailure
-                    _youtubeDownloadSheet.value = YouTubeDownloadSheetState()
-                    _queueFeedback.value = userFacingError(error.message, UiFailureKind.EXTRACTION)
+                    keepInstagramSheetOpenWithError(
+                        url = url,
+                        message = userFacingError(error.message, UiFailureKind.EXTRACTION),
+                    )
                 }
         }
+    }
+
+    private fun keepInstagramSheetOpenWithError(
+        url: String,
+        message: String,
+    ) {
+        _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
+            media = pendingInstagramMedia(url),
+            visible = true,
+            allowedKinds = setOf(MediaKind.VIDEO),
+            errorMessage = message,
+        )
+        _queueFeedback.value = message
     }
 
     fun enqueueYoutubeVariant(variantId: String) {

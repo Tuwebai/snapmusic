@@ -11,12 +11,18 @@ internal object InstagramHtmlExtractor {
     private val metaTagRegex = Regex("""<meta\s+[^>]*>""", RegexOption.IGNORE_CASE)
     private val contentRegex = Regex("""content=["']([^"']*)["']""", RegexOption.IGNORE_CASE)
     private val videoUrlRegex = Regex(""""video_url"\s*:\s*"([^"]+)"""")
+    private val playableUrlRegex = Regex(""""playable_url"\s*:\s*"([^"]+)"""")
+    private val videoVersionsUrlRegex = Regex(""""video_versions"\s*:\s*\[[^\]]*?"url"\s*:\s*"([^"]+)"""")
+    private val contentUrlRegex = Regex(""""contentUrl"\s*:\s*"([^"]+)"""")
 
     fun extract(html: String): InstagramPageMedia {
         val expanded = html.unescapeJsonLike()
         val videoUrl = metaContent(expanded, "og:video:secure_url")
             ?: metaContent(expanded, "og:video")
             ?: videoUrlRegex.find(expanded)?.groupValues?.getOrNull(1)?.decodeShareValue()
+            ?: playableUrlRegex.find(expanded)?.groupValues?.getOrNull(1)?.decodeShareValue()
+            ?: videoVersionsUrlRegex.find(expanded)?.groupValues?.getOrNull(1)?.decodeShareValue()
+            ?: contentUrlRegex.find(expanded)?.groupValues?.getOrNull(1)?.decodeShareValue()
             ?: error("No se encontró un video público descargable de Instagram.")
         val title = metaContent(expanded, "og:title")
             ?.cleanInstagramTitle()
