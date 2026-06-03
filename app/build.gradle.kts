@@ -14,8 +14,8 @@ android {
         applicationId = "com.juan.snapmusic"
         minSdk = 24
         targetSdk = 34
-        versionCode = 318
-        versionName = "1.0.318"
+        versionCode = 328
+        versionName = "1.0.328"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

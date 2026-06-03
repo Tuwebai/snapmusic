@@ -17,6 +17,7 @@ import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
@@ -36,7 +37,7 @@ private const val ACTIVE_STALL_RECOVERY_REPEAT_MS = 4_000L
 
 private fun YouTubeFeaturedVideo.toMediaItem(): MediaItem {
     val resolvedPlaybackUrl = playbackUrl ?: return MediaItem.EMPTY
-    return MediaItem.Builder()
+    val builder = MediaItem.Builder()
         .setMediaId(sourceUrl)
         .setUri(resolvedPlaybackUrl.toUri())
         .setMediaMetadata(
@@ -46,7 +47,22 @@ private fun YouTubeFeaturedVideo.toMediaItem(): MediaItem {
                 .setArtworkUri(thumbnailUrl.takeIf { it.isNotBlank() }?.toUri())
                 .build(),
         )
-        .build()
+    adaptivePlaybackMimeType(resolvedPlaybackUrl)?.let(builder::setMimeType)
+    return builder.build()
+}
+
+private fun adaptivePlaybackMimeType(url: String): String? {
+    val lower = url.lowercase()
+    return when {
+        lower.startsWith("data:application/dash+xml") ||
+            lower.contains(".mpd") ||
+            lower.contains("manifest.googlevideo.com") ||
+            lower.contains("/manifest/") ||
+            lower.startsWith("https://manifest") -> MimeTypes.APPLICATION_MPD
+
+        lower.contains(".m3u8") -> MimeTypes.APPLICATION_M3U8
+        else -> null
+    }
 }
 
 private fun MediaItem.samePlaybackAs(other: MediaItem): Boolean {

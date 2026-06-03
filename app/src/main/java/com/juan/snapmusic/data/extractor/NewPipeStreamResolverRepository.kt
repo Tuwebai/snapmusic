@@ -23,6 +23,7 @@ import org.schabi.newpipe.extractor.kiosk.KioskInfo
 import org.schabi.newpipe.extractor.localization.ContentCountry
 import org.schabi.newpipe.extractor.localization.Localization
 import org.schabi.newpipe.extractor.search.SearchInfo
+import org.schabi.newpipe.extractor.services.youtube.dashmanifestcreators.YoutubeProgressiveDashManifestCreator
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import org.schabi.newpipe.extractor.stream.Frameset
@@ -30,6 +31,7 @@ import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import org.schabi.newpipe.extractor.stream.StreamType
 import org.schabi.newpipe.extractor.stream.VideoStream
+import java.nio.charset.StandardCharsets
 import java.util.Base64
 import java.util.LinkedHashMap
 import kotlin.math.abs
@@ -74,7 +76,7 @@ class NewPipeStreamResolverRepository(
             durationSeconds = info.duration,
             thumbnailUrl = selectFeedThumbnailUrl(info.thumbnails),
             playbackUrl = buildPlaybackUrl(info.videoStreams),
-            adaptivePlaybackUrl = info.dashMpdUrl ?: info.hlsUrl,
+            adaptivePlaybackUrl = buildAdaptivePlaybackUrl(info),
             audioVariants = DownloadSourcePlanner.buildAudioVariants(audioCandidates),
             videoVariants = DownloadSourcePlanner.buildVideoVariants(
                 progressiveCandidates = progressiveCandidates,
@@ -83,6 +85,37 @@ class NewPipeStreamResolverRepository(
             ),
             seekPreviewFramesets = info.previewFrames.mapNotNull(::toSeekPreviewFrameset),
         )
+    }
+
+    private fun buildAdaptivePlaybackUrl(info: StreamInfo): String? {
+        return info.dashMpdUrl
+            ?: info.hlsUrl
+            ?: buildProgressiveDashDataUri(
+                streams = info.videoStreams,
+                durationSeconds = info.duration,
+            )
+    }
+
+    private fun buildProgressiveDashDataUri(
+        streams: List<VideoStream>,
+        durationSeconds: Long,
+    ): String? {
+        val progressive = streams
+            .filter { !it.isVideoOnly && !it.url.isNullOrBlank() }
+            .maxByOrNull { it.height }
+            ?: return null
+        val progressiveUrl = progressive.url ?: return null
+        val itagItem = progressive.itagItem ?: return null
+        return runCatching {
+            val manifest = YoutubeProgressiveDashManifestCreator.fromProgressiveStreamingUrl(
+                progressiveUrl,
+                itagItem,
+                durationSeconds,
+            )
+            val encoded = Base64.getEncoder()
+                .encodeToString(manifest.toByteArray(StandardCharsets.UTF_8))
+            "data:application/dash+xml;base64,$encoded"
+        }.getOrNull()
     }
 
     override suspend fun resolveDownloadPlan(url: String, selection: DownloadSelection): DownloadExecutionPlan = withContext(Dispatchers.IO) {

@@ -34,7 +34,8 @@ import kotlinx.coroutines.isActive
 internal fun isAdaptivePlaybackUrl(url: String): Boolean {
     if (url.isBlank()) return false
     val lower = url.lowercase()
-    return lower.contains(".mpd") ||
+    return lower.startsWith("data:application/dash+xml") ||
+        lower.contains(".mpd") ||
         lower.contains("manifest.googlevideo.com") ||
         lower.contains(".m3u8") ||
         lower.contains("/manifest/") ||

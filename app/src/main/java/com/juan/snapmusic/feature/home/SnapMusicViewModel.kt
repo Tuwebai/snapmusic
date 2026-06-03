@@ -2527,6 +2527,24 @@ class SnapMusicViewModel(
         }
     }
 
+    private fun watchNextFallbackCandidates(
+        currentItem: YouTubeFeedItem,
+        state: YouTubeUiState,
+        existingQueue: List<YouTubeFeedItem>,
+        blockedQueueItems: List<YouTubeFeedItem>,
+        existingWatchNext: List<YouTubeFeedItem>,
+    ): List<YouTubeFeedItem> {
+        return (cachedYouTubeHomeFeed + state.items + existingQueue)
+            .asSequence()
+            .filter { candidate ->
+                candidate.url != currentItem.url &&
+                    blockedQueueItems.none { blocked -> blocked.url == candidate.url } &&
+                    existingWatchNext.none { existing -> existing.url == candidate.url }
+            }
+            .distinctBy(YouTubeFeedItem::url)
+            .toList()
+    }
+
     private fun rebuildQueueWithWatchNext(
         queueItems: List<YouTubeFeedItem>,
         currentIndex: Int,
@@ -2923,7 +2941,6 @@ class SnapMusicViewModel(
                     limit = YOUTUBE_WATCH_NEXT_PAGE_SIZE,
                 )
             }.getOrDefault(emptyList())
-            if (related.isEmpty()) return@launch
             val current = _youtubeState.value
             if (current.featured.sourceUrl != item.url) return@launch
             val existingQueue = current.playbackQueue.ifEmpty { current.items }.ifEmpty { listOf(item) }
@@ -2932,7 +2949,14 @@ class SnapMusicViewModel(
                 initialWatchNextItems(existingQueue, currentIndex, current.queueOrigin)
             }
             val blockedQueueItems = relatedQueueBlocklist(existingQueue, currentIndex, current.queueOrigin)
-            val appendedRelated = related.filterNot { candidate ->
+            val fallbackCandidates = watchNextFallbackCandidates(
+                currentItem = item,
+                state = current,
+                existingQueue = existingQueue,
+                blockedQueueItems = blockedQueueItems,
+                existingWatchNext = existingWatchNext,
+            )
+            val appendedRelated = (related + fallbackCandidates).filterNot { candidate ->
                 candidate.url == item.url ||
                     blockedQueueItems.any { queued -> queued.url == candidate.url } ||
                     existingWatchNext.any { queued -> queued.url == candidate.url }
@@ -2940,6 +2964,15 @@ class SnapMusicViewModel(
             val mergedCandidates = (existingWatchNext + appendedRelated)
                 .filter { candidate -> candidate.url != item.url }
                 .distinctBy(YouTubeFeedItem::url)
+            if (mergedCandidates.isEmpty()) {
+                _youtubeState.value = current.copy(
+                    watchNextItems = emptyList(),
+                    canLoadMoreWatchNext = false,
+                    isLoadingMore = false,
+                    errorMessage = null,
+                )
+                return@launch
+            }
             val rankedWatchNext = graph.musicHomeFeedRepository.rankWatchNextCandidates(
                 currentItem = item,
                 candidates = mergedCandidates,
@@ -2953,10 +2986,15 @@ class SnapMusicViewModel(
             if (watchNextItems == existingWatchNext && appendedRelated.isEmpty()) {
                 _youtubeState.value = current.copy(
                     watchNextItems = existingWatchNext,
-                    canLoadMoreWatchNext = related.size >= YOUTUBE_WATCH_NEXT_PAGE_SIZE,
+                    canLoadMoreWatchNext = keepYoutubePagingOpen(
+                        addedItems = 0,
+                        fetchedItems = related.size,
+                        requestedItems = YOUTUBE_WATCH_NEXT_PAGE_SIZE,
+                    ),
                 )
                 return@launch
             }
+            val addedItems = (watchNextItems.size - existingWatchNext.size).coerceAtLeast(0)
             _youtubeState.value = current.copy(
                 playbackQueue = queueItems,
                 watchNextItems = watchNextItems,
@@ -2965,7 +3003,11 @@ class SnapMusicViewModel(
                 } else {
                     null
                 },
-                canLoadMoreWatchNext = related.size >= YOUTUBE_WATCH_NEXT_PAGE_SIZE,
+                canLoadMoreWatchNext = keepYoutubePagingOpen(
+                    addedItems = addedItems,
+                    fetchedItems = related.size,
+                    requestedItems = YOUTUBE_WATCH_NEXT_PAGE_SIZE,
+                ),
                 preloadedNextFeatured = nextQueueItem(queueItems, currentIndex, current.continuationMode)?.let { youTubeResolveCache[it.url] },
             )
             persistCurrentYouTubeSnapshot()
@@ -3938,7 +3980,8 @@ class SnapMusicViewModel(
     private fun isAdaptivePlaybackUrl(url: String): Boolean {
         if (url.isBlank()) return false
         val lower = url.lowercase()
-        return lower.contains(".mpd") ||
+        return lower.startsWith("data:application/dash+xml") ||
+            lower.contains(".mpd") ||
             lower.contains("manifest.googlevideo.com") ||
             lower.contains(".m3u8") ||
             lower.contains("/manifest/") ||
