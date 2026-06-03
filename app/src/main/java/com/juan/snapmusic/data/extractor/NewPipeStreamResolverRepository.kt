@@ -24,6 +24,8 @@ import org.schabi.newpipe.extractor.localization.ContentCountry
 import org.schabi.newpipe.extractor.localization.Localization
 import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.services.youtube.dashmanifestcreators.YoutubeProgressiveDashManifestCreator
+import org.schabi.newpipe.extractor.services.youtube.dashmanifestcreators.YoutubeOtfDashManifestCreator
+import org.schabi.newpipe.extractor.services.youtube.ItagItem
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import org.schabi.newpipe.extractor.stream.Frameset
@@ -114,29 +116,49 @@ class NewPipeStreamResolverRepository(
         val videoManifests = selectDashVideoStreams(videoStreams).mapNotNull { stream ->
             val streamUrl = stream.url ?: return@mapNotNull null
             val itagItem = stream.itagItem ?: return@mapNotNull null
-            runCatching {
-                YoutubeProgressiveDashManifestCreator.fromProgressiveStreamingUrl(
-                    streamUrl,
-                    itagItem,
-                    durationSeconds,
-                )
-            }.getOrNull()
+            createDashManifest(
+                url = streamUrl,
+                itagItem = itagItem,
+                durationSeconds = durationSeconds,
+                deliveryMethod = stream.deliveryMethod,
+            )
         }
         if (videoManifests.isEmpty()) return null
         val audioStream = selectDashAudioStream(audioStreams) ?: return null
         val audioUrl = audioStream.url ?: return null
         val audioItag = audioStream.itagItem ?: return null
         return runCatching {
-            val audioManifest = YoutubeProgressiveDashManifestCreator.fromProgressiveStreamingUrl(
-                audioUrl,
-                audioItag,
-                durationSeconds,
-            )
+            val audioManifest = createDashManifest(
+                url = audioUrl,
+                itagItem = audioItag,
+                durationSeconds = durationSeconds,
+                deliveryMethod = audioStream.deliveryMethod,
+            ) ?: return@runCatching null
             val manifest = combineDashManifests(videoManifests, audioManifest) ?: return@runCatching null
             val encoded = Base64.getEncoder()
                 .encodeToString(manifest.toByteArray(StandardCharsets.UTF_8))
             "data:application/dash+xml;base64,$encoded"
         }.getOrNull()
+    }
+
+    private fun createDashManifest(
+        url: String,
+        itagItem: ItagItem,
+        durationSeconds: Long,
+        deliveryMethod: DeliveryMethod?,
+    ): String? {
+        val creators = if (deliveryMethod == DeliveryMethod.DASH) {
+            listOf(
+                { YoutubeOtfDashManifestCreator.fromOtfStreamingUrl(url, itagItem, durationSeconds) },
+                { YoutubeProgressiveDashManifestCreator.fromProgressiveStreamingUrl(url, itagItem, durationSeconds) },
+            )
+        } else {
+            listOf(
+                { YoutubeProgressiveDashManifestCreator.fromProgressiveStreamingUrl(url, itagItem, durationSeconds) },
+                { YoutubeOtfDashManifestCreator.fromOtfStreamingUrl(url, itagItem, durationSeconds) },
+            )
+        }
+        return creators.firstNotNullOfOrNull { creator -> runCatching { creator() }.getOrNull() }
     }
 
     private fun selectDashVideoStreams(streams: List<VideoStream>): List<VideoStream> {
