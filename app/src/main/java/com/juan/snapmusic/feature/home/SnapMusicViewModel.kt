@@ -2627,24 +2627,6 @@ class SnapMusicViewModel(
         ) {
             return true
         }
-        if (mode == YouTubePlaybackSourceMode.MERGED) {
-            _youtubeState.value = current.copy(
-                currentPositionMs = positionMs.coerceAtLeast(0L),
-                shouldAutoPlayCurrent = true,
-                isRefreshingVideo = false,
-                pendingTransition = false,
-                errorMessage = null,
-            )
-            if (retryYouTubePlaybackSource("$reason ${durationMs}ms")) return true
-        }
-        if (
-            mode == YouTubePlaybackSourceMode.ADAPTIVE &&
-            featured.selectedVideoQualityId == "auto" &&
-            durationMs >= YOUTUBE_LONG_REBUFFER_MS * 2 &&
-            applyAdaptiveAutoHeightCap(current, positionMs, durationMs, events)
-        ) {
-            return true
-        }
         Log.w(
             YOUTUBE_PLAYBACK_LOG_TAG,
             "source=$sourceUrl stallRecoverySkipped reason=$reason durationMs=$durationMs positionMs=$positionMs mode=${mode.name}",

@@ -97,8 +97,8 @@ class NewPipeStreamResolverRepository(
     }
 
     private fun buildAdaptivePlaybackUrl(info: StreamInfo): String? {
-        return info.dashMpdUrl
-            ?: info.hlsUrl
+        return info.dashMpdUrl?.takeIf { it.isNotBlank() }
+            ?: info.hlsUrl?.takeIf { it.isNotBlank() }
             ?: buildGeneratedDashDataUri(
                 videoStreams = info.videoOnlyStreams,
                 audioStreams = info.audioStreams,
