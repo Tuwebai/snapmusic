@@ -106,7 +106,7 @@ internal fun PreviewVideoPlaybackCard(
     onNext: () -> Unit,
 ) {
     var showControls by rememberSaveable(preview.fileUri) { mutableStateOf(false) }
-    var isFullscreen by rememberSaveable(preview.fileUri) { mutableStateOf(false) }
+    var isFullscreen by remember(preview.fileUri) { mutableStateOf(true) }
     val overlayState = rememberPlaybackOverlayState(
         player = player,
         mediaId = preview.fileUri,
