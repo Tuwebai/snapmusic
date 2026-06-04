@@ -98,6 +98,18 @@ private fun MediaController.syncNextYouTubeQueueItem(queueItems: List<MediaItem>
     }
 }
 
+private fun stableResumePositionMs(
+    controllerPositionMs: Long,
+    statePositionMs: Long,
+    seekPositionMs: Long,
+): Long {
+    return maxOf(
+        controllerPositionMs.takeIf { it > 0L } ?: 0L,
+        statePositionMs.takeIf { it > 0L } ?: 0L,
+        seekPositionMs.takeIf { it > 0L } ?: 0L,
+    )
+}
+
 private fun androidx.media3.common.PlaybackException.isExpiredStream403(): Boolean {
     var cursor: Throwable? = this
     var has403Cause = false
@@ -227,6 +239,16 @@ fun rememberYouTubePlayer(
 
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     if (mediaController.currentMediaItem?.mediaId != currentFeaturedSourceUrl) return
+                    val errorPositionMs = stableResumePositionMs(
+                        controllerPositionMs = mediaController.currentPosition.coerceAtLeast(0L),
+                        statePositionMs = sessionState.currentPositionMs,
+                        seekPositionMs = seekState.positionMs,
+                    )
+                    onPlaybackProgress(
+                        errorPositionMs,
+                        mediaController.playWhenReady,
+                        true,
+                    )
                     Log.w(
                         "SnapMusicPlayback",
                         "error media=${mediaController.currentMediaItem?.mediaId.orEmpty()} message=${error.message.orEmpty()}",
@@ -298,7 +320,11 @@ fun rememberYouTubePlayer(
         } else if (!sameQueue) {
             val resumePositionMs =
                 if (mediaController.currentMediaItem?.mediaId == featured.sourceUrl) {
-                    mediaController.currentPosition.coerceAtLeast(0L)
+                    stableResumePositionMs(
+                        controllerPositionMs = mediaController.currentPosition.coerceAtLeast(0L),
+                        statePositionMs = sessionState.currentPositionMs,
+                        seekPositionMs = seekState.positionMs,
+                    )
                 } else {
                     seekState.positionMs.coerceAtLeast(0L)
                 }

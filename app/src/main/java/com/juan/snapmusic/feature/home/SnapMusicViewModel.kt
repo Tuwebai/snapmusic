@@ -807,6 +807,7 @@ class SnapMusicViewModel(
             YouTubePlayerSessionState(
                 featured = state.featured,
                 preloadedNextFeatured = state.preloadedNextFeatured,
+                currentPositionMs = state.currentPositionMs,
             )
         }
         .distinctUntilChanged()
