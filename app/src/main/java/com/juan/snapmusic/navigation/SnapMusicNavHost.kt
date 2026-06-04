@@ -76,10 +76,14 @@ fun SnapMusicNavHost(
     val mountYouTubePlayer by viewModel.youtubePlayerMountEnabled.collectAsStateWithLifecycle()
     val mountPreviewPlayer by viewModel.previewPlayerMountEnabled.collectAsStateWithLifecycle()
     val navHostPlaybackState by viewModel.navHostPlaybackState.collectAsStateWithLifecycle()
-    val youTubePlayer = rememberManagedYouTubePlayer(viewModel, enabled = mountYouTubePlayer)
-    val previewPlayer = rememberManagedPreviewPlayer(viewModel, enabled = mountPreviewPlayer)
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
+    val prewarmPreviewPlayer = currentRoute == SnapMusicDestination.Preview.route
+    val youTubePlayer = rememberManagedYouTubePlayer(viewModel, enabled = mountYouTubePlayer)
+    val previewPlayer = rememberManagedPreviewPlayer(
+        viewModel = viewModel,
+        enabled = mountPreviewPlayer || prewarmPreviewPlayer,
+    )
     val configuration = LocalConfiguration.current
     val useSideNavigation = configuration.screenWidthDp >= 720
 

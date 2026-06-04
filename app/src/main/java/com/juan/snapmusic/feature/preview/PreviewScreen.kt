@@ -183,6 +183,10 @@ private fun PreviewDetailHost(
     }
 
     BackHandler {
+        if (activePreviewUri.isPreviewVideoMedia()) {
+            player?.pause()
+            player?.playWhenReady = false
+        }
         viewModel.closePreviewDetail()
     }
 

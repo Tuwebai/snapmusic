@@ -106,7 +106,13 @@ internal fun PreviewVideoPlaybackCard(
     onNext: () -> Unit,
 ) {
     var showControls by rememberSaveable(preview.fileUri) { mutableStateOf(false) }
-    var isFullscreen by remember(preview.fileUri) { mutableStateOf(true) }
+    var isFullscreen by rememberSaveable(preview.fileUri) { mutableStateOf(true) }
+    val pauseAndMinimizeVideo = {
+        player.pause()
+        player.playWhenReady = false
+        isFullscreen = false
+        onMinimize()
+    }
     val overlayState = rememberPlaybackOverlayState(
         player = player,
         mediaId = preview.fileUri,
@@ -203,7 +209,7 @@ internal fun PreviewVideoPlaybackCard(
                     playbackState = overlayState,
                     canGoPrevious = canGoPrevious,
                     canGoNext = canGoNext,
-                    onBack = onBack,
+                    onBack = pauseAndMinimizeVideo,
                     onPlayPause = { player.togglePlayPause() },
                     onPrevious = onPrevious,
                     onNext = onNext,
@@ -233,7 +239,7 @@ internal fun PreviewVideoPlaybackCard(
                     fallback = painterResource(R.drawable.preview_local_music_fallback),
                 )
             },
-            onDismiss = { isFullscreen = false },
+            onDismiss = pauseAndMinimizeVideo,
             onPlayPause = { player.togglePlayPause() },
             onPrevious = onPrevious,
             onNext = onNext,
