@@ -256,14 +256,18 @@ class StorageRepository(
                     val size = cursor.getLong(sizeIndex)
                     if (duration <= 0L || size <= 0L) continue
                     val contentUri = ContentUris.withAppendedId(collection, id)
+                    val displayName = cursor.getString(displayNameIndex).orEmpty()
 
                     add(
                         LocalMediaItem(
                             id = "video-$id",
-                            title = cursor.getString(titleIndex).orEmpty().ifBlank { "Video sin título" },
+                            title = resolveVideoTitle(
+                                rawTitle = cursor.getString(titleIndex).orEmpty(),
+                                displayName = displayName,
+                            ),
                             subtitle = "Video local · ${formatMediaDuration(duration)}",
                             contentUri = contentUri.toString(),
-                            fileName = cursor.getString(displayNameIndex).orEmpty(),
+                            fileName = displayName,
                             thumbnailUrl = contentUri.toString(),
                             isVideo = true,
                             durationMs = duration,
@@ -281,5 +285,26 @@ class StorageRepository(
         val minutes = totalSeconds / 60
         val seconds = totalSeconds % 60
         return "%02d:%02d".format(minutes, seconds)
+    }
+
+    private fun resolveVideoTitle(rawTitle: String, displayName: String): String {
+        val cleanTitle = rawTitle.trim()
+        val cleanDisplayName = displayName.substringBeforeLast('.', displayName).trim()
+        return when {
+            cleanTitle.isBlank() || cleanTitle.isGenericVideoTitle() -> cleanDisplayName.ifBlank { "Video sin título" }
+            else -> cleanTitle
+        }
+    }
+
+    private fun String.isGenericVideoTitle(): Boolean {
+        return lowercase() in setOf(
+            "hd video",
+            "video",
+            "movie",
+            "untitled",
+            "untitled video",
+            "video sin título",
+            "snapmusic",
+        )
     }
 }

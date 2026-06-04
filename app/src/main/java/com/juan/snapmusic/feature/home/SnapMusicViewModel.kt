@@ -3610,16 +3610,26 @@ class SnapMusicViewModel(
             _previewLibrary.value = rawLibrary.map { item ->
                 val outputUriMatch = historyByOutputUri[normalizeMediaLookupKey(item.contentUri)]
                 val fileNameMatch = historyByExpectedFileName[normalizeMediaFileKey(item.fileName)]?.firstOrNull()
-                val titleMatch = historyByTitle[normalizeMediaLookupKey(item.title)]?.firstOrNull()
-                val historyMatch = outputUriMatch ?: fileNameMatch ?: titleMatch
-                val preferHistoryThumbnail = outputUriMatch != null || fileNameMatch != null
+                val exactHistoryMatch = outputUriMatch ?: fileNameMatch
+                val titleMatch = if (exactHistoryMatch == null && !item.hasGenericLocalVideoTitle()) {
+                    historyByTitle[normalizeMediaLookupKey(item.title)]?.firstOrNull()
+                } else {
+                    null
+                }
+                val historyMatch = exactHistoryMatch ?: titleMatch
+                val preferHistoryThumbnail = exactHistoryMatch != null
                 val resolvedThumbnail = when {
                     preferHistoryThumbnail && !historyMatch?.thumbnailUrl.isNullOrBlank() -> historyMatch.thumbnailUrl
                     item.thumbnailUrl.isLocalArtworkSource() -> item.thumbnailUrl
                     !historyMatch?.thumbnailUrl.isNullOrBlank() -> historyMatch.thumbnailUrl
                     else -> item.thumbnailUrl
                 }
-                item.copy(thumbnailUrl = resolvedThumbnail)
+                item.copy(
+                    title = exactHistoryMatch?.title?.takeIf(String::isNotBlank)
+                        ?: item.resolvedLocalMediaTitle(),
+                    subtitle = exactHistoryMatch?.toLocalMediaSubtitle(item.subtitle) ?: item.subtitle,
+                    thumbnailUrl = resolvedThumbnail,
+                )
             }
         }
     }
@@ -4539,6 +4549,30 @@ private fun com.juan.snapmusic.core.model.HistoryEntry.toPreviewState(): Preview
         fileUri = outputUri,
         isReady = true,
     )
+}
+
+private fun LocalMediaItem.resolvedLocalMediaTitle(): String {
+    if (!hasGenericLocalVideoTitle() && title.isNotBlank()) return title
+    return fileName.substringBeforeLast('.', fileName).trim().ifBlank { title.ifBlank { "Video sin título" } }
+}
+
+private fun LocalMediaItem.hasGenericLocalVideoTitle(): Boolean {
+    if (!isVideo) return false
+    return title.trim().lowercase() in setOf(
+        "hd video",
+        "video",
+        "movie",
+        "untitled",
+        "untitled video",
+        "video sin título",
+        "snapmusic",
+    )
+}
+
+private fun HistoryEntry.toLocalMediaSubtitle(fallback: String): String {
+    val duration = fallback.substringAfter(" · ", missingDelimiterValue = "").trim()
+    val owner = author.ifBlank { fallback.substringBefore(" · ").ifBlank { "Video local" } }
+    return if (duration.isBlank()) owner else "$owner · $duration"
 }
 
 private fun LocalMediaItem.toPreviewPlaybackQueueItem(): PreviewPlaybackQueueItem {

@@ -440,7 +440,7 @@ class DownloadWorker(
     ): String {
         if (thumbnailUrl.isBlank()) return thumbnailUrl
         val artworkDir = File(applicationContext.filesDir, "download-artwork").apply { mkdirs() }
-        val artworkFile = File(artworkDir, "${sourceUrl.sha256Hex()}.jpg")
+        val artworkFile = File(artworkDir, "${downloadArtworkCacheKey(sourceUrl, thumbnailUrl)}.jpg")
         if (artworkFile.exists() && artworkFile.length() > 0L) {
             return Uri.fromFile(artworkFile).toString()
         }
@@ -467,6 +467,13 @@ class DownloadWorker(
         return downloadThumbnailForHistory(sourceUrl, thumbnailUrl)
             .takeIf { it.startsWith("file:", ignoreCase = true) }
             ?.toUri()
+    }
+
+    private fun downloadArtworkCacheKey(
+        sourceUrl: String,
+        thumbnailUrl: String,
+    ): String {
+        return "${sourceUrl.trim()}|${thumbnailUrl.trim()}".sha256Hex()
     }
 
     private suspend fun copyInto(
