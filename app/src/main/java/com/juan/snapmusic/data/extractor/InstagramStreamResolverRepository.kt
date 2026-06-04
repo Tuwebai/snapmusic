@@ -46,6 +46,16 @@ class InstagramStreamResolverRepository(
 
     private fun resolvePublicMedia(normalizedUrl: String): InstagramPageMedia {
         val errors = mutableListOf<String>()
+        for (apiUrl in apiCandidates(normalizedUrl)) {
+            val body = runCatching { fetchApi(apiUrl, normalizedUrl) }
+                .onFailure { error -> errors += error.message.orEmpty() }
+                .getOrNull() ?: continue
+            val media = runCatching { InstagramMediaInfoParser.parse(body) }
+                .onFailure { error -> errors += error.message.orEmpty() }
+                .getOrNull() ?: continue
+            Log.d(LOG_TAG, "resolved api=$apiUrl hasThumbnail=${media.thumbnailUrl.isNotBlank()}")
+            return media
+        }
         for (candidateUrl in requestCandidates(normalizedUrl)) {
             val page = runCatching { fetchPublicPage(candidateUrl, normalizedUrl) }
                 .onFailure { error -> errors += error.message.orEmpty() }
@@ -101,6 +111,33 @@ class InstagramStreamResolverRepository(
         }
     }
 
+    private fun fetchApi(
+        url: String,
+        referer: String,
+    ): String {
+        val request = Request.Builder()
+            .url(url)
+            .headers(apiHeaders(referer))
+            .get()
+            .build()
+        okHttpClient.newCall(request).execute().use { response ->
+            Log.d(LOG_TAG, "fetch api=$url code=${response.code}")
+            if (!response.isSuccessful) {
+                error("Instagram respondió ${response.code}; verificá que el video sea público.")
+            }
+            return response.body?.string() ?: error("Instagram no devolvió contenido.")
+        }
+    }
+
+    private fun apiCandidates(normalizedUrl: String): List<String> {
+        val shortcode = InstagramShortcode.fromUrl(normalizedUrl) ?: return emptyList()
+        val mediaId = runCatching { InstagramShortcode.toMediaId(shortcode) }.getOrNull() ?: return emptyList()
+        return listOf(
+            "https://i.instagram.com/api/v1/media/$mediaId/info/",
+            "https://www.instagram.com/api/v1/media/$mediaId/info/",
+        )
+    }
+
     private fun requestCandidates(normalizedUrl: String): List<String> {
         val base = normalizedUrl.trimEnd('/')
         return listOf(
@@ -113,6 +150,13 @@ class InstagramStreamResolverRepository(
     private fun requestHeaders(url: String) = okhttp3.Headers.Builder().apply {
         playbackHeaders(url).forEach { (name, value) -> add(name, value) }
         add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+    }.build()
+
+    private fun apiHeaders(url: String) = okhttp3.Headers.Builder().apply {
+        playbackHeaders(url).forEach { (name, value) -> add(name, value) }
+        add("Accept", "application/json")
+        add("X-IG-App-ID", "936619743392459")
+        add("X-ASBD-ID", "129477")
     }.build()
 
     private fun playbackHeaders(referer: String): Map<String, String> = mapOf(

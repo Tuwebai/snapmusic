@@ -2,6 +2,7 @@ package com.juan.snapmusic.core.platform
 
 import com.juan.snapmusic.core.model.IncomingShareItem
 import com.juan.snapmusic.core.model.IncomingShareProvider
+import java.net.URLDecoder
 import java.net.URI
 
 private val incomingHttpUrlRegex = Regex("""https?://\S+""")
@@ -11,6 +12,7 @@ private val instagramHosts = setOf(
     "m.instagram.com",
     "instagr.am",
     "www.instagr.am",
+    "l.instagram.com",
 )
 
 fun normalizeIncomingShareUrl(raw: String): IncomingShareItem? {
@@ -35,6 +37,9 @@ fun normalizeInstagramUrl(raw: String): String? {
     val scheme = uri.scheme?.lowercase()
     if (scheme != "http" && scheme != "https") return null
     val host = uri.host?.lowercase() ?: return null
+    if (host == "l.instagram.com") {
+        return extractWrappedInstagramUrl(uri)?.let(::normalizeInstagramUrl)
+    }
     if (host !in instagramHosts) return null
     val path = uri.rawPath?.takeIf { it.isNotBlank() } ?: return null
     return URI(
@@ -46,6 +51,15 @@ fun normalizeInstagramUrl(raw: String): String? {
         null,
         null,
     ).toString()
+}
+
+private fun extractWrappedInstagramUrl(uri: URI): String? {
+    return uri.rawQuery
+        ?.split('&')
+        ?.firstOrNull { it.substringBefore('=') == "u" }
+        ?.substringAfter('=', missingDelimiterValue = "")
+        ?.takeIf(String::isNotBlank)
+        ?.let { encoded -> URLDecoder.decode(encoded, Charsets.UTF_8.name()) }
 }
 
 private fun String.trimShareUrl(): String = trim()
