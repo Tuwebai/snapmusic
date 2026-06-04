@@ -73,8 +73,9 @@ class DownloadWorker(
                 snapshot = DownloadProgressSnapshot(0L, null, 0L, DownloadStage.PREPARING),
             )
 
+            val preferences = graph.currentPreferences()
             val reservedTargetUri = graph.storageRepository.createDestinationUri(
-                preferences = graph.currentPreferences(),
+                preferences = preferences,
                 fileName = buildFileName(entry.title, entry.container),
                 mimeType = mimeTypeFor(entry.container),
             )
@@ -102,7 +103,15 @@ class DownloadWorker(
                 format = entry.container,
                 qualityLabel = resolvedVariantLabel,
             )
-            notifications.showSuccess(queueId, entry.title, resolvedVariantLabel, localThumbnailUrl)
+            if (preferences.notifyDownloadCompleted) {
+                notifications.showSuccess(
+                    queueId = queueId,
+                    title = entry.title,
+                    variantLabel = resolvedVariantLabel,
+                    thumbnailUrl = localThumbnailUrl,
+                    sound = preferences.downloadCompleteSound,
+                )
+            }
             Result.success()
         } catch (cancelled: Throwable) {
             val latest = graph.queueRepository.get(queueId)

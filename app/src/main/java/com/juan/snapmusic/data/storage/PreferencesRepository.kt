@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.juan.snapmusic.core.model.AppThemeMode
 import com.juan.snapmusic.core.model.ContainerFormat
+import com.juan.snapmusic.core.model.DownloadCompleteSound
 import com.juan.snapmusic.core.model.FeedImpression
 import com.juan.snapmusic.core.model.FavoriteDestination
 import com.juan.snapmusic.core.model.MusicAffinitySignal
@@ -34,6 +35,7 @@ class PreferencesRepository(
     private val downloadTasksMobileKey = intPreferencesKey("download_tasks_mobile")
     private val downloadSpeedLimitKey = stringPreferencesKey("download_speed_limit")
     private val allowMobileDataDownloadsKey = booleanPreferencesKey("allow_mobile_data_downloads")
+    private val downloadCompleteSoundKey = stringPreferencesKey("download_complete_sound")
     private val notifyDownloadProgressKey = booleanPreferencesKey("notify_download_progress")
     private val notifyDownloadCompletedKey = booleanPreferencesKey("notify_download_completed")
     private val notifyRecommendedContentKey = booleanPreferencesKey("notify_recommended_content")
@@ -61,6 +63,7 @@ class PreferencesRepository(
             downloadTasksMobile = prefs[downloadTasksMobileKey] ?: 2,
             downloadSpeedLimitLabel = prefs[downloadSpeedLimitKey] ?: "Sin límites",
             allowMobileDataDownloads = prefs[allowMobileDataDownloadsKey] ?: true,
+            downloadCompleteSound = DownloadCompleteSound.fromPreferenceKey(prefs[downloadCompleteSoundKey]),
             notifyDownloadProgress = prefs[notifyDownloadProgressKey] ?: true,
             notifyDownloadCompleted = prefs[notifyDownloadCompletedKey] ?: true,
             notifyRecommendedContent = prefs[notifyRecommendedContentKey] ?: true,
@@ -120,6 +123,10 @@ class PreferencesRepository(
 
     suspend fun updateAllowMobileDataDownloads(value: Boolean) {
         context.snapMusicStore.edit { it[allowMobileDataDownloadsKey] = value }
+    }
+
+    suspend fun updateDownloadCompleteSound(value: DownloadCompleteSound) {
+        context.snapMusicStore.edit { it[downloadCompleteSoundKey] = value.preferenceKey }
     }
 
     suspend fun updateNotifyDownloadProgress(value: Boolean) {

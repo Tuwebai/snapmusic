@@ -108,6 +108,7 @@ fun SettingsScreen(
                 onDownloadTaskLimitsChange = viewModel::updateDownloadTaskLimits,
                 onSpeedLimitChange = viewModel::updateDownloadSpeedLimitLabel,
                 onAllowMobileDataChange = viewModel::updateAllowMobileDataDownloads,
+                onCompleteSoundChange = viewModel::updateDownloadCompleteSound,
             )
 
             SettingsPane.NOTIFICATIONS -> NotificationsSettingsPane(

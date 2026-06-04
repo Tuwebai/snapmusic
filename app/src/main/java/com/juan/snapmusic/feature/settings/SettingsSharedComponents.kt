@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -268,19 +269,24 @@ internal fun SettingsSelectionDialog(
             Text(title, color = TextPrimary, style = MaterialTheme.typography.titleLarge)
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyColumn(
+                modifier = Modifier.heightIn(max = 420.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 options.forEachIndexed { index, option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(18.dp))
-                            .clickable { onSelect(index) }
-                            .padding(horizontal = 14.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(option, modifier = Modifier.weight(1f), color = TextPrimary, style = MaterialTheme.typography.bodyLarge)
-                        if (index == selectedIndex) {
-                            Icon(Icons.Outlined.Check, contentDescription = null, tint = AccentRed)
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .clickable { onSelect(index) }
+                                .padding(horizontal = 14.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(option, modifier = Modifier.weight(1f), color = TextPrimary, style = MaterialTheme.typography.bodyLarge)
+                            if (index == selectedIndex) {
+                                Icon(Icons.Outlined.Check, contentDescription = null, tint = AccentRed)
+                            }
                         }
                     }
                 }

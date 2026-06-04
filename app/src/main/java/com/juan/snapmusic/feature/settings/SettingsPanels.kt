@@ -64,6 +64,7 @@ import com.juan.snapmusic.core.designsystem.TextPrimary
 import com.juan.snapmusic.core.designsystem.TextSecondary
 import com.juan.snapmusic.core.model.AppThemeMode
 import com.juan.snapmusic.core.model.CacheCleanupUiState
+import com.juan.snapmusic.core.model.DownloadCompleteSound
 import com.juan.snapmusic.core.model.UserPreferences
 import com.juan.snapmusic.core.model.YouTubeWatchHistoryEntry
 
@@ -138,9 +139,11 @@ internal fun DownloadSettingsPane(
     onDownloadTaskLimitsChange: (Int, Int) -> Unit,
     onSpeedLimitChange: (String) -> Unit,
     onAllowMobileDataChange: (Boolean) -> Unit,
+    onCompleteSoundChange: (DownloadCompleteSound) -> Unit,
 ) {
     var showTaskDialog by remember { mutableStateOf(false) }
     var showSpeedDialog by remember { mutableStateOf(false) }
+    var showCompleteSoundDialog by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) onPickFolder(uri.toString(), "Carpeta elegida")
     }
@@ -169,6 +172,19 @@ internal fun DownloadSettingsPane(
             onSelect = { index ->
                 speedOptions.getOrNull(index)?.let(onSpeedLimitChange)
                 showSpeedDialog = false
+            },
+        )
+    }
+
+    if (showCompleteSoundDialog) {
+        SettingsSelectionDialog(
+            title = "Sonido al completar descarga",
+            options = DownloadCompleteSound.values().map { it.label },
+            selectedIndex = DownloadCompleteSound.values().indexOf(prefs.downloadCompleteSound).coerceAtLeast(0),
+            onDismiss = { showCompleteSoundDialog = false },
+            onSelect = { index ->
+                DownloadCompleteSound.values().getOrNull(index)?.let(onCompleteSoundChange)
+                showCompleteSoundDialog = false
             },
         )
     }
@@ -213,6 +229,13 @@ internal fun DownloadSettingsPane(
                 subtitle = "Los medios se descargarán a través de datos",
                 checked = prefs.allowMobileDataDownloads,
                 onCheckedChange = onAllowMobileDataChange,
+            )
+        }
+        item {
+            SettingsValueRow(
+                title = "Sonido de descarga completada",
+                subtitle = prefs.downloadCompleteSound.label,
+                onClick = { showCompleteSoundDialog = true },
             )
         }
     }

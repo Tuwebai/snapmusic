@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.util.LruCache
@@ -14,6 +16,7 @@ import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import com.juan.snapmusic.MainActivity
 import com.juan.snapmusic.R
+import com.juan.snapmusic.core.model.DownloadCompleteSound
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -24,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
 
 private const val CHANNEL_ID = "snapmusic_downloads"
+private const val COMPLETION_CHANNEL_PREFIX = "snapmusic_downloads_complete_"
 private const val SNAPMUSIC_RED = 0xFFFF3131.toInt()
 
 class NotificationHelper(
@@ -115,7 +119,10 @@ class NotificationHelper(
         title: String,
         variantLabel: String,
         thumbnailUrl: String,
+        sound: DownloadCompleteSound,
     ) {
+        val channelId = completionChannelId(sound)
+        ensureCompletionChannel(sound)
         val openDownloadsIntent = MainActivity.buildOpenQueuePendingIntent(appContext)
         val contentView = buildDownloadRemoteView(
             headline = "Descarga completa",
@@ -124,7 +131,7 @@ class NotificationHelper(
             thumbnailUrl = thumbnailUrl,
             progress = null,
         )
-        val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(appContext, channelId)
             .setSmallIcon(R.drawable.ic_stat_snapmusic)
             .setLargeIcon(fallbackArtwork())
             .setColor(SNAPMUSIC_RED)
@@ -135,6 +142,7 @@ class NotificationHelper(
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setAutoCancel(true)
             .setContentIntent(openDownloadsIntent)
+            .applyCompletionSound(sound)
             .build()
         manager.notify(completionNotificationId(queueId), notification)
     }
@@ -186,6 +194,73 @@ class NotificationHelper(
                 setViewVisibility(R.id.notification_progress, android.view.View.VISIBLE)
                 setProgressBar(R.id.notification_progress, 100, progress.coerceIn(0, 100), false)
             }
+        }
+    }
+
+    private fun ensureCompletionChannel(sound: DownloadCompleteSound) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val channelId = completionChannelId(sound)
+        if (manager.getNotificationChannel(channelId) != null) return
+        val channel = NotificationChannel(
+            channelId,
+            "Descargas completadas · ${sound.label}",
+            if (sound == DownloadCompleteSound.NONE) {
+                NotificationManager.IMPORTANCE_LOW
+            } else {
+                NotificationManager.IMPORTANCE_DEFAULT
+            },
+        ).apply {
+            description = "Aviso final cuando una descarga llega al 100%."
+            setSound(soundUri(sound), completionAudioAttributes())
+        }
+        manager.createNotificationChannel(channel)
+    }
+
+    private fun NotificationCompat.Builder.applyCompletionSound(
+        sound: DownloadCompleteSound,
+    ): NotificationCompat.Builder = apply {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) return@apply
+        when (sound) {
+            DownloadCompleteSound.NONE -> setSilent(true)
+            DownloadCompleteSound.SYSTEM -> setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
+            else -> setSound(soundUri(sound))
+        }
+    }
+
+    private fun completionChannelId(sound: DownloadCompleteSound): String {
+        return COMPLETION_CHANNEL_PREFIX + sound.preferenceKey
+    }
+
+    private fun soundUri(sound: DownloadCompleteSound): Uri? {
+        return when (sound) {
+            DownloadCompleteSound.NONE -> null
+            DownloadCompleteSound.SYSTEM -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            else -> Uri.parse("android.resource://${appContext.packageName}/${sound.rawResourceId()}")
+        }
+    }
+
+    private fun completionAudioAttributes(): AudioAttributes {
+        return AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+    }
+
+    private fun DownloadCompleteSound.rawResourceId(): Int {
+        return when (this) {
+            DownloadCompleteSound.SNAPMUSIC_PULSE_CONFIRM -> R.raw.download_complete_pulse_confirm
+            DownloadCompleteSound.SNAPMUSIC_CRIMSON_PING -> R.raw.download_complete_crimson_ping
+            DownloadCompleteSound.SNAPMUSIC_NEON_DROP -> R.raw.download_complete_neon_drop
+            DownloadCompleteSound.SNAPMUSIC_SOFT_WIN -> R.raw.download_complete_soft_win
+            DownloadCompleteSound.SNAPMUSIC_SNAP_CHIME -> R.raw.download_complete_snap_chime
+            DownloadCompleteSound.SNAPMUSIC_GLASS_POP -> R.raw.download_complete_glass_pop
+            DownloadCompleteSound.SNAPMUSIC_RED_SIGNAL -> R.raw.download_complete_red_signal
+            DownloadCompleteSound.SNAPMUSIC_BASS_TAP -> R.raw.download_complete_bass_tap
+            DownloadCompleteSound.SNAPMUSIC_WAVE_LOCK -> R.raw.download_complete_wave_lock
+            DownloadCompleteSound.SNAPMUSIC_NIGHT_FINISH -> R.raw.download_complete_night_finish
+            DownloadCompleteSound.NONE,
+            DownloadCompleteSound.SYSTEM,
+            -> R.raw.download_complete_pulse_confirm
         }
     }
 

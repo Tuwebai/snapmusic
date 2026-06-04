@@ -11,6 +11,7 @@ import com.juan.snapmusic.core.model.CacheCleanupUiState
 import com.juan.snapmusic.core.model.ContainerFormat
 import com.juan.snapmusic.core.model.ConversionRequest
 import com.juan.snapmusic.core.model.DownloadBadgeState
+import com.juan.snapmusic.core.model.DownloadCompleteSound
 import com.juan.snapmusic.core.model.HistoryEntry
 import com.juan.snapmusic.core.model.IncomingShareItem
 import com.juan.snapmusic.core.model.IncomingSharePayload
@@ -3909,6 +3910,10 @@ class SnapMusicViewModel(
 
     fun updateAllowMobileDataDownloads(value: Boolean) {
         viewModelScope.launch { graph.preferencesRepository.updateAllowMobileDataDownloads(value) }
+    }
+
+    fun updateDownloadCompleteSound(value: DownloadCompleteSound) {
+        viewModelScope.launch { graph.preferencesRepository.updateDownloadCompleteSound(value) }
     }
 
     fun updateNotifyDownloadProgress(value: Boolean) {

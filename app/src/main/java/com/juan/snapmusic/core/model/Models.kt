@@ -445,6 +445,7 @@ data class UserPreferences(
     val downloadTasksMobile: Int = 2,
     val downloadSpeedLimitLabel: String = "Sin límites",
     val allowMobileDataDownloads: Boolean = true,
+    val downloadCompleteSound: DownloadCompleteSound = DownloadCompleteSound.SNAPMUSIC_PULSE_CONFIRM,
     val notifyDownloadProgress: Boolean = true,
     val notifyDownloadCompleted: Boolean = true,
     val notifyRecommendedContent: Boolean = true,
