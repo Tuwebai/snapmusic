@@ -105,15 +105,24 @@ class DownloadWorker(
             notifications.showSuccess(queueId, entry.title, resolvedVariantLabel, localThumbnailUrl)
             Result.success()
         } catch (cancelled: Throwable) {
-            targetUri?.let { graph.storageRepository.deleteOutput(it.toString()) }
-            graph.storageRepository.invalidateLocalMediaCache()
-            if (isStopped) {
-                val latest = graph.queueRepository.get(queueId)
-                if (latest?.status != QueueStatus.PAUSED) {
-                    graph.queueRepository.updateStatus(queueId, QueueStatus.CANCELLED, 0, errorMessage = "Cancelado por el usuario")
-                }
+            val latest = graph.queueRepository.get(queueId)
+            val paused = cancelled is DownloadPausedException || latest?.status == QueueStatus.PAUSED
+            if (paused) {
+                graph.queueRepository.updateStatus(
+                    queueId,
+                    QueueStatus.PAUSED,
+                    latest?.progress ?: entry.progress,
+                    errorMessage = "Descarga pausada.",
+                )
+                Result.failure()
+            } else if (isStopped) {
+                targetUri?.let { graph.storageRepository.deleteOutput(it.toString()) }
+                graph.storageRepository.invalidateLocalMediaCache()
+                graph.queueRepository.updateStatus(queueId, QueueStatus.CANCELLED, 0, errorMessage = "Cancelado por el usuario")
                 Result.failure()
             } else {
+                targetUri?.let { graph.storageRepository.deleteOutput(it.toString()) }
+                graph.storageRepository.invalidateLocalMediaCache()
                 val safeMessage = friendlyErrorMessage(cancelled.message)
                 Log.e(DOWNLOAD_LOG_TAG, "download failed queueId=$queueId source=${entry.sourceUrl}", cancelled)
                 if (runAttemptCount < MAX_AUTO_RETRY_ATTEMPTS && shouldAutoRetry(cancelled)) {
@@ -399,6 +408,9 @@ class DownloadWorker(
                 safeProgress - lastPublishedProgress >= 2 ||
                 now - lastPublishedAtMs >= 1_000L
         if (!shouldPublish && status == QueueStatus.RUNNING) return
+        if (status == QueueStatus.RUNNING && graph.queueRepository.get(queueId)?.status == QueueStatus.PAUSED) {
+            throw DownloadPausedException()
+        }
         lastPublishedProgress = safeProgress
         lastPublishedAtMs = now
         graph.queueRepository.updateStatus(queueId, status, safeProgress, variantLabel = variantLabel)
@@ -475,6 +487,8 @@ class DownloadWorker(
     ): String {
         return "${sourceUrl.trim()}|${thumbnailUrl.trim()}".sha256Hex()
     }
+
+    private class DownloadPausedException : IllegalStateException("Descarga pausada.")
 
     private suspend fun copyInto(
         sourceUri: Uri,

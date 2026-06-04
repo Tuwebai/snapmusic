@@ -73,6 +73,7 @@ class NotificationHelper(
 
         return NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_snapmusic)
+            .setLargeIcon(fallbackArtwork())
             .setColor(SNAPMUSIC_RED)
             .setColorized(true)
             .setContentTitle("Descargando")
@@ -125,6 +126,7 @@ class NotificationHelper(
         )
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_snapmusic)
+            .setLargeIcon(fallbackArtwork())
             .setColor(SNAPMUSIC_RED)
             .setColorized(true)
             .setContentTitle("Descarga completa")
@@ -153,6 +155,7 @@ class NotificationHelper(
         )
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_snapmusic)
+            .setLargeIcon(fallbackArtwork())
             .setColor(SNAPMUSIC_RED)
             .setColorized(true)
             .setContentTitle("No pude terminar la descarga")
