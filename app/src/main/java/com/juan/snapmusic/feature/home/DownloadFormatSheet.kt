@@ -70,7 +70,8 @@ fun DownloadFormatSheet(
     val effectiveTab = if (activeTab in allowedKinds) activeTab else defaultTab
     var selectedVariantId by rememberSaveable { mutableStateOf<String?>(null) }
     val variants = remember(media, effectiveTab) { modalVariants(media, effectiveTab) }
-    val selected = variants.firstOrNull { it.id == selectedVariantId }
+    val effectiveSelectedVariantId = selectedVariantId ?: variants.singleOrNull()?.id
+    val selected = variants.firstOrNull { it.id == effectiveSelectedVariantId }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -112,7 +113,7 @@ fun DownloadFormatSheet(
                 FormatGrid(
                     media = media,
                     variants = variants,
-                    selectedVariantId = selectedVariantId,
+                    selectedVariantId = effectiveSelectedVariantId,
                     onSelect = { selectedVariantId = it },
                 )
             }

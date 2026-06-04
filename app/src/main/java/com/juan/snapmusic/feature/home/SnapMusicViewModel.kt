@@ -98,6 +98,7 @@ class SnapMusicViewModel(
         const val YOUTUBE_NEXT_PRE_RESOLVE_STABLE_WINDOW_MS = 30_000L
         const val HOME_TAB_YOUTUBE_INDEX = 1
         const val YOUTUBE_WATCH_COMMENT_FALLBACK = "Elegí un formato y mandalo a la cola sin salir de esta pantalla."
+        const val INSTAGRAM_FAST_VIDEO_VARIANT_ID = "instagram-fast-video-mp4"
         private const val YOUTUBE_FEED_DUPLICATE_PAGE_RETRY_LIMIT = 2
         private const val YOUTUBE_PLAYBACK_LOG_TAG = "SnapMusicYouTube"
     }
@@ -1139,19 +1140,15 @@ class SnapMusicViewModel(
         _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
             media = pendingInstagramMedia(url),
             visible = true,
-            isPreparing = true,
             allowedKinds = setOf(MediaKind.VIDEO),
         )
         viewModelScope.launch {
             runCatching { graph.resolverRepository.resolve(url) }
                 .onSuccess { media ->
                     val sheet = _youtubeDownloadSheet.value
-                    if (!sheet.isPreparing || sheet.media?.sourceUrl != url) return@onSuccess
+                    if (!sheet.visible || sheet.media?.sourceUrl != url) return@onSuccess
                     if (media.videoVariants.isEmpty()) {
-                        keepInstagramSheetOpenWithError(
-                            url = url,
-                            message = "No encontramos video público descargable en ese enlace de Instagram.",
-                        )
+                        return@onSuccess
                     } else {
                         _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
                             media = media,
@@ -1161,27 +1158,9 @@ class SnapMusicViewModel(
                     }
                 }
                 .onFailure { error ->
-                    val sheet = _youtubeDownloadSheet.value
-                    if (!sheet.isPreparing || sheet.media?.sourceUrl != url) return@onFailure
-                    keepInstagramSheetOpenWithError(
-                        url = url,
-                        message = instagramUserFacingError(error.message),
-                    )
+                    Log.w(YOUTUBE_PLAYBACK_LOG_TAG, instagramUserFacingError(error.message))
                 }
         }
-    }
-
-    private fun keepInstagramSheetOpenWithError(
-        url: String,
-        message: String,
-    ) {
-        _youtubeDownloadSheet.value = YouTubeDownloadSheetState(
-            media = pendingInstagramMedia(url),
-            visible = true,
-            allowedKinds = setOf(MediaKind.VIDEO),
-            errorMessage = message,
-        )
-        _queueFeedback.value = message
     }
 
     fun enqueueYoutubeVariant(variantId: String) {
@@ -3329,7 +3308,18 @@ class SnapMusicViewModel(
         durationSeconds = 0L,
         thumbnailUrl = "",
         audioVariants = emptyList(),
-        videoVariants = emptyList(),
+        videoVariants = listOf(
+            MediaVariant(
+                id = INSTAGRAM_FAST_VIDEO_VARIANT_ID,
+                label = "Video MP4",
+                kind = MediaKind.VIDEO,
+                container = ContainerFormat.MP4,
+                resolution = "Video",
+                directUrl = url,
+                sourceId = INSTAGRAM_FAST_VIDEO_VARIANT_ID,
+                sourceContainerHint = "MP4",
+            ),
+        ),
     )
 
     private fun recordPlaybackSignal(

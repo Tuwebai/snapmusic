@@ -17,6 +17,8 @@ import okhttp3.Request
 class InstagramStreamResolverRepository(
     private val okHttpClient: OkHttpClient,
 ) {
+    private val socialVideoResolver by lazy { CobaltSocialVideoResolver(okHttpClient) }
+
     fun canResolve(url: String): Boolean = normalizeInstagramUrl(url) != null
 
     suspend fun resolve(url: String): ResolvedMedia = withContext(Dispatchers.IO) {
@@ -66,6 +68,13 @@ class InstagramStreamResolverRepository(
             Log.d(LOG_TAG, "resolved url=$normalizedUrl candidate=$candidateUrl hasThumbnail=${media.thumbnailUrl.isNotBlank()}")
             return media
         }
+        runCatching { socialVideoResolver.resolve(normalizedUrl) }
+            .onFailure { error -> errors += error.message.orEmpty() }
+            .getOrNull()
+            ?.let { media ->
+                Log.d(LOG_TAG, "resolved fallback=cobalt url=$normalizedUrl")
+                return media
+            }
         val lastError = errors.lastOrNull()?.takeIf { it.isNotBlank() }
         error(lastError ?: "No se encontró un video público descargable de Instagram.")
     }
