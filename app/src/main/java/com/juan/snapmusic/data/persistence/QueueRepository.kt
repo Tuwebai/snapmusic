@@ -17,20 +17,16 @@ class QueueRepository(
 
     suspend fun insertIfAbsent(request: ConversionRequest, parallelSlots: Int): Boolean {
         return enqueueMutex.withLock {
-            val duplicate = dao.findQueueCandidates(
-                sourceUrl = request.sourceUrl.trim(),
-                container = request.selectedVariant.container,
-                destinationLabel = request.destinationLabel.trim(),
-                destinationTreeUri = request.destinationTreeUri?.trim().takeUnless { it.isNullOrEmpty() },
-            ).firstOrNull { candidate ->
-                    candidate.status == QueueStatus.PENDING ||
-                    candidate.status == QueueStatus.RUNNING ||
-                    candidate.status == QueueStatus.PAUSED ||
-                    candidate.status == QueueStatus.SUCCESS
-            }?.takeIf { it.matches(request) }
+            val duplicate = findBlockingDuplicateLocked(request)
             if (duplicate != null) return@withLock false
             insertDirectLocked(request, parallelSlots)
             true
+        }
+    }
+
+    suspend fun findBlockingDuplicate(request: ConversionRequest): QueueEntity? {
+        return enqueueMutex.withLock {
+            findBlockingDuplicateLocked(request)
         }
     }
 
@@ -76,6 +72,20 @@ class QueueRepository(
                 laneIndex = laneIndex,
             ),
         )
+    }
+
+    private suspend fun findBlockingDuplicateLocked(request: ConversionRequest): QueueEntity? {
+        return dao.findQueueCandidates(
+            sourceUrl = request.sourceUrl.trim(),
+            container = request.selectedVariant.container,
+            destinationLabel = request.destinationLabel.trim(),
+            destinationTreeUri = request.destinationTreeUri?.trim().takeUnless { it.isNullOrEmpty() },
+        ).firstOrNull { candidate ->
+            candidate.status == QueueStatus.PENDING ||
+                candidate.status == QueueStatus.RUNNING ||
+                candidate.status == QueueStatus.PAUSED ||
+                candidate.status == QueueStatus.SUCCESS
+        }?.takeIf { it.matches(request) }
     }
 
     suspend fun get(id: String): QueueEntity? = dao.getQueueById(id)

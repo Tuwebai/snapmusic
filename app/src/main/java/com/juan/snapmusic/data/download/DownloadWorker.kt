@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.ServiceInfo
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import androidx.core.net.toFile
 import androidx.core.net.toUri
 import androidx.work.CoroutineWorker
@@ -17,7 +18,9 @@ import com.juan.snapmusic.core.model.DownloadProgressSnapshot
 import com.juan.snapmusic.core.model.DownloadStage
 import com.juan.snapmusic.core.model.DownloadStrategy
 import com.juan.snapmusic.core.model.QueueStatus
+import com.juan.snapmusic.core.model.TransferSource
 import com.juan.snapmusic.core.platform.NotificationHelper
+import com.juan.snapmusic.core.platform.normalizeInstagramUrl
 import com.juan.snapmusic.core.platform.sanitizeFileName
 import com.juan.snapmusic.data.persistence.QueueEntity
 import com.juan.snapmusic.data.persistence.toDownloadSelection
@@ -42,6 +45,7 @@ class DownloadWorker(
     companion object {
         const val KEY_QUEUE_ID = "queue_id"
         private const val MAX_AUTO_RETRY_ATTEMPTS = 3
+        private const val DOWNLOAD_LOG_TAG = "SnapMusicDownload"
     }
 
     private val graph = (appContext as SnapMusicApplication).appGraph
@@ -111,6 +115,7 @@ class DownloadWorker(
                 Result.failure()
             } else {
                 val safeMessage = friendlyErrorMessage(cancelled.message)
+                Log.e(DOWNLOAD_LOG_TAG, "download failed queueId=$queueId source=${entry.sourceUrl}", cancelled)
                 if (runAttemptCount < MAX_AUTO_RETRY_ATTEMPTS && shouldAutoRetry(cancelled)) {
                     val latestProgress = graph.queueRepository.get(queueId)?.progress ?: entry.progress
                     graph.queueRepository.updateStatus(
@@ -175,7 +180,7 @@ class DownloadWorker(
         targetUri: Uri,
     ): String {
         val selection = entry.toDownloadSelection()
-        val plan = graph.resolverRepository.resolveDownloadPlan(entry.sourceUrl, selection)
+        val plan = instagramDirectPlan(entry) ?: graph.resolverRepository.resolveDownloadPlan(entry.sourceUrl, selection)
         val resolvedVariantLabel = plan.displayLabel
         when (plan) {
             is DownloadExecutionPlan.Direct -> processDirectDownload(queueId, entry, targetUri, plan, resolvedVariantLabel)
@@ -186,6 +191,27 @@ class DownloadWorker(
         graph.downloadOutputValidator.validate(targetUri, entry.container)
         return resolvedVariantLabel
     }
+
+    private fun instagramDirectPlan(entry: QueueEntity): DownloadExecutionPlan.Direct? {
+        if (normalizeInstagramUrl(entry.sourceUrl) == null) return null
+        val directUrl = entry.directUrl.takeIf { value ->
+            value.startsWith("http", ignoreCase = true) && normalizeInstagramUrl(value) == null
+        } ?: return null
+        return DownloadExecutionPlan.Direct(
+            selection = entry.toDownloadSelection(),
+            source = TransferSource(
+                url = directUrl,
+                headers = instagramDownloadHeaders(entry.sourceUrl),
+            ),
+            displayLabel = entry.variantLabel.ifBlank { "MP4 · Video" },
+        )
+    }
+
+    private fun instagramDownloadHeaders(referer: String): Map<String, String> = mapOf(
+        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        "Referer" to referer,
+        "Accept-Language" to "es-419,es;q=0.9,en;q=0.8",
+    )
 
     private suspend fun processDirectDownload(
         queueId: String,

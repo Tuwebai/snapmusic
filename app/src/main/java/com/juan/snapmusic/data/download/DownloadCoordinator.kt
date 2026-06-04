@@ -42,7 +42,9 @@ class DownloadCoordinator(
                 queueRepository.insertIfAbsent(request, parallelSlots)
             }
         }
-        if (!inserted) return null
+        if (!inserted) {
+            return reviveDuplicateIfNeeded(request)
+        }
         val queueEntry = withContext(Dispatchers.IO) { queueRepository.get(id.toString()) } ?: return null
         notifications.showQueued(
             queueId = id.toString(),
@@ -53,6 +55,23 @@ class DownloadCoordinator(
 
         scheduleWork(queueId = id.toString(), laneIndex = queueEntry.laneIndex)
         return id
+    }
+
+    private suspend fun reviveDuplicateIfNeeded(request: ConversionRequest): UUID? {
+        val duplicate = withContext(Dispatchers.IO) { queueRepository.findBlockingDuplicate(request) } ?: return null
+        if (duplicate.status == QueueStatus.SUCCESS) return null
+        if (duplicate.status == QueueStatus.PAUSED) {
+            queueRepository.updateStatus(
+                id = duplicate.id,
+                status = QueueStatus.PENDING,
+                progress = duplicate.progress,
+                errorMessage = null,
+            )
+        }
+        if (duplicate.status == QueueStatus.PENDING || duplicate.status == QueueStatus.PAUSED) {
+            scheduleWork(queueId = duplicate.id, laneIndex = duplicate.laneIndex)
+        }
+        return runCatching { UUID.fromString(duplicate.id) }.getOrNull()
     }
 
     fun cancel(id: UUID) {
