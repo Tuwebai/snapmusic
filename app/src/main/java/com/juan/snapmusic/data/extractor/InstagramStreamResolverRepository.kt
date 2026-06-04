@@ -17,7 +17,7 @@ import okhttp3.Request
 class InstagramStreamResolverRepository(
     private val okHttpClient: OkHttpClient,
 ) {
-    private val socialVideoResolver by lazy { CobaltSocialVideoResolver(okHttpClient) }
+    private val socialVideoResolver by lazy { IgramSocialVideoResolver(okHttpClient) }
 
     fun canResolve(url: String): Boolean = normalizeInstagramUrl(url) != null
 
@@ -48,6 +48,13 @@ class InstagramStreamResolverRepository(
 
     private fun resolvePublicMedia(normalizedUrl: String): InstagramPageMedia {
         val errors = mutableListOf<String>()
+        runCatching { socialVideoResolver.resolve(normalizedUrl) }
+            .onFailure { error -> errors += error.message.orEmpty() }
+            .getOrNull()
+            ?.let { media ->
+                Log.d(LOG_TAG, "resolved fallback=igram url=$normalizedUrl")
+                return media
+            }
         for (apiUrl in apiCandidates(normalizedUrl)) {
             val body = runCatching { fetchApi(apiUrl, normalizedUrl) }
                 .onFailure { error -> errors += error.message.orEmpty() }
@@ -68,13 +75,6 @@ class InstagramStreamResolverRepository(
             Log.d(LOG_TAG, "resolved url=$normalizedUrl candidate=$candidateUrl hasThumbnail=${media.thumbnailUrl.isNotBlank()}")
             return media
         }
-        runCatching { socialVideoResolver.resolve(normalizedUrl) }
-            .onFailure { error -> errors += error.message.orEmpty() }
-            .getOrNull()
-            ?.let { media ->
-                Log.d(LOG_TAG, "resolved fallback=cobalt url=$normalizedUrl")
-                return media
-            }
         val lastError = errors.lastOrNull()?.takeIf { it.isNotBlank() }
         error(lastError ?: "No se encontró un video público descargable de Instagram.")
     }
