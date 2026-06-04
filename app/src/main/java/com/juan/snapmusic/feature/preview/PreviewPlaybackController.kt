@@ -215,6 +215,7 @@ private fun buildPreviewQueueMediaItems(
                     subtitle = preview.subtitle,
                     thumbnailUrl = preview.thumbnailUrl,
                     fileUri = currentFileUri,
+                    isVideo = preview.isVideo || currentFileUri.isPreviewVideoMedia(),
                 ),
             )
         }
@@ -250,13 +251,22 @@ private fun MediaItem.samePlaybackAs(other: MediaItem): Boolean {
 }
 
 internal fun String?.isPreviewVideoMedia(): Boolean {
-    val normalized = this?.lowercase().orEmpty()
+    val raw = this.orEmpty()
+    val decoded = runCatching { android.net.Uri.decode(raw) }.getOrDefault(raw)
+    val normalized = decoded.substringBefore('?').lowercase()
+    val encoded = raw.substringBefore('?').lowercase()
     return normalized.contains("/video/") ||
         normalized.contains("video/media") ||
         normalized.endsWith(".mp4") ||
         normalized.endsWith(".mkv") ||
         normalized.endsWith(".webm") ||
-        normalized.endsWith(".mov")
+        normalized.endsWith(".mov") ||
+        encoded.contains("%2fvideo%2f") ||
+        encoded.contains("video%2fmedia") ||
+        encoded.contains(".mp4") ||
+        encoded.contains(".mkv") ||
+        encoded.contains(".webm") ||
+        encoded.contains(".mov")
 }
 
 private fun String?.takeIfLocalArtworkSource(): String? {

@@ -3450,6 +3450,7 @@ class SnapMusicViewModel(
                 subtitle = item.variantLabel,
                 thumbnailUrl = item.thumbnailUrl,
                 fileUri = outputUri,
+                isVideo = item.container == ContainerFormat.MP4 || outputUri.isPreviewVideoLikeUri(),
             ),
         )
         _selectedPreview.value = PreviewState(
@@ -3458,6 +3459,7 @@ class SnapMusicViewModel(
             thumbnailUrl = item.thumbnailUrl,
             fileUri = outputUri,
             isReady = true,
+            isVideo = item.container == ContainerFormat.MP4 || outputUri.isPreviewVideoLikeUri(),
         )
         _previewDetailVisible.value = true
         _previewMiniPlayerVisible.value = false
@@ -3478,6 +3480,7 @@ class SnapMusicViewModel(
             thumbnailUrl = item.thumbnailUrl,
             fileUri = item.contentUri,
             isReady = true,
+            isVideo = item.isVideo,
         )
         _previewDetailVisible.value = true
         _previewMiniPlayerVisible.value = false
@@ -3505,6 +3508,7 @@ class SnapMusicViewModel(
             thumbnailUrl = nextItem.thumbnailUrl,
             fileUri = nextItem.fileUri,
             isReady = true,
+            isVideo = nextItem.isVideo,
         )
         persistCurrentPreviewSnapshot()
     }
@@ -3701,6 +3705,7 @@ class SnapMusicViewModel(
             thumbnailUrl = currentItem.thumbnailUrl,
             fileUri = currentItem.fileUri,
             isReady = true,
+            isVideo = currentItem.isVideo,
         )
         _previewDetailVisible.value = showDetail
         _previewMiniPlayerVisible.value = !showDetail && snapshot.showMiniPlayer
@@ -4548,6 +4553,7 @@ private fun com.juan.snapmusic.core.model.HistoryEntry.toPreviewState(): Preview
         thumbnailUrl = thumbnailUrl,
         fileUri = outputUri,
         isReady = true,
+        isVideo = format == ContainerFormat.MP4 || outputUri.isPreviewVideoLikeUri(),
     )
 }
 
@@ -4581,6 +4587,7 @@ private fun LocalMediaItem.toPreviewPlaybackQueueItem(): PreviewPlaybackQueueIte
         subtitle = subtitle,
         thumbnailUrl = thumbnailUrl,
         fileUri = contentUri,
+        isVideo = isVideo,
     )
 }
 
@@ -4591,7 +4598,27 @@ private fun PreviewState.toPreviewPlaybackQueueItem(): PreviewPlaybackQueueItem?
         subtitle = subtitle,
         thumbnailUrl = thumbnailUrl,
         fileUri = currentFileUri,
+        isVideo = isVideo || currentFileUri.isPreviewVideoLikeUri(),
     )
+}
+
+private fun String?.isPreviewVideoLikeUri(): Boolean {
+    val raw = this.orEmpty()
+    val decoded = runCatching { android.net.Uri.decode(raw) }.getOrDefault(raw)
+    val normalized = decoded.substringBefore('?').lowercase()
+    val encoded = raw.substringBefore('?').lowercase()
+    return normalized.contains("/video/") ||
+        normalized.contains("video/media") ||
+        normalized.endsWith(".mp4") ||
+        normalized.endsWith(".mkv") ||
+        normalized.endsWith(".webm") ||
+        normalized.endsWith(".mov") ||
+        encoded.contains("%2fvideo%2f") ||
+        encoded.contains("video%2fmedia") ||
+        encoded.contains(".mp4") ||
+        encoded.contains(".mkv") ||
+        encoded.contains(".webm") ||
+        encoded.contains(".mov")
 }
 
 private fun QueueEntity.toRetryRequest(): ConversionRequest {

@@ -185,7 +185,7 @@ internal fun PreviewVideoPlaybackCard(
                     PlayerSurface(
                         player = player,
                         modifier = Modifier.fillMaxSize(),
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
                         shutterColor = android.graphics.Color.BLACK,
                         keepScreenOn = player.playWhenReady,
                     )
@@ -333,7 +333,7 @@ internal fun PreviewMiniPlayer(
         }
     }
 
-    if (preview.fileUri.isPreviewVideoMedia()) {
+    if (preview.isVideo || preview.fileUri.isPreviewVideoMedia()) {
         Surface(
             modifier = modifier.padding(horizontal = 12.dp),
             shape = RoundedCornerShape(20.dp),

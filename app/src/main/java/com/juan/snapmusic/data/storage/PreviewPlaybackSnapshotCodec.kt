@@ -48,6 +48,7 @@ internal object PreviewPlaybackSnapshotCodec {
             item.subtitle.encodeField(),
             item.thumbnailUrl.encodeField(),
             item.fileUri.encodeField(),
+            item.isVideo.toString(),
         ).joinToString(FIELD_SEPARATOR)
     }
 
@@ -61,7 +62,18 @@ internal object PreviewPlaybackSnapshotCodec {
             subtitle = fields[1].decodeField(),
             thumbnailUrl = fields[2].decodeField(),
             fileUri = fileUri,
+            isVideo = fields.getOrNull(4)?.toBooleanStrictOrNull() ?: fileUri.isSnapshotVideoUri(),
         )
+    }
+
+    private fun String.isSnapshotVideoUri(): Boolean {
+        val normalized = java.net.URLDecoder.decode(this, StandardCharsets.UTF_8.name()).lowercase()
+        return normalized.contains("/video/") ||
+            normalized.contains("video/media") ||
+            normalized.endsWith(".mp4") ||
+            normalized.endsWith(".mkv") ||
+            normalized.endsWith(".webm") ||
+            normalized.endsWith(".mov")
     }
 
     private fun String.encodeField(): String {

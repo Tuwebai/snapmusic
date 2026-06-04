@@ -128,7 +128,7 @@ internal fun PreviewPlaybackCard(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
 ) {
-    val isVideo = remember(preview.fileUri) { preview.fileUri.isPreviewVideoMedia() }
+    val isVideo = preview.isVideo || remember(preview.fileUri) { preview.fileUri.isPreviewVideoMedia() }
     if (isVideo) {
         PreviewVideoPlaybackCard(
             preview = preview,

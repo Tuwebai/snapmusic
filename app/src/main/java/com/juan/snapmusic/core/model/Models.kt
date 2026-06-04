@@ -193,6 +193,7 @@ data class PreviewState(
     val thumbnailUrl: String = "",
     val fileUri: String? = null,
     val isReady: Boolean = false,
+    val isVideo: Boolean = false,
 )
 
 @Immutable
@@ -414,6 +415,7 @@ data class PreviewPlaybackQueueItem(
     val subtitle: String = "",
     val thumbnailUrl: String = "",
     val fileUri: String = "",
+    val isVideo: Boolean = false,
 )
 
 @Immutable

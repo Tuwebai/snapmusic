@@ -183,7 +183,9 @@ private fun PreviewDetailHost(
     }
 
     BackHandler {
-        if (activePreviewUri.isPreviewVideoMedia()) {
+        if (libraryState.items.firstOrNull { it.contentUri == activePreviewUri }?.isVideo == true ||
+            activePreviewUri.isPreviewVideoMedia()
+        ) {
             player?.pause()
             player?.playWhenReady = false
         }

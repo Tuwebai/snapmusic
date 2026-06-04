@@ -181,7 +181,7 @@ internal fun PreviewMiniArtwork(
         value = PlaybackArtworkBadgeHelper.resolve(
             context = context,
             artworkSource = preview.thumbnailUrl.takeIfLocalArtworkSource(),
-            mediaSource = preview.fileUri.takeIf { !it.isPreviewVideoMedia() },
+            mediaSource = preview.fileUri.takeIf { !preview.isVideo && !it.isPreviewVideoMedia() },
             fallbackResId = R.drawable.preview_local_music_fallback,
         )
     }
