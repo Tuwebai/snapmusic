@@ -156,31 +156,31 @@ internal fun PreviewVideoPlaybackCard(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(PreviewPanelGradient)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(
+    if (!isFullscreen) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color.Black),
+                .background(PreviewPanelGradient)
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (!hasRenderedFirstFrame && preview.thumbnailUrl.isNotBlank()) {
-                AsyncImage(
-                    model = preview.thumbnailUrl,
-                    contentDescription = preview.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    error = painterResource(R.drawable.preview_local_music_fallback),
-                    fallback = painterResource(R.drawable.preview_local_music_fallback),
-                )
-            }
-            if (!isFullscreen) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.Black),
+            ) {
+                if (!hasRenderedFirstFrame && preview.thumbnailUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = preview.thumbnailUrl,
+                        contentDescription = preview.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        error = painterResource(R.drawable.preview_local_music_fallback),
+                        fallback = painterResource(R.drawable.preview_local_music_fallback),
+                    )
+                }
                 key(preview.fileUri, player) {
                     PlayerSurface(
                         player = player,
@@ -190,73 +190,73 @@ internal fun PreviewVideoPlaybackCard(
                         keepScreenOn = player.playWhenReady,
                     )
                 }
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .draggable(
-                        state = minimizeBySwipeState,
-                        orientation = Orientation.Vertical,
-                        onDragStopped = { totalVerticalDrag = 0f },
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .draggable(
+                            state = minimizeBySwipeState,
+                            orientation = Orientation.Vertical,
+                            onDragStopped = { totalVerticalDrag = 0f },
+                        )
+                        .videoDoubleTapSeek(
+                            onTap = { showControls = !showControls },
+                            onSeekBack = { player.seekByClamped(-DOUBLE_TAP_SEEK_MS) },
+                            onSeekForward = { player.seekByClamped(DOUBLE_TAP_SEEK_MS) },
+                        ),
+                ) {
+                    VideoFullscreenOverlay(
+                        playbackState = overlayState,
+                        canGoPrevious = canGoPrevious,
+                        canGoNext = canGoNext,
+                        onBack = pauseAndMinimizeVideo,
+                        onPlayPause = { player.togglePlayPause() },
+                        onPrevious = onPrevious,
+                        onNext = onNext,
+                        onMore = null,
+                        onSeekTo = player::seekTo,
+                        onToggleResize = {
+                            showControls = false
+                            isFullscreen = true
+                        },
                     )
-                    .videoDoubleTapSeek(
-                        onTap = { showControls = !showControls },
-                        onSeekBack = { player.seekByClamped(-DOUBLE_TAP_SEEK_MS) },
-                        onSeekForward = { player.seekByClamped(DOUBLE_TAP_SEEK_MS) },
-                    ),
-            ) {
-                VideoFullscreenOverlay(
-                    playbackState = overlayState,
-                    canGoPrevious = canGoPrevious,
-                    canGoNext = canGoNext,
-                    onBack = pauseAndMinimizeVideo,
-                    onPlayPause = { player.togglePlayPause() },
-                    onPrevious = onPrevious,
-                    onNext = onNext,
-                    onMore = null,
-                    onSeekTo = player::seekTo,
-                    onToggleResize = {
-                        showControls = false
-                        isFullscreen = true
-                    },
-                )
+                }
             }
+            Spacer(modifier = Modifier.height(18.dp))
+            Text(
+                text = preview.title,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleMedium,
+                color = TextPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
         }
-        LandscapeFullscreenVideoDialog(
-            visible = isFullscreen,
-            player = player,
-            overlayState = overlayState,
-            canGoPrevious = canGoPrevious,
-            canGoNext = canGoNext,
-            thumbnailVisible = !hasRenderedFirstFrame && preview.thumbnailUrl.isNotBlank(),
-            thumbnail = {
-                AsyncImage(
-                    model = preview.thumbnailUrl,
-                    contentDescription = preview.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    error = painterResource(R.drawable.preview_local_music_fallback),
-                    fallback = painterResource(R.drawable.preview_local_music_fallback),
-                )
-            },
-            onDismiss = pauseAndMinimizeVideo,
-            onPlayPause = { player.togglePlayPause() },
-            onPrevious = onPrevious,
-            onNext = onNext,
-            onMore = null,
-            onSeekTo = player::seekTo,
-        )
-        Spacer(modifier = Modifier.height(18.dp))
-        Text(
-            text = preview.title,
-            modifier = Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.titleMedium,
-            color = TextPrimary,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(modifier = Modifier.height(16.dp))
     }
+    LandscapeFullscreenVideoDialog(
+        visible = isFullscreen,
+        player = player,
+        overlayState = overlayState,
+        canGoPrevious = canGoPrevious,
+        canGoNext = canGoNext,
+        thumbnailVisible = !hasRenderedFirstFrame && preview.thumbnailUrl.isNotBlank(),
+        thumbnail = {
+            AsyncImage(
+                model = preview.thumbnailUrl,
+                contentDescription = preview.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                error = painterResource(R.drawable.preview_local_music_fallback),
+                fallback = painterResource(R.drawable.preview_local_music_fallback),
+            )
+        },
+        onDismiss = pauseAndMinimizeVideo,
+        onPlayPause = { player.togglePlayPause() },
+        onPrevious = onPrevious,
+        onNext = onNext,
+        onMore = null,
+        onSeekTo = player::seekTo,
+    )
 }
 
 @Composable

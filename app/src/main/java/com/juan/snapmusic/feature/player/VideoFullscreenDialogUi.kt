@@ -107,6 +107,11 @@ internal fun LandscapeFullscreenVideoDialog(
 
     DisposableEffect(activity, visible) {
         val initialOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        val restoreOrientation = if (initialOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        } else {
+            initialOrientation
+        }
         val controller = activity?.window?.let { WindowInsetsControllerCompat(it, it.decorView) }
         if (activity?.requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
@@ -115,7 +120,7 @@ internal fun LandscapeFullscreenVideoDialog(
         controller?.hide(WindowInsetsCompat.Type.systemBars())
         onDispose {
             controller?.show(WindowInsetsCompat.Type.systemBars())
-            activity?.requestedOrientation = initialOrientation
+            activity?.requestedOrientation = restoreOrientation
         }
     }
 
