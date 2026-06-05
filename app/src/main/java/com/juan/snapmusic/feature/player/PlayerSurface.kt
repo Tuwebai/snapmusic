@@ -1,5 +1,7 @@
 package com.juan.snapmusic.feature.player
 
+import android.os.Handler
+import android.os.Looper
 import android.view.ViewGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -71,11 +73,15 @@ internal fun PlayerSurface(
 }
 
 private object PlayerSurfaceTargetRegistry {
+    private const val RELEASE_GRACE_MS = 300L
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val targets = WeakHashMap<Player, WeakReference<PlayerView>>()
+    private val generations = WeakHashMap<Player, Int>()
 
     fun attach(player: Player, target: PlayerView) {
         if (target.player === player) {
             targets[player] = WeakReference(target)
+            generations[player] = (generations[player] ?: 0) + 1
             return
         }
         val previous = targets[player]?.get()?.takeIf { it !== target && it.player === player }
@@ -85,14 +91,25 @@ private object PlayerSurfaceTargetRegistry {
             target.player = player
         }
         targets[player] = WeakReference(target)
+        generations[player] = (generations[player] ?: 0) + 1
     }
 
     fun release(player: Player, target: PlayerView) {
-        if (targets[player]?.get() === target) {
-            targets.remove(player)
-        }
-        if (target.player === player) {
-            target.player = null
-        }
+        if (targets[player]?.get() !== target) return
+        val releaseGeneration = (generations[player] ?: 0) + 1
+        generations[player] = releaseGeneration
+        mainHandler.postDelayed(
+            {
+                if (generations[player] != releaseGeneration || targets[player]?.get() !== target) {
+                    return@postDelayed
+                }
+                targets.remove(player)
+                generations.remove(player)
+                if (target.player === player) {
+                    target.player = null
+                }
+            },
+            RELEASE_GRACE_MS,
+        )
     }
 }

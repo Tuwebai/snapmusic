@@ -149,6 +149,7 @@ internal fun LandscapeFullscreenVideoDialog(
             usePlatformDefaultWidth = false,
             dismissOnBackPress = true,
             dismissOnClickOutside = false,
+            decorFitsSystemWindows = false,
         ),
     ) {
         Box(
