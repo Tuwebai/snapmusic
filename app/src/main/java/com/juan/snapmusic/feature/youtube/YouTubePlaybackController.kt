@@ -163,6 +163,11 @@ fun rememberYouTubePlayer(
 
     val currentFeaturedSourceUrl by rememberUpdatedState(featured.sourceUrl)
     val currentFeatured by rememberUpdatedState(featured)
+    var lastKnownPlaybackPositionMs by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(featured.sourceUrl) {
+        lastKnownPlaybackPositionMs = sessionState.currentPositionMs.coerceAtLeast(0L)
+    }
 
     DisposableEffect(controller) {
         val mediaController = controller
@@ -200,6 +205,10 @@ fun rememberYouTubePlayer(
                     syncTransitionIfNeeded()
                     if (mediaController.currentMediaItem?.mediaId != currentFeaturedSourceUrl) return
                     val now = SystemClock.elapsedRealtime()
+                    lastKnownPlaybackPositionMs = maxOf(
+                        lastKnownPlaybackPositionMs,
+                        mediaController.currentPosition.coerceAtLeast(0L),
+                    )
                     if (playbackStartedAtMs == 0L && playbackState == Player.STATE_BUFFERING) {
                         playbackStartedAtMs = now
                     }
@@ -230,6 +239,10 @@ fun rememberYouTubePlayer(
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     syncTransitionIfNeeded()
                     if (mediaController.currentMediaItem?.mediaId != currentFeaturedSourceUrl) return
+                    lastKnownPlaybackPositionMs = maxOf(
+                        lastKnownPlaybackPositionMs,
+                        mediaController.currentPosition.coerceAtLeast(0L),
+                    )
                     onPlaybackProgress(
                         mediaController.currentPosition.coerceAtLeast(0L),
                         mediaController.playWhenReady,
@@ -241,9 +254,10 @@ fun rememberYouTubePlayer(
                     if (mediaController.currentMediaItem?.mediaId != currentFeaturedSourceUrl) return
                     val errorPositionMs = stableResumePositionMs(
                         controllerPositionMs = mediaController.currentPosition.coerceAtLeast(0L),
-                        statePositionMs = sessionState.currentPositionMs,
+                        statePositionMs = maxOf(lastKnownPlaybackPositionMs, sessionState.currentPositionMs),
                         seekPositionMs = seekState.positionMs,
                     )
+                    lastKnownPlaybackPositionMs = errorPositionMs
                     onPlaybackProgress(
                         errorPositionMs,
                         mediaController.playWhenReady,
@@ -322,7 +336,7 @@ fun rememberYouTubePlayer(
                 if (mediaController.currentMediaItem?.mediaId == featured.sourceUrl) {
                     stableResumePositionMs(
                         controllerPositionMs = mediaController.currentPosition.coerceAtLeast(0L),
-                        statePositionMs = sessionState.currentPositionMs,
+                        statePositionMs = maxOf(lastKnownPlaybackPositionMs, sessionState.currentPositionMs),
                         seekPositionMs = seekState.positionMs,
                     )
                 } else {
@@ -415,6 +429,7 @@ fun rememberYouTubePlayer(
             val activelyPlaying = syncingCurrentItem && mediaController.isPlaying
             if (syncingCurrentItem) {
                 val currentPosition = mediaController.currentPosition.coerceAtLeast(0L)
+                lastKnownPlaybackPositionMs = maxOf(lastKnownPlaybackPositionMs, currentPosition)
                 val playWhenReady = mediaController.playWhenReady
                 val buffering = !activelyPlaying
                 val shouldReport =
