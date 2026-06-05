@@ -1,4 +1,4 @@
-package com.juan.snapmusic.feature.preview
+﻿package com.juan.snapmusic.feature.preview
 
 import android.app.Activity
 import android.content.Intent
@@ -43,7 +43,7 @@ import com.juan.snapmusic.core.model.LocalMediaItem
 import com.juan.snapmusic.core.platform.buildLocalMediaShareIntent
 import com.juan.snapmusic.core.performance.ReportPerformanceScene
 import com.juan.snapmusic.feature.home.PreviewLibraryUiState
-import com.juan.snapmusic.feature.home.SnapMusicViewModel
+import com.juan.snapmusic.feature.home.*
 import java.text.DecimalFormat
 import java.util.Date
 import kotlinx.coroutines.launch
@@ -101,56 +101,6 @@ fun PreviewScreen(
     )
 }
 
-@Composable
-private fun PreviewDownloadsLifecycleHost(
-    viewModel: SnapMusicViewModel,
-    hasPermission: Boolean,
-    showDownloadsScreen: Boolean,
-    onShowDownloadsScreenChange: (Boolean) -> Unit,
-) {
-    val downloadsShell = viewModel.previewDownloadsShellState.collectAsStateWithLifecycle().value
-
-    LaunchedEffect(hasPermission, downloadsShell.completedCount) {
-        if (hasPermission) {
-            if (downloadsShell.completedCount > 0) {
-                viewModel.refreshLocalPreviewLibrary(forceRefresh = true)
-            } else {
-                viewModel.ensureLocalPreviewLibraryLoaded()
-            }
-        }
-    }
-
-    LaunchedEffect(downloadsShell.openRequestId, downloadsShell.hasActiveDownloads) {
-        if (downloadsShell.openRequestId > 0L && downloadsShell.hasActiveDownloads) {
-            onShowDownloadsScreenChange(true)
-        }
-    }
-
-    LaunchedEffect(downloadsShell.hasActiveDownloads, showDownloadsScreen) {
-        if (!downloadsShell.hasActiveDownloads && showDownloadsScreen) {
-            onShowDownloadsScreenChange(false)
-        }
-    }
-}
-
-@Composable
-private fun PreviewSceneReporterHost(
-    viewModel: SnapMusicViewModel,
-    showDownloadsScreen: Boolean,
-) {
-    val routeVisibility = viewModel.previewRouteVisibility.collectAsStateWithLifecycle().value
-    val previewPerformance = viewModel.previewPerformanceState.collectAsStateWithLifecycle().value
-
-    ReportPerformanceScene(
-        screen = "preview",
-        detail = when {
-            routeVisibility.detailVisible && routeVisibility.isReady && previewPerformance.isVideo -> "preview-player-video"
-            routeVisibility.detailVisible && routeVisibility.isReady -> "preview-player-audio"
-            showDownloadsScreen -> "downloads-active"
-            else -> "preview-library"
-        },
-    )
-}
 
 @Composable
 private fun PreviewDetailHost(

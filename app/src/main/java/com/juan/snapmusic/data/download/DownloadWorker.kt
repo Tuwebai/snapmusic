@@ -1,4 +1,4 @@
-package com.juan.snapmusic.data.download
+﻿package com.juan.snapmusic.data.download
 
 import android.content.Context
 import android.content.pm.ServiceInfo
@@ -399,7 +399,7 @@ class DownloadWorker(
         )
     }
 
-    private suspend fun updateQueueProgress(
+    internal suspend fun updateQueueProgress(
         queueId: String,
         title: String,
         variantLabel: String,
@@ -490,89 +490,5 @@ class DownloadWorker(
             ?.toUri()
     }
 
-    private fun downloadArtworkCacheKey(
-        sourceUrl: String,
-        thumbnailUrl: String,
-    ): String {
-        return "${sourceUrl.trim()}|${thumbnailUrl.trim()}".sha256Hex()
-    }
-
-    private class DownloadPausedException : IllegalStateException("Descarga pausada.")
-
-    private suspend fun copyInto(
-        sourceUri: Uri,
-        targetUri: Uri,
-        strategy: DownloadStrategy,
-        queueId: String,
-        entry: QueueEntity,
-        variantLabel: String,
-    ) {
-        openInput(sourceUri).use { input ->
-            val size = sourceUri.takeIf { it.scheme == "file" }?.toFile()?.length()?.coerceAtLeast(1L) ?: 1L
-            openOutput(targetUri).use { output ->
-                copyStream(input, output, size) { snapshot ->
-                    updateQueueProgress(
-                        queueId = queueId,
-                        title = entry.title,
-                        variantLabel = variantLabel,
-                        thumbnailUrl = entry.thumbnailUrl,
-                        status = QueueStatus.RUNNING,
-                        progress = progressFor(strategy, snapshot),
-                        snapshot = snapshot,
-                    )
-                }
-            }
-        }
-    }
-
-    private suspend fun copyStream(
-        input: InputStream,
-        output: OutputStream,
-        contentLength: Long,
-        onProgress: suspend (DownloadProgressSnapshot) -> Unit,
-    ) {
-        val buffer = ByteArray(512 * 1024)
-        var copied = 0L
-        val startedAt = System.currentTimeMillis()
-        var lastPublishedAt = 0L
-        while (true) {
-            val read = input.read(buffer)
-            if (read < 0) break
-            if (isStopped) error("Cancelado por el usuario")
-            output.write(buffer, 0, read)
-            copied += read
-            val now = System.currentTimeMillis()
-            if (now - lastPublishedAt >= 250L) {
-                lastPublishedAt = now
-                val elapsed = (now - startedAt).coerceAtLeast(1L)
-                onProgress(
-                    DownloadProgressSnapshot(
-                        bytesDownloaded = copied,
-                        totalBytes = contentLength,
-                        speedBytesPerSecond = copied * 1000L / elapsed,
-                        stage = DownloadStage.COPYING,
-                    ),
-                )
-            }
-        }
-        val elapsed = (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
-        onProgress(DownloadProgressSnapshot(copied, contentLength, copied * 1000L / elapsed, DownloadStage.COPYING))
-    }
-
-    private fun openInput(uri: Uri): InputStream {
-        return if (uri.scheme == "file") {
-            FileInputStream(uri.toFile())
-        } else {
-            applicationContext.contentResolver.openInputStream(uri)
-        } ?: error("No se pudo abrir el archivo temporal de entrada.")
-    }
-
-    private fun openOutput(uri: Uri): OutputStream {
-        return if (uri.scheme == "file") {
-            FileOutputStream(uri.toFile(), false)
-        } else {
-            applicationContext.contentResolver.openOutputStream(uri, "w")
-        } ?: error("No se pudo abrir el archivo destino.")
-    }
 
 }

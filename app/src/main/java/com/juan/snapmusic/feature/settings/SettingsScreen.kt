@@ -1,4 +1,4 @@
-package com.juan.snapmusic.feature.settings
+﻿package com.juan.snapmusic.feature.settings
 
 import android.content.Intent
 import android.provider.Settings
@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.juan.snapmusic.core.performance.ReportPerformanceScene
 import com.juan.snapmusic.core.model.YouTubeWatchHistoryEntry
-import com.juan.snapmusic.feature.home.SnapMusicViewModel
+import com.juan.snapmusic.feature.home.*
 
 private enum class SettingsPane(val depth: Int) {
     ROOT(0),

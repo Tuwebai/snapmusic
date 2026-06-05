@@ -1,4 +1,4 @@
-package com.juan.snapmusic.feature.queue
+﻿package com.juan.snapmusic.feature.queue
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -73,7 +73,7 @@ import com.juan.snapmusic.core.platform.buildOpenFileIntent
 import com.juan.snapmusic.core.platform.buildOpenFolderIntent
 import com.juan.snapmusic.core.platform.buildShareIntent
 import com.juan.snapmusic.core.platform.formatTimestamp
-import com.juan.snapmusic.feature.home.SnapMusicViewModel
+import com.juan.snapmusic.feature.home.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

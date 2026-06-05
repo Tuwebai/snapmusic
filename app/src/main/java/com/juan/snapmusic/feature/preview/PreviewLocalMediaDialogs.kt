@@ -1,4 +1,4 @@
-package com.juan.snapmusic.feature.preview
+﻿package com.juan.snapmusic.feature.preview
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -40,7 +40,7 @@ import com.juan.snapmusic.core.model.LocalMediaItem
 import com.juan.snapmusic.core.platform.buildLocalMediaShareIntent
 import com.juan.snapmusic.core.performance.ReportPerformanceScene
 import com.juan.snapmusic.feature.home.PreviewLibraryUiState
-import com.juan.snapmusic.feature.home.SnapMusicViewModel
+import com.juan.snapmusic.feature.home.*
 import java.text.DecimalFormat
 import java.util.Date
 

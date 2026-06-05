@@ -1,4 +1,4 @@
-package com.juan.snapmusic.feature.youtube
+﻿package com.juan.snapmusic.feature.youtube
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -42,7 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import coil.imageLoader
 import com.juan.snapmusic.core.model.YouTubeFeedItem
-import com.juan.snapmusic.feature.home.SnapMusicViewModel
+import com.juan.snapmusic.feature.home.*
 import com.juan.snapmusic.feature.home.YouTubeSuggestionsUiState
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.util.LinkedHashSet

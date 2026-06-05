@@ -1,4 +1,4 @@
-package com.juan.snapmusic.navigation
+﻿package com.juan.snapmusic.navigation
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
@@ -43,7 +43,7 @@ import com.juan.snapmusic.feature.home.BottomBarUiState
 import com.juan.snapmusic.feature.home.NavHostPlaybackState
 import com.juan.snapmusic.feature.home.HomeScreen
 import com.juan.snapmusic.feature.home.PlaybackNotificationTarget
-import com.juan.snapmusic.feature.home.SnapMusicViewModel
+import com.juan.snapmusic.feature.home.*
 import com.juan.snapmusic.feature.preview.PreviewMiniPlayer
 import com.juan.snapmusic.feature.preview.PreviewPictureInPictureSurface
 import com.juan.snapmusic.feature.preview.PreviewScreen

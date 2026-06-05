@@ -1,4 +1,4 @@
-package com.juan.snapmusic.feature.history
+﻿package com.juan.snapmusic.feature.history
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.juan.snapmusic.core.platform.formatTimestamp
 import com.juan.snapmusic.core.ui.AppHeader
-import com.juan.snapmusic.feature.home.SnapMusicViewModel
+import com.juan.snapmusic.feature.home.*
 
 @Composable
 fun HistoryScreen(
