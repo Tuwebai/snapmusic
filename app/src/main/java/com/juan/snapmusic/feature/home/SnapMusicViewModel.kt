@@ -2389,19 +2389,28 @@ class SnapMusicViewModel(
         if (!current.featured.isReady) return
         val safePosition = positionMs.coerceAtLeast(0L)
         val shouldAutoPlay = playWhenReady
-        val shouldCheckpoint = kotlin.math.abs(current.currentPositionMs - safePosition) >= 10_000L
+        val transientRestartPosition = !persist &&
+            shouldAutoPlay &&
+            safePosition <= 1_500L &&
+            current.currentPositionMs >= 10_000L
+        val effectivePosition = if (transientRestartPosition) {
+            current.currentPositionMs
+        } else {
+            safePosition
+        }
+        val shouldCheckpoint = kotlin.math.abs(current.currentPositionMs - effectivePosition) >= 10_000L
         val shouldUpdateState =
             current.shouldAutoPlayCurrent != shouldAutoPlay ||
                 persist ||
                 shouldCheckpoint
         if (shouldUpdateState) {
             _youtubeState.value = current.copy(
-                currentPositionMs = safePosition,
+                currentPositionMs = effectivePosition,
                 shouldAutoPlayCurrent = shouldAutoPlay,
             )
         }
         if (
-            safePosition >= YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS &&
+            effectivePosition >= YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS &&
             current.autoplayEnabled &&
             current.preloadedNextFeatured == null &&
             nextQueuePreResolveJob?.isActive != true &&
@@ -2419,10 +2428,10 @@ class SnapMusicViewModel(
         }
         if (shouldAutoPlay || youtubeWatchHistoryLastRecordedPositions.containsKey(current.featured.sourceUrl)) {
             currentYouTubeQueueItem(current)?.let { item ->
-                maybeRecordYouTubeWatchHistory(item, safePosition, force = persist || shouldCheckpoint)
+                maybeRecordYouTubeWatchHistory(item, effectivePosition, force = persist || shouldCheckpoint)
             }
         }
-        maybeRecordPlaybackMilestones(current.featured, safePosition)
+        maybeRecordPlaybackMilestones(current.featured, effectivePosition)
         if (persist || shouldCheckpoint) {
             persistCurrentYouTubeSnapshot()
         }

@@ -72,14 +72,9 @@ private fun MediaItem.samePlaybackAs(other: MediaItem): Boolean {
 
 private fun buildYouTubeQueueMediaItems(
     featured: YouTubeFeaturedVideo,
-    preloadedNextFeatured: YouTubeFeaturedVideo?,
 ): List<MediaItem> {
     val currentItem = featured.toMediaItem().takeIf { it != MediaItem.EMPTY } ?: return emptyList()
-    val nextItem = preloadedNextFeatured
-        ?.takeIf { it.sourceUrl != featured.sourceUrl && it.isReady && it.playbackUrl != null }
-        ?.toMediaItem()
-        ?.takeIf { it != MediaItem.EMPTY }
-    return if (nextItem != null) listOf(currentItem, nextItem) else listOf(currentItem)
+    return listOf(currentItem)
 }
 
 private fun MediaController.sameYouTubeQueueAs(queueItems: List<MediaItem>): Boolean {
@@ -137,7 +132,6 @@ fun rememberYouTubePlayer(
 ): Player? {
     val context = LocalContext.current
     val featured = sessionState.featured
-    val preloadedNextFeatured = sessionState.preloadedNextFeatured
     val future = remember(context) {
         MediaController.Builder(
             context,
@@ -229,7 +223,7 @@ fun rememberYouTubePlayer(
                     onPlaybackProgress(
                         mediaController.currentPosition.coerceAtLeast(0L),
                         mediaController.playWhenReady,
-                        playbackState == Player.STATE_READY || playbackState == Player.STATE_ENDED,
+                        false,
                     )
                     if (playbackState == Player.STATE_ENDED) {
                         onPlaybackEnded()
@@ -246,7 +240,23 @@ fun rememberYouTubePlayer(
                     onPlaybackProgress(
                         mediaController.currentPosition.coerceAtLeast(0L),
                         mediaController.playWhenReady,
-                        !isPlaying,
+                        false,
+                    )
+                }
+
+                override fun onPositionDiscontinuity(
+                    oldPosition: Player.PositionInfo,
+                    newPosition: Player.PositionInfo,
+                    reason: Int,
+                ) {
+                    if (mediaController.currentMediaItem?.mediaId != currentFeaturedSourceUrl) return
+                    if (reason != Player.DISCONTINUITY_REASON_SEEK) return
+                    val targetPositionMs = newPosition.positionMs.coerceAtLeast(0L)
+                    lastKnownPlaybackPositionMs = targetPositionMs
+                    onPlaybackProgress(
+                        targetPositionMs,
+                        mediaController.playWhenReady,
+                        true,
                     )
                 }
 
@@ -302,8 +312,6 @@ fun rememberYouTubePlayer(
         featured.playbackUrl,
         seekState.requestId,
         seekState.positionMs,
-        preloadedNextFeatured?.sourceUrl,
-        preloadedNextFeatured?.playbackUrl,
     ) {
         val mediaController = controller ?: return@LaunchedEffect
         val playbackUrl = featured.playbackUrl
@@ -317,7 +325,6 @@ fun rememberYouTubePlayer(
         }
         val queueItems = buildYouTubeQueueMediaItems(
             featured = featured.copy(playbackUrl = playbackUrl),
-            preloadedNextFeatured = preloadedNextFeatured,
         )
         if (queueItems.isEmpty()) return@LaunchedEffect
         val sameQueue = mediaController.sameYouTubeQueueAs(queueItems)
@@ -444,7 +451,7 @@ fun rememberYouTubePlayer(
                     onPlaybackProgress(
                         currentPosition,
                         playWhenReady,
-                        buffering,
+                        false,
                     )
                 }
             } else {
