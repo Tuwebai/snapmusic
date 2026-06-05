@@ -17,6 +17,7 @@ val syncSnapMusicIcons by tasks.registering {
 
     doLast {
         val outputDir = snapMusicIconResDir.get().asFile
+        outputDir.deleteRecursively()
         val source = javax.imageio.ImageIO.read(sourceIcon.asFile)
 
         fun output(path: String): java.io.File {
@@ -39,72 +40,13 @@ val syncSnapMusicIcons by tasks.registering {
             return scaled
         }
 
-        fun foreground(image: BufferedImage, whiteMask: Boolean): BufferedImage {
-            val result = BufferedImage(image.width, image.height, BufferedImage.TYPE_INT_ARGB)
-            for (x in 0 until image.width) {
-                for (y in 0 until image.height) {
-                    val argb = image.getRGB(x, y)
-                    val alpha = argb ushr 24 and 0xff
-                    val red = argb ushr 16 and 0xff
-                    val green = argb ushr 8 and 0xff
-                    val blue = argb and 0xff
-                    val isBackground = alpha == 0 || maxOf(red, green, blue) < 18
-                    if (!isBackground) {
-                        val color = if (whiteMask) 0x00ffffff else (argb and 0x00ffffff)
-                        result.setRGB(x, y, (alpha shl 24) or color)
-                    }
-                }
-            }
-            return result
-        }
-
         fun writePng(image: BufferedImage, path: String) {
             javax.imageio.ImageIO.write(image, "png", output(path))
         }
 
-        fun writeText(path: String, value: String) {
-            output(path).writeText(value.trimIndent(), Charsets.UTF_8)
-        }
-
-        val logoForeground = foreground(source, whiteMask = false)
-        val notificationMask = foreground(source, whiteMask = true)
         writePng(source, "drawable-nodpi/snapmusic_brand_logo.png")
-        writePng(logoForeground, "drawable-nodpi/snapmusic_brand_foreground.png")
-        writePng(logoForeground, "drawable-nodpi/snapmusic_brand_badge.png")
-        writePng(scale(notificationMask, 96), "drawable-nodpi/ic_stat_snapmusic_real.png")
-        mapOf(
-            "mipmap-mdpi/ic_launcher.png" to 48,
-            "mipmap-hdpi/ic_launcher.png" to 72,
-            "mipmap-xhdpi/ic_launcher.png" to 96,
-            "mipmap-xxhdpi/ic_launcher.png" to 144,
-            "mipmap-xxxhdpi/ic_launcher.png" to 192,
-            "mipmap-mdpi/ic_launcher_round.png" to 48,
-            "mipmap-hdpi/ic_launcher_round.png" to 72,
-            "mipmap-xhdpi/ic_launcher_round.png" to 96,
-            "mipmap-xxhdpi/ic_launcher_round.png" to 144,
-            "mipmap-xxxhdpi/ic_launcher_round.png" to 192,
-        ).forEach { (path, size) -> writePng(scale(source, size), path) }
-        writeText(
-            "values/snapmusic_icon_colors.xml",
-            """
-            <?xml version="1.0" encoding="utf-8"?>
-            <resources>
-                <color name="snapmusic_icon_background">#050505</color>
-            </resources>
-            """,
-        )
-        listOf("ic_launcher", "ic_launcher_round").forEach { name ->
-            writeText(
-                "mipmap-anydpi-v26/$name.xml",
-                """
-                <?xml version="1.0" encoding="utf-8"?>
-                <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-                    <background android:drawable="@color/snapmusic_icon_background" />
-                    <foreground android:drawable="@drawable/snapmusic_brand_foreground" />
-                </adaptive-icon>
-                """,
-            )
-        }
+        writePng(source, "drawable-nodpi/snapmusic_brand_badge.png")
+        writePng(scale(source, 96), "drawable-nodpi/ic_stat_snapmusic_real.png")
     }
 }
 
