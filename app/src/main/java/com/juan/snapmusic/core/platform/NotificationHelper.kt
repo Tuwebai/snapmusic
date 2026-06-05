@@ -74,7 +74,7 @@ class NotificationHelper(
         )
 
         return NotificationCompat.Builder(appContext, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_snapmusic)
+            .setSmallIcon(R.drawable.ic_stat_snapmusic_real)
             .setLargeIcon(fallbackArtwork())
             .setColor(SNAPMUSIC_RED)
             .setColorized(true)
@@ -130,7 +130,7 @@ class NotificationHelper(
             progress = null,
         )
         val notification = NotificationCompat.Builder(appContext, channelId)
-            .setSmallIcon(R.drawable.ic_stat_snapmusic)
+            .setSmallIcon(R.drawable.ic_stat_snapmusic_real)
             .setLargeIcon(fallbackArtwork())
             .setColor(SNAPMUSIC_RED)
             .setColorized(true)
@@ -160,7 +160,7 @@ class NotificationHelper(
             progress = null,
         )
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_snapmusic)
+            .setSmallIcon(R.drawable.ic_stat_snapmusic_real)
             .setLargeIcon(fallbackArtwork())
             .setColor(SNAPMUSIC_RED)
             .setColorized(true)
@@ -288,7 +288,7 @@ class NotificationHelper(
     private fun fallbackArtwork(): Bitmap {
         return BitmapFactory.decodeResource(
             appContext.resources,
-            R.drawable.snapmusic_logo,
+            R.drawable.snapmusic_brand_logo,
             BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 },
         ).fitForNotification()
     }

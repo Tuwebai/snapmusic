@@ -116,7 +116,7 @@ class HomePlaybackWidgetProvider : AppWidgetProvider() {
                     if (artworkUriBitmap != null) {
                         setImageViewBitmap(R.id.widget_artwork, artworkUriBitmap)
                     } else {
-                        setImageViewResource(R.id.widget_artwork, R.drawable.snapmusic_logo)
+                        setImageViewResource(R.id.widget_artwork, R.drawable.snapmusic_brand_logo)
                     }
                 }
                 setOnClickPendingIntent(R.id.widget_root, MainActivity.buildOpenPlaybackPendingIntent(context))

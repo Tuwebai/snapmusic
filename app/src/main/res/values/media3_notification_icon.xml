@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <item name="media3_notification_small_icon" type="drawable">@drawable/ic_stat_snapmusic</item>
+    <item name="media3_notification_small_icon" type="drawable">@drawable/ic_stat_snapmusic_real</item>
 </resources>

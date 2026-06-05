@@ -28,7 +28,7 @@ fun AppHeader(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Image(
-            painter = painterResource(id = R.drawable.snapmusic_logo),
+            painter = painterResource(id = R.drawable.snapmusic_brand_logo),
             contentDescription = "SnapMusic",
             modifier = Modifier.size(48.dp),
         )

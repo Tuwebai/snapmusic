@@ -37,7 +37,7 @@ object PlaybackArtworkBadgeHelper {
 
         val badged = badge(
             baseBitmap,
-            decodeResource(context, R.drawable.playback_badge_logo)
+            decodeResource(context, R.drawable.snapmusic_brand_badge)
                 .transparentizeDarkPixels()
                 .tintToSnapMusicRed(),
         )

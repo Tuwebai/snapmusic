@@ -87,7 +87,7 @@ object PlaybackWidgetRenderer {
         if (bitmap != null) {
             setImageViewBitmap(R.id.widget_artwork, bitmap)
         } else {
-            setImageViewResource(R.id.widget_artwork, R.drawable.snapmusic_logo)
+            setImageViewResource(R.id.widget_artwork, R.drawable.snapmusic_brand_logo)
         }
     }
 

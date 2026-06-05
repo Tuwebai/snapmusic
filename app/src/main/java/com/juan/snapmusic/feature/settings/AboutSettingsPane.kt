@@ -103,7 +103,7 @@ internal fun AboutSettingsPane(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(R.drawable.snapmusic_logo),
+                painter = painterResource(R.drawable.snapmusic_brand_logo),
                 contentDescription = "Logo de SnapMusic",
                 tint = Color.Unspecified,
                 modifier = Modifier.size(74.dp),

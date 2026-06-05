@@ -15,7 +15,7 @@
         android:background="#202020"
         android:contentDescription="@string/app_name"
         android:scaleType="centerCrop"
-        android:src="@drawable/snapmusic_logo" />
+        android:src="@drawable/snapmusic_brand_logo" />
 
     <TextView
         android:id="@+id/widget_title"
