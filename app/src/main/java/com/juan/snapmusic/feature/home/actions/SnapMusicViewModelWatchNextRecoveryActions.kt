@@ -69,6 +69,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal fun SnapMusicViewModel.resolveCurrentQueueIndex(
     state: YouTubeUiState,
@@ -142,10 +143,12 @@ internal suspend fun SnapMusicViewModel.resolveWatchNextRecoveryCandidates(
     val remoteCandidates = mutableListOf<YouTubeFeedItem>()
     for (query in watchNextRecoveryQueries(currentItem)) {
         val page = runCatching {
+            withTimeoutOrNull(YOUTUBE_FEED_PAGE_TIMEOUT_MS) {
             graph.resolverRepository.searchVideosPage(
                 query = query,
                 limit = requestedLimit,
             )
+            }
         }.getOrNull()
         page?.items
             .orEmpty()
@@ -159,9 +162,61 @@ internal suspend fun SnapMusicViewModel.resolveWatchNextRecoveryCandidates(
             .forEach(remoteCandidates::add)
         if ((localCandidates.size + remoteCandidates.size) >= requestedLimit) break
     }
-    return (localCandidates + remoteCandidates)
+    val homeFillCandidates = if ((localCandidates.size + remoteCandidates.size) < requestedLimit) {
+        resolveWatchNextHomeFillCandidates(
+            currentItem = currentItem,
+            state = state,
+            blockedQueueItems = blockedQueueItems,
+            existingWatchNext = existingWatchNext,
+            alreadySelected = localCandidates + remoteCandidates,
+            requestedLimit = requestedLimit,
+        )
+    } else {
+        emptyList()
+    }
+    return (localCandidates + remoteCandidates + homeFillCandidates)
         .filter { it.url != currentItem.url }
         .distinctBy(YouTubeFeedItem::url)
+}
+
+private suspend fun SnapMusicViewModel.resolveWatchNextHomeFillCandidates(
+    currentItem: YouTubeFeedItem,
+    state: YouTubeUiState,
+    blockedQueueItems: List<YouTubeFeedItem>,
+    existingWatchNext: List<YouTubeFeedItem>,
+    alreadySelected: List<YouTubeFeedItem>,
+    requestedLimit: Int,
+): List<YouTubeFeedItem> {
+    val selected = linkedMapOf<String, YouTubeFeedItem>()
+    val blockedUrls = buildSet {
+        add(currentItem.url)
+        blockedQueueItems.forEach { add(it.url) }
+        existingWatchNext.forEach { add(it.url) }
+        alreadySelected.forEach { add(it.url) }
+    }
+    val stableSeed = youTubeFeedSessionSeed + (currentItem.url.hashCode().toLong() * 31L)
+    var cursor = (state.watchNextItems.size + alreadySelected.size)
+        .coerceAtLeast(0)
+        .toString()
+    repeat(4) {
+        val page = withTimeoutOrNull(YOUTUBE_FEED_PAGE_TIMEOUT_MS) {
+            graph.musicHomeFeedRepository.loadMusicHomeFeed(
+                sessionSeed = stableSeed,
+                cursor = cursor,
+                limit = YOUTUBE_WATCH_NEXT_PAGE_SIZE + YOUTUBE_WATCH_NEXT_LOOKAHEAD_SIZE,
+            )
+        } ?: return@repeat
+        page.items.forEach { candidate ->
+            if (candidate.url !in blockedUrls && candidate.url !in selected) {
+                selected[candidate.url] = candidate
+            }
+        }
+        if (selected.size >= requestedLimit) return selected.values.toList()
+        cursor = page.nextCursor ?: (
+            (cursor.toIntOrNull() ?: state.watchNextItems.size) + YOUTUBE_WATCH_NEXT_PAGE_SIZE
+        ).toString()
+    }
+    return selected.values.toList()
 }
 
 internal fun SnapMusicViewModel.watchNextRecoveryQueries(currentItem: YouTubeFeedItem): List<String> {

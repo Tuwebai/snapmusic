@@ -69,6 +69,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal fun SnapMusicViewModel.enrichWatchNextQueue(
     item: YouTubeFeedItem,
@@ -104,10 +105,12 @@ internal fun SnapMusicViewModel.enrichWatchNextQueue(
             return@launch
         }
         val related = runCatching {
+            withTimeoutOrNull(YOUTUBE_FEED_PAGE_TIMEOUT_MS) {
             graph.musicHomeFeedRepository.recommendWatchNext(
                 currentItem = item,
                 limit = YOUTUBE_WATCH_NEXT_PAGE_SIZE,
             )
+            }.orEmpty()
         }.getOrDefault(emptyList())
         val current = _youtubeState.value
         if (current.featured.sourceUrl != item.url) return@launch
@@ -202,10 +205,12 @@ internal fun SnapMusicViewModel.refreshWatchNextByPull(snapshot: YouTubeUiState)
     )
     watchNextEnrichmentJob = viewModelScope.launch {
         val related = runCatching {
+            withTimeoutOrNull(YOUTUBE_FEED_PAGE_TIMEOUT_MS) {
             graph.musicHomeFeedRepository.recommendWatchNext(
                 currentItem = featuredItem,
                 limit = YOUTUBE_WATCH_NEXT_PAGE_SIZE + 8,
             )
+            }.orEmpty()
         }.getOrDefault(emptyList())
         val latest = _youtubeState.value
         if (latest.featured.sourceUrl != featuredItem.url) return@launch
@@ -273,16 +278,22 @@ internal fun SnapMusicViewModel.loadMoreWatchNextQueue(): Job? {
     _youtubeState.value = current.copy(isLoadingMore = true)
     return viewModelScope.launch {
         val currentRelatedCount = existingWatchNext.size
-        val requestLimit = currentRelatedCount + YOUTUBE_WATCH_NEXT_PAGE_SIZE + YOUTUBE_WATCH_NEXT_LOOKAHEAD_SIZE
+        val requestLimit = (currentRelatedCount + YOUTUBE_WATCH_NEXT_PAGE_SIZE + YOUTUBE_WATCH_NEXT_LOOKAHEAD_SIZE)
+            .coerceAtMost(YOUTUBE_WATCH_NEXT_PAGE_SIZE * 5)
         runCatching {
-            graph.musicHomeFeedRepository.recommendWatchNext(
+            withTimeoutOrNull(YOUTUBE_FEED_PAGE_TIMEOUT_MS) {
+                graph.musicHomeFeedRepository.recommendWatchNext(
                 currentItem = featuredItem,
                 limit = requestLimit,
             )
+            }.orEmpty()
         }
             .onSuccess { related ->
                 val latest = _youtubeState.value
-                if (latest.featured.sourceUrl != featuredItem.url) return@onSuccess
+                if (latest.featured.sourceUrl != featuredItem.url) {
+                    _youtubeState.value = latest.copy(isLoadingMore = false)
+                    return@onSuccess
+                }
                 val newRelated = related.filterNot { candidate ->
                     candidate.url == featuredItem.url ||
                         blockedQueueItems.any { existing -> existing.url == candidate.url } ||
@@ -334,7 +345,7 @@ internal fun SnapMusicViewModel.loadMoreWatchNextQueue(): Job? {
                 preResolveNextQueueItem(updatedQueue, currentIndex, latest.continuationMode)
             }
             .onFailure {
-                _youtubeState.value = _youtubeState.value.copy(isLoadingMore = false, canLoadMoreWatchNext = true)
+                _youtubeState.value = _youtubeState.value.copy(isLoadingMore = false, canLoadMoreWatchNext = false)
             }
     }
 }

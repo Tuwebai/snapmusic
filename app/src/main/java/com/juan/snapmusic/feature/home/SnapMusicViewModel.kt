@@ -92,6 +92,7 @@ internal const val YOUTUBE_WATCH_NEXT_LOOKAHEAD_SIZE = 12
 internal const val YOUTUBE_WATCH_NEXT_ENRICH_DELAY_MS = 75_000L
 internal const val YOUTUBE_NEXT_PRE_RESOLVE_MIN_POSITION_MS = 30_000L
 internal const val YOUTUBE_NEXT_PRE_RESOLVE_STABLE_WINDOW_MS = 30_000L
+internal const val YOUTUBE_FEED_PAGE_TIMEOUT_MS = 12_000L
 internal const val HOME_TAB_YOUTUBE_INDEX = 1
 internal const val YOUTUBE_WATCH_COMMENT_FALLBACK = "Eleg? un formato y mandalo a la cola sin salir de esta pantalla."
 internal const val INSTAGRAM_FAST_VIDEO_VARIANT_ID = "instagram-fast-video-mp4"
