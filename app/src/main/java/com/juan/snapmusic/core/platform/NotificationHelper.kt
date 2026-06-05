@@ -7,8 +7,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.media.AudioAttributes
-import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.util.LruCache
@@ -211,7 +209,7 @@ class NotificationHelper(
             },
         ).apply {
             description = "Aviso final cuando una descarga llega al 100%."
-            setSound(soundUri(sound), completionAudioAttributes())
+            setSound(sound.notificationSoundUri(appContext), downloadCompleteAudioAttributes())
         }
         manager.createNotificationChannel(channel)
     }
@@ -222,46 +220,12 @@ class NotificationHelper(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) return@apply
         when (sound) {
             DownloadCompleteSound.NONE -> setSilent(true)
-            DownloadCompleteSound.SYSTEM -> setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
-            else -> setSound(soundUri(sound))
+            else -> setSound(sound.notificationSoundUri(appContext))
         }
     }
 
     private fun completionChannelId(sound: DownloadCompleteSound): String {
         return COMPLETION_CHANNEL_PREFIX + sound.preferenceKey
-    }
-
-    private fun soundUri(sound: DownloadCompleteSound): Uri? {
-        return when (sound) {
-            DownloadCompleteSound.NONE -> null
-            DownloadCompleteSound.SYSTEM -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            else -> Uri.parse("android.resource://${appContext.packageName}/${sound.rawResourceId()}")
-        }
-    }
-
-    private fun completionAudioAttributes(): AudioAttributes {
-        return AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
-    }
-
-    private fun DownloadCompleteSound.rawResourceId(): Int {
-        return when (this) {
-            DownloadCompleteSound.SNAPMUSIC_PULSE_CONFIRM -> R.raw.download_complete_pulse_confirm
-            DownloadCompleteSound.SNAPMUSIC_CRIMSON_PING -> R.raw.download_complete_crimson_ping
-            DownloadCompleteSound.SNAPMUSIC_NEON_DROP -> R.raw.download_complete_neon_drop
-            DownloadCompleteSound.SNAPMUSIC_SOFT_WIN -> R.raw.download_complete_soft_win
-            DownloadCompleteSound.SNAPMUSIC_SNAP_CHIME -> R.raw.download_complete_snap_chime
-            DownloadCompleteSound.SNAPMUSIC_GLASS_POP -> R.raw.download_complete_glass_pop
-            DownloadCompleteSound.SNAPMUSIC_RED_SIGNAL -> R.raw.download_complete_red_signal
-            DownloadCompleteSound.SNAPMUSIC_BASS_TAP -> R.raw.download_complete_bass_tap
-            DownloadCompleteSound.SNAPMUSIC_WAVE_LOCK -> R.raw.download_complete_wave_lock
-            DownloadCompleteSound.SNAPMUSIC_NIGHT_FINISH -> R.raw.download_complete_night_finish
-            DownloadCompleteSound.NONE,
-            DownloadCompleteSound.SYSTEM,
-            -> R.raw.download_complete_pulse_confirm
-        }
     }
 
     private fun artworkFor(rawUrl: String): Bitmap {
