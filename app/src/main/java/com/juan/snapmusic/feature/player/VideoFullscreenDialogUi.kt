@@ -51,7 +51,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.window.Dialog
@@ -95,14 +94,23 @@ internal fun LandscapeFullscreenVideoDialog(
     var showControls by rememberSaveable(mediaKey) { mutableStateOf(true) }
     var hasInteracted by rememberSaveable(mediaKey) { mutableStateOf(false) }
     var isSeekingPreview by remember(mediaKey) { mutableStateOf(false) }
+    var dismissConsumed by remember(visible, mediaKey) { mutableStateOf(false) }
     val gestureController = rememberVideoGestureController()
     var adjustmentFeedback by remember { mutableStateOf<VideoAdjustmentFeedback?>(null) }
     var adjustmentFeedbackTick by remember { mutableStateOf(0) }
+    val dismissFullscreen = {
+        if (!dismissConsumed) {
+            dismissConsumed = true
+            onDismiss()
+        }
+    }
 
     DisposableEffect(activity, visible) {
         val initialOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         val controller = activity?.window?.let { WindowInsetsControllerCompat(it, it.decorView) }
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        if (activity?.requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
         controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         controller?.hide(WindowInsetsCompat.Type.systemBars())
         onDispose {
@@ -135,10 +143,8 @@ internal fun LandscapeFullscreenVideoDialog(
         }
     }
 
-    BackHandler(enabled = visible, onBack = onDismiss)
-
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = dismissFullscreen,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             dismissOnBackPress = true,
@@ -219,7 +225,7 @@ internal fun LandscapeFullscreenVideoDialog(
                     onBack = {
                         hasInteracted = true
                         showControls = false
-                        onDismiss()
+                        dismissFullscreen()
                     },
                     onPlayPause = {
                         hasInteracted = true
@@ -252,7 +258,7 @@ internal fun LandscapeFullscreenVideoDialog(
                     onToggleResize = {
                         hasInteracted = true
                         showControls = false
-                        onDismiss()
+                        dismissFullscreen()
                     },
                 )
                 VideoAdjustmentFeedbackOverlay(
