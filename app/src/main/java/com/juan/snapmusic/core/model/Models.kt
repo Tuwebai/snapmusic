@@ -376,6 +376,7 @@ data class YouTubeUiState(
     val nextCursor: String? = null,
     val hasMoreSearchResults: Boolean = false,
     val watchNextItems: List<YouTubeFeedItem> = emptyList(),
+    val watchNextCursor: String? = null,
     val playbackQueue: List<YouTubeFeedItem> = emptyList(),
     val currentQueueIndex: Int = -1,
     val autoplayEnabled: Boolean = true,

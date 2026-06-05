@@ -179,6 +179,7 @@ fun SnapMusicViewModel.setYouTubeQueue(
             showPlayer = true,
             showMiniPlayer = false,
             watchNextItems = seededWatchNextItems,
+            watchNextCursor = null,
             canLoadMoreWatchNext = true,
             currentPositionMs = resumePositionMs.takeIf { it > 0L } ?: current.currentPositionMs,
             playbackSeekRequestId = if (resumePositionMs > 0L) {
@@ -195,6 +196,7 @@ fun SnapMusicViewModel.setYouTubeQueue(
     _youtubeState.value = current.copy(
         playbackQueue = items,
         watchNextItems = seededWatchNextItems,
+        watchNextCursor = null,
         currentQueueIndex = normalizedIndex,
         queueOrigin = sourceLabel,
         nextUpItem = if (current.autoplayEnabled) {
@@ -236,6 +238,7 @@ fun SnapMusicViewModel.playYouTubeQueueItem(
         _youtubeState.value = current.copy(
             playbackQueue = queueItems,
             watchNextItems = seededWatchNextItems,
+            watchNextCursor = null,
             currentQueueIndex = normalizedIndex,
             nextUpItem = if (current.autoplayEnabled) {
                 nextQueueItem(queueItems, normalizedIndex, current.continuationMode)
@@ -265,6 +268,7 @@ fun SnapMusicViewModel.playYouTubeQueueItem(
     _youtubeState.value = current.copy(
         playbackQueue = queueItems,
         watchNextItems = seededWatchNextItems,
+        watchNextCursor = null,
         currentQueueIndex = normalizedIndex,
         isRefreshingVideo = true,
         pendingTransition = true,
@@ -297,6 +301,7 @@ fun SnapMusicViewModel.playYouTubeQueueItem(
                     showPlayer = !keepMiniPlayer,
                     showMiniPlayer = keepMiniPlayer,
                     watchNextItems = seededWatchNextItems,
+                    watchNextCursor = null,
                     currentQueueIndex = normalizedIndex,
                     nextUpItem = if (latest.autoplayEnabled) {
                         nextQueueItem(queueItems, normalizedIndex, latest.continuationMode)

@@ -255,6 +255,7 @@ fun SnapMusicViewModel.restoreYouTubePlaybackSnapshot() {
                 nextCursor = null,
                 hasMoreSearchResults = false,
                 watchNextItems = initialWatchNextItems(snapshot.queue, snapshot.currentQueueIndex, snapshot.origin),
+                watchNextCursor = null,
                 playbackQueue = snapshot.queue,
                 currentQueueIndex = snapshot.currentQueueIndex,
                 autoplayEnabled = snapshot.autoplayEnabled,
@@ -332,6 +333,7 @@ fun SnapMusicViewModel.syncYouTubeMediaTransition(
         currentQueueIndex = nextIndex,
         featured = cached ?: transitionedItem.toLoadingFeaturedVideo(),
         watchNextItems = initialWatchNextItems(queueItems, nextIndex, seedOriginForWatchNext(current)),
+        watchNextCursor = null,
         nextUpItem = if (current.autoplayEnabled) {
             nextQueueItem(queueItems, nextIndex, current.continuationMode)
         } else {
