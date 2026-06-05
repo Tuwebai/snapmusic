@@ -44,6 +44,8 @@ internal fun PlayerSurface(
         update = { view ->
             if (active) {
                 PlayerSurfaceTargetRegistry.attach(player, view)
+            } else {
+                PlayerSurfaceTargetRegistry.release(player, view)
             }
             if (view.resizeMode != resizeMode) {
                 view.resizeMode = resizeMode

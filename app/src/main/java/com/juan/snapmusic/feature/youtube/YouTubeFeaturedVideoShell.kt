@@ -207,7 +207,7 @@ internal fun FeaturedVideoPlayerShell(
                 contentScale = ContentScale.Fit,
             )
         }
-        if (player != null && featured.playbackUrl != null) {
+        if (!isFullscreen && player != null && featured.playbackUrl != null) {
             key(featured.sourceUrl, player) {
                 PlayerSurface(
                     player = player,
@@ -218,7 +218,6 @@ internal fun FeaturedVideoPlayerShell(
                     keepContentOnPlayerReset = true,
                     shutterColor = Color.TRANSPARENT,
                     keepScreenOn = player.playWhenReady,
-                    active = !isFullscreen,
                 )
             }
         }
