@@ -99,8 +99,7 @@ internal fun SnapMusicViewModel.enrichWatchNextQueue(
             startupState.featured.sourceUrl != item.url ||
             !startupState.showPlayer ||
             startupState.isRefreshingVideo ||
-            startupState.pendingTransition ||
-            (requireWarmPlayback && startupState.currentPositionMs < 10_000L)
+            startupState.pendingTransition
         ) {
             return@launch
         }
@@ -162,6 +161,7 @@ internal fun SnapMusicViewModel.enrichWatchNextQueue(
                 watchNextItems = existingWatchNext,
                 canLoadMoreWatchNext = relatedPage.nextCursor != null,
                 watchNextCursor = relatedPage.nextCursor,
+                isLoadingMore = false,
             )
             return@launch
         }

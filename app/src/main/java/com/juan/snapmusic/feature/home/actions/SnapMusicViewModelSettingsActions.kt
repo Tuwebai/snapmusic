@@ -81,8 +81,12 @@ internal fun SnapMusicViewModel.restoreYouTubeHomeFeedCache() {
             val primeItems = cachedItems.take(YOUTUBE_HOME_CACHE_PRIME_COUNT)
             _youtubeState.value = current.copy(
                 items = primeItems,
-                nextCursor = cachedHomeNextCursor(primeItems),
+                nextCursor = null,
                 hasMoreSearchResults = false,
+            )
+            prepareHomeCursorFromCache(
+                seededItems = primeItems,
+                expectedItems = primeItems,
             )
             delay(3_000L)
             prefetchFeedItems(cachedItems)
@@ -120,9 +124,13 @@ internal fun SnapMusicViewModel.primeYouTubeHomeFeedFromCacheIfNeeded() {
         items = primeItems,
         isLoading = false,
         isLoadingMore = false,
-        nextCursor = cachedHomeNextCursor(primeItems),
+        nextCursor = null,
         hasMoreSearchResults = false,
         errorMessage = null,
+    )
+    prepareHomeCursorFromCache(
+        seededItems = primeItems,
+        expectedItems = primeItems,
     )
 }
 
@@ -135,16 +143,42 @@ internal fun SnapMusicViewModel.restoreYoutubeHomeFeedAfterSearch() {
             items = cachedItems,
             isLoading = false,
             isLoadingMore = false,
-            nextCursor = cachedHomeNextCursor(cachedItems),
+            nextCursor = null,
             hasMoreSearchResults = false,
             canLoadMoreWatchNext = current.canLoadMoreWatchNext,
             errorMessage = null,
+        )
+        prepareHomeCursorFromCache(
+            seededItems = cachedItems,
+            expectedItems = cachedItems,
         )
         startupPrefetchDone = false
         prefetchFeedItems(cachedItems)
     } else {
         _youtubeState.value = current.copy(query = "", hasMoreSearchResults = false, errorMessage = null)
         refreshYoutubeHome()
+    }
+}
+
+private fun SnapMusicViewModel.prepareHomeCursorFromCache(
+    seededItems: List<YouTubeFeedItem>,
+    expectedItems: List<YouTubeFeedItem>,
+) {
+    if (seededItems.isEmpty()) return
+    val expectedUrls = expectedItems.map(YouTubeFeedItem::url)
+    viewModelScope.launch(Dispatchers.IO) {
+        val cursor = graph.musicHomeFeedRepository.startHomeFeedPagingSession(
+            sessionSeed = youTubeFeedSessionSeed,
+            seededItems = seededItems,
+        )
+        val latest = _youtubeState.value
+        if (
+            latest.query.isBlank() &&
+            latest.playbackQueue.isEmpty() &&
+            latest.items.map(YouTubeFeedItem::url) == expectedUrls
+        ) {
+            _youtubeState.value = latest.copy(nextCursor = cursor)
+        }
     }
 }
 

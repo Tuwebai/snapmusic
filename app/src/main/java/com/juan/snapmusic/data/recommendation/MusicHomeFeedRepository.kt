@@ -50,6 +50,17 @@ class MusicHomeFeedRepository(
         }
     }
 
+    suspend fun startHomeFeedPagingSession(
+        sessionSeed: Long,
+        seededItems: List<YouTubeFeedItem>,
+    ): String? = withContext(Dispatchers.IO) {
+        feedPagingCoordinator.startHomeSession(
+            sessionSeed = sessionSeed,
+            profile = buildProfile(),
+            seededItems = seededItems,
+        )
+    }
+
     suspend fun searchMusicVideos(query: String, limit: Int = 36): List<YouTubeFeedItem> = withContext(Dispatchers.IO) {
         val baseQuery = query.trim()
         val secondaryQuery = "$baseQuery oficial video"

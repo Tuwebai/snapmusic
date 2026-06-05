@@ -113,9 +113,7 @@ fun SnapMusicViewModel.selectYouTubeItem(item: YouTubeFeedItem) {
         startIndex = startIndex,
         sourceLabel = queueOrigin,
     )
-    if (queueOrigin != YouTubeQueueOrigin.HOME_FEED || startIndex >= queueItems.lastIndex) {
-        enrichWatchNextQueue(item, requireWarmPlayback = false)
-    }
+    enrichWatchNextQueue(item, requireWarmPlayback = false)
 }
 
 fun SnapMusicViewModel.playYouTubeWatchHistoryItem(

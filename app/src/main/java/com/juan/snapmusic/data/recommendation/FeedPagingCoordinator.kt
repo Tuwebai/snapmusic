@@ -63,6 +63,21 @@ internal class FeedPagingCoordinator(
         )
     }
 
+    fun startHomeSession(
+        sessionSeed: Long,
+        profile: MusicInterestProfile,
+        seededItems: List<YouTubeFeedItem>,
+    ): String? {
+        val session = resolveSession(
+            cursor = null,
+            kind = "home",
+            seedSignature = (31 * sessionSeed.hashCode()) + profile.feedSignature(),
+        )
+        session.seenUrls.addAll(seededItems.map(YouTubeFeedItem::url))
+        Log.d(TAG, "kind=home seeded=${seededItems.size} cursor=${session.id}")
+        return session.id.takeIf { seededItems.isNotEmpty() }
+    }
+
     suspend fun loadWatchNextPage(
         currentItem: YouTubeFeedItem,
         cursor: String?,

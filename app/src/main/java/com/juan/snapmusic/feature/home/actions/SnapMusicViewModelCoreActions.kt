@@ -105,9 +105,3 @@ internal fun SnapMusicViewModel.keepYoutubePagingOpen(
     fetchedItems: Int,
     requestedItems: Int,
 ): Boolean = addedItems > 0 || fetchedItems >= requestedItems
-
-internal fun SnapMusicViewModel.cachedHomeNextCursor(items: List<YouTubeFeedItem>): String? {
-    return items.size
-        .takeIf { it >= YOUTUBE_HOME_CACHE_PRIME_COUNT }
-        ?.toString()
-}
