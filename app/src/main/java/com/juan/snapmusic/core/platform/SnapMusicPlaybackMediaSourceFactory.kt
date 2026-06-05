@@ -7,6 +7,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.cache.CacheKeyFactory
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
@@ -114,6 +116,7 @@ private object PlaybackCacheHolder {
         return CacheDataSource.Factory()
             .setCache(cache)
             .setUpstreamDataSourceFactory(upstreamDataSourceFactory)
+            .setCacheKeyFactory(YouTubePlaybackCacheKeyFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     }
 
@@ -126,6 +129,20 @@ private object PlaybackCacheHolder {
                 StandaloneDatabaseProvider(context),
             ).also { cache = it }
         }
+    }
+}
+
+private object YouTubePlaybackCacheKeyFactory : CacheKeyFactory {
+    override fun buildCacheKey(dataSpec: DataSpec): String {
+        val uri = dataSpec.uri
+        val host = uri.host.orEmpty().lowercase()
+        if (!host.contains("googlevideo.com") && !host.contains("youtube.com")) {
+            return dataSpec.key ?: uri.toString()
+        }
+        val stableQuery = listOf("id", "itag", "mime", "clen", "dur", "lmt")
+            .mapNotNull { key -> uri.getQueryParameter(key)?.let { "$key=$it" } }
+            .joinToString("&")
+        return "youtube|$host|${uri.path.orEmpty()}|$stableQuery"
     }
 }
 
