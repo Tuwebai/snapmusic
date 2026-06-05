@@ -293,7 +293,7 @@ private fun PreviewPlaybackVisual(
             PlayerSurface(
                 player = player,
                 modifier = modifier.background(Color.Black),
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
                 shutterColor = android.graphics.Color.BLACK,
                 keepScreenOn = player.playWhenReady,
             )

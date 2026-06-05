@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -96,8 +97,6 @@ import com.juan.snapmusic.feature.player.videoDoubleTapSeek
 import androidx.compose.ui.text.style.TextOverflow
 import java.text.DecimalFormat
 import kotlinx.coroutines.delay
-
-private val WatchPlayerHeight = 304.dp
 
 @Composable
 internal fun FeaturedVideoPlayerShell(
@@ -197,8 +196,7 @@ internal fun FeaturedVideoPlayerShell(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(WatchPlayerHeight)
-            .clip(RoundedCornerShape(18.dp))
+            .aspectRatio(16f / 9f)
             .background(androidx.compose.ui.graphics.Color.Black),
     ) {
         if (!hasRenderedFirstFrame) {
@@ -206,7 +204,7 @@ internal fun FeaturedVideoPlayerShell(
                 model = featuredThumbnailModel,
                 contentDescription = featured.title,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
             )
         }
         if (player != null && featured.playbackUrl != null) {
@@ -216,7 +214,7 @@ internal fun FeaturedVideoPlayerShell(
                     modifier = Modifier
                         .fillMaxSize()
                         .alpha(if (hasRenderedFirstFrame) 1f else 0f),
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
                     keepContentOnPlayerReset = true,
                     shutterColor = Color.TRANSPARENT,
                     keepScreenOn = player.playWhenReady,
@@ -379,7 +377,7 @@ internal fun FeaturedVideoFullscreenShell(
                 model = featuredThumbnailModel,
                 contentDescription = featured.title,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
             )
         },
         onDismiss = onDismiss,
