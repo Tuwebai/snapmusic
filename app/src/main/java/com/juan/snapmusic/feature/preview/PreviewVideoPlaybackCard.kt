@@ -100,17 +100,18 @@ internal fun PreviewVideoPlaybackCard(
     player: Player,
     canGoPrevious: Boolean,
     canGoNext: Boolean,
+    isFullscreen: Boolean,
     onBack: () -> Unit,
+    onFullscreenChanged: (Boolean) -> Unit,
     onMinimize: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
 ) {
     var showControls by rememberSaveable(preview.fileUri) { mutableStateOf(false) }
-    var isFullscreen by rememberSaveable(preview.fileUri) { mutableStateOf(true) }
     val pauseAndMinimizeVideo = {
         player.pause()
         player.playWhenReady = false
-        isFullscreen = false
+        onFullscreenChanged(false)
         onMinimize()
     }
     val overlayState = rememberPlaybackOverlayState(
@@ -216,7 +217,7 @@ internal fun PreviewVideoPlaybackCard(
                         onSeekTo = player::seekTo,
                         onToggleResize = {
                             showControls = false
-                            isFullscreen = true
+                            onFullscreenChanged(true)
                         },
                     )
                 }

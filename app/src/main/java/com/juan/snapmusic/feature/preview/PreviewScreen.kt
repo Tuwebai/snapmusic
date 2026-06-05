@@ -13,6 +13,7 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -121,6 +122,18 @@ private fun PreviewDetailHost(
     val selectedItems = remember(selectedIds, libraryState.items) {
         libraryState.items.filter { it.id in selectedIds }
     }
+    val activeItem = remember(libraryState.items, activePreviewUri) {
+        libraryState.items.firstOrNull { it.contentUri == activePreviewUri }
+    }
+    val activePreviewIsVideo = activeItem?.isVideo == true || activePreviewUri.isPreviewVideoMedia()
+    var localVideoFullscreen by rememberSaveable(activePreviewUri) {
+        mutableStateOf(activePreviewIsVideo)
+    }
+    LaunchedEffect(activePreviewUri, activePreviewIsVideo) {
+        if (activePreviewIsVideo) {
+            localVideoFullscreen = true
+        }
+    }
     val deleteLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
     ) { result ->
@@ -132,71 +145,90 @@ private fun PreviewDetailHost(
         }
     }
 
-    BackHandler {
-        if (libraryState.items.firstOrNull { it.contentUri == activePreviewUri }?.isVideo == true ||
-            activePreviewUri.isPreviewVideoMedia()
-        ) {
+    BackHandler(enabled = !localVideoFullscreen) {
+        if (activePreviewIsVideo) {
             player?.pause()
             player?.playWhenReady = false
         }
         viewModel.closePreviewDetail()
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-        contentPadding = PaddingValues(bottom = 28.dp),
-    ) {
-        item {
-            PreviewPlaybackCardHost(viewModel = viewModel, player = player)
+    if (localVideoFullscreen) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
+            PreviewPlaybackCardHost(
+                viewModel = viewModel,
+                player = player,
+                isVideoFullscreen = localVideoFullscreen,
+                onVideoFullscreenChanged = { localVideoFullscreen = it },
+            )
         }
-        if (libraryState.items.isNotEmpty()) {
+    } else {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            contentPadding = PaddingValues(bottom = 28.dp),
+        ) {
             item {
-                PreviewLibraryHeader(
-                    title = "Todas las canciones",
-                    selectionMode = selectionMode,
-                    selectedCount = selectedItems.size,
-                    onShareSelected = {
-                        if (selectedItems.isNotEmpty()) {
-                            shareLocalMediaItems(context, selectedItems)
-                        }
-                    },
-                    onDeleteSelected = {
-                        if (selectedItems.isNotEmpty()) {
-                            deleteTarget = selectedItems
-                        }
-                    },
-                    onCloseSelection = { selectedIds = emptySet() },
+                PreviewPlaybackCardHost(
+                    viewModel = viewModel,
+                    player = player,
+                    isVideoFullscreen = localVideoFullscreen,
+                    onVideoFullscreenChanged = { localVideoFullscreen = it },
                 )
             }
-            items(
-                items = libraryState.items,
-                key = { it.id },
-                contentType = { item -> if (item.isVideo) "preview_video_item" else "preview_audio_item" },
-            ) { item ->
-                PreviewLibraryRow(
-                    item = item,
-                    isActive = item.contentUri == activePreviewUri,
-                    selectionMode = selectionMode,
-                    selected = item.id in selectedIds,
-                    onClick = {
-                        selectedIds = emptySet()
-                        viewModel.openPreviewFromDevice(item)
-                    },
-                    onShare = { shareLocalMedia(context, item) },
-                    onShareSnapCard = { snapCardScope.launch { shareSnapCard(context, item) } },
-                    onRename = { renameTarget = item },
-                    onDelete = { deleteTarget = listOf(item) },
-                    onOpenLocation = { openLocalMediaLocation(context, item) },
-                    onCopyUri = { copyLocalMediaUri(context, item) },
-                    onViewInfo = { infoTarget = item },
-                    onUseAsNext = { viewModel.queuePreviewItemNext(item) },
-                    onSelectMultiple = {
-                        selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id
-                    },
-                )
+            if (libraryState.items.isNotEmpty()) {
+                item {
+                    PreviewLibraryHeader(
+                        title = "Todas las canciones",
+                        selectionMode = selectionMode,
+                        selectedCount = selectedItems.size,
+                        onShareSelected = {
+                            if (selectedItems.isNotEmpty()) {
+                                shareLocalMediaItems(context, selectedItems)
+                            }
+                        },
+                        onDeleteSelected = {
+                            if (selectedItems.isNotEmpty()) {
+                                deleteTarget = selectedItems
+                            }
+                        },
+                        onCloseSelection = { selectedIds = emptySet() },
+                    )
+                }
+                items(
+                    items = libraryState.items,
+                    key = { it.id },
+                    contentType = { item -> if (item.isVideo) "preview_video_item" else "preview_audio_item" },
+                ) { item ->
+                    PreviewLibraryRow(
+                        item = item,
+                        isActive = item.contentUri == activePreviewUri,
+                        selectionMode = selectionMode,
+                        selected = item.id in selectedIds,
+                        onClick = {
+                            selectedIds = emptySet()
+                            localVideoFullscreen = item.isVideo || item.contentUri.isPreviewVideoMedia()
+                            viewModel.openPreviewFromDevice(item)
+                        },
+                        onShare = { shareLocalMedia(context, item) },
+                        onShareSnapCard = { snapCardScope.launch { shareSnapCard(context, item) } },
+                        onRename = { renameTarget = item },
+                        onDelete = { deleteTarget = listOf(item) },
+                        onOpenLocation = { openLocalMediaLocation(context, item) },
+                        onCopyUri = { copyLocalMediaUri(context, item) },
+                        onViewInfo = { infoTarget = item },
+                        onUseAsNext = { viewModel.queuePreviewItemNext(item) },
+                        onSelectMultiple = {
+                            selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id
+                        },
+                    )
+                }
             }
         }
     }
@@ -271,6 +303,8 @@ private fun deleteLocalMediaDirectly(
 private fun PreviewPlaybackCardHost(
     viewModel: SnapMusicViewModel,
     player: Player?,
+    isVideoFullscreen: Boolean,
+    onVideoFullscreenChanged: (Boolean) -> Unit,
 ) {
     val detailState = viewModel.previewDetailScreen.collectAsStateWithLifecycle().value
     if (player != null) {
@@ -279,7 +313,9 @@ private fun PreviewPlaybackCardHost(
             player = player,
             canGoPrevious = detailState.canGoPrevious,
             canGoNext = detailState.canGoNext,
+            isVideoFullscreen = isVideoFullscreen,
             onBack = viewModel::closePreviewDetail,
+            onVideoFullscreenChanged = onVideoFullscreenChanged,
             onMinimize = viewModel::minimizePreviewPlayer,
             onPrevious = viewModel::playPreviousPreviewInLibrary,
             onNext = viewModel::playNextPreviewInLibrary,

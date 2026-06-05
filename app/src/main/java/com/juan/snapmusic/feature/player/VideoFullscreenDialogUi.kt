@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.view.ViewGroup
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -106,12 +107,7 @@ internal fun LandscapeFullscreenVideoDialog(
     }
 
     DisposableEffect(activity, visible) {
-        val initialOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        val restoreOrientation = if (initialOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
-            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        } else {
-            initialOrientation
-        }
+        val restoreOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         val controller = activity?.window?.let { WindowInsetsControllerCompat(it, it.decorView) }
         if (activity?.requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
@@ -146,6 +142,10 @@ internal fun LandscapeFullscreenVideoDialog(
                 showControls = false
             }
         }
+    }
+
+    BackHandler(enabled = visible) {
+        dismissFullscreen()
     }
 
     Dialog(
