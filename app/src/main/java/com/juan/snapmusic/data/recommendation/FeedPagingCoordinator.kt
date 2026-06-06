@@ -1,5 +1,6 @@
 package com.juan.snapmusic.data.recommendation
 
+import android.os.SystemClock
 import android.util.Log
 import com.juan.snapmusic.core.model.FeedImpression
 import com.juan.snapmusic.core.model.MusicInterestProfile
@@ -34,7 +35,8 @@ internal class FeedPagingCoordinator(
             kind = "home",
             seedSignature = (31 * sessionSeed.hashCode()) + signature,
         )
-        val items = collectPage(
+        val startedAt = SystemClock.elapsedRealtime()
+        val result = collectPage(
             session = session,
             limit = limit,
             laneFactory = { round ->
@@ -56,10 +58,19 @@ internal class FeedPagingCoordinator(
                 )
             },
         )
+        val next = nextCursor(session, result.items)
+        logPageSummary(
+            session = session,
+            requestCursor = cursor,
+            resultCursor = next,
+            added = result.items.size,
+            duplicates = result.duplicates,
+            durationMs = SystemClock.elapsedRealtime() - startedAt,
+        )
         return MusicHomeFeedState(
             sessionSeed = sessionSeed,
-            items = items,
-            nextCursor = nextCursor(session, items),
+            items = result.items,
+            nextCursor = next,
         )
     }
 
@@ -93,7 +104,8 @@ internal class FeedPagingCoordinator(
             seedSignature = signature,
         )
         val primaryUrls = linkedSetOf<String>()
-        val items = collectPage(
+        val startedAt = SystemClock.elapsedRealtime()
+        val result = collectPage(
             session = session,
             limit = limit,
             laneFactory = { round ->
@@ -117,10 +129,19 @@ internal class FeedPagingCoordinator(
                 )
             },
         )
+        val next = nextCursor(session, result.items)
+        logPageSummary(
+            session = session,
+            requestCursor = cursor,
+            resultCursor = next,
+            added = result.items.size,
+            duplicates = result.duplicates,
+            durationMs = SystemClock.elapsedRealtime() - startedAt,
+        )
         return MusicHomeFeedState(
             sessionSeed = signature.toLong(),
-            items = items,
-            nextCursor = nextCursor(session, items),
+            items = result.items,
+            nextCursor = next,
         )
     }
 
@@ -129,8 +150,9 @@ internal class FeedPagingCoordinator(
         limit: Int,
         laneFactory: (Int) -> List<FeedLane>,
         rank: (List<YouTubeFeedItem>) -> List<YouTubeFeedItem>,
-    ): List<YouTubeFeedItem> {
+    ): FeedPagingPageResult {
         val candidates = linkedMapOf<String, YouTubeFeedItem>()
+        var totalDuplicates = 0
         var guard = 0
         while (candidates.size < limit && guard < MAX_PAGE_ROUNDS) {
             val lanes = laneFactory(session.round)
@@ -138,9 +160,16 @@ internal class FeedPagingCoordinator(
             for (lane in lanes) {
                 if (session.exhaustedLanes.contains(lane.id)) continue
                 val cursor = session.laneCursors[lane.id]
+                val startedAt = SystemClock.elapsedRealtime()
                 val page = runCatching { lane.fetch(cursor) }
                     .onFailure {
-                        Log.w(TAG, "kind=${session.kind} lane=${lane.id} error=${it.message}")
+                        Log.w(
+                            TAG,
+                            "event=lane kind=${session.telemetryKind()} session=${session.id} " +
+                                "cursor=${cursor.orEmpty()} lane=${lane.id} round=${session.round} " +
+                                "fetched=0 added=0 duplicates=0 exhausted=true nextCursor= " +
+                                "durationMs=${SystemClock.elapsedRealtime() - startedAt} error=${it.message}",
+                        )
                     }
                     .getOrDefault(YouTubeFeedPage())
                 val before = candidates.size
@@ -154,6 +183,7 @@ internal class FeedPagingCoordinator(
                 }
                 val added = candidates.size - before
                 val duplicated = page.items.size - added
+                totalDuplicates += duplicated
                 anyLaneProgressed = anyLaneProgressed ||
                     page.items.isNotEmpty() ||
                     !page.nextCursor.isNullOrBlank()
@@ -164,9 +194,12 @@ internal class FeedPagingCoordinator(
                 }
                 Log.d(
                     TAG,
-                    "kind=${session.kind} lane=${lane.id} round=${session.round} " +
-                        "fetched=${page.items.size} added=$added duplicated=$duplicated " +
-                        "exhausted=${session.exhaustedLanes.contains(lane.id)} next=${!page.nextCursor.isNullOrBlank()}",
+                    "event=lane kind=${session.telemetryKind()} session=${session.id} " +
+                        "cursor=${cursor.orEmpty()} lane=${lane.id} round=${session.round} " +
+                        "fetched=${page.items.size} added=$added duplicates=$duplicated " +
+                        "exhausted=${session.exhaustedLanes.contains(lane.id)} " +
+                        "nextCursor=${page.nextCursor.orEmpty()} " +
+                        "durationMs=${SystemClock.elapsedRealtime() - startedAt}",
                 )
                 if (candidates.size >= limit) break
             }
@@ -183,7 +216,7 @@ internal class FeedPagingCoordinator(
             .distinctBy(YouTubeFeedItem::url)
             .take(limit)
         session.seenUrls.addAll(ranked.map(YouTubeFeedItem::url))
-        return ranked
+        return FeedPagingPageResult(items = ranked, duplicates = totalDuplicates)
     }
 
     private fun resolveSession(
@@ -213,11 +246,39 @@ internal class FeedPagingCoordinator(
 
     private fun nextCursor(session: FeedPagingSession, items: List<YouTubeFeedItem>): String? {
         if (items.isEmpty()) {
-            Log.d(TAG, "kind=${session.kind} exhausted=true added=0")
+            Log.d(
+                TAG,
+                "event=cursor kind=${session.telemetryKind()} session=${session.id} " +
+                    "cursor=${session.id} lane=page added=0 duplicates=0 exhausted=true durationMs=0",
+            )
             return null
         }
-        Log.d(TAG, "kind=${session.kind} added=${items.size} round=${session.round} cursor=${session.id}")
+        Log.d(
+            TAG,
+            "event=cursor kind=${session.telemetryKind()} session=${session.id} " +
+                "cursor=${session.id} lane=page added=${items.size} duplicates=0 exhausted=false durationMs=0",
+        )
         return session.id
+    }
+
+    private fun logPageSummary(
+        session: FeedPagingSession,
+        requestCursor: String?,
+        resultCursor: String?,
+        added: Int,
+        duplicates: Int,
+        durationMs: Long,
+    ) {
+        Log.d(
+            TAG,
+            "event=load-more kind=${session.telemetryKind()} session=${session.id} " +
+                "cursor=${requestCursor.orEmpty()} lane=page added=$added duplicates=$duplicates " +
+                "exhausted=${resultCursor == null} resultCursor=${resultCursor.orEmpty()} durationMs=$durationMs",
+        )
+    }
+
+    private fun FeedPagingSession.telemetryKind(): String {
+        return if (kind.startsWith("watch:")) "watch" else kind
     }
 
     private fun MusicInterestProfile.feedSignature(): Int {
@@ -231,3 +292,8 @@ internal class FeedPagingCoordinator(
     }
 
 }
+
+private data class FeedPagingPageResult(
+    val items: List<YouTubeFeedItem>,
+    val duplicates: Int,
+)
