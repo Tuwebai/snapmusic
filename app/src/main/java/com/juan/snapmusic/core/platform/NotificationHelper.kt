@@ -75,7 +75,6 @@ class NotificationHelper(
 
         return NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_snapmusic_real)
-            .setLargeIcon(fallbackArtwork())
             .setColor(SNAPMUSIC_RED)
             .setColorized(true)
             .setContentTitle("Descargando")
@@ -127,11 +126,11 @@ class NotificationHelper(
             title = shortTitle(title),
             detail = variantLabel,
             thumbnailUrl = thumbnailUrl,
+            loadArtworkNow = true,
             progress = null,
         )
         val notification = NotificationCompat.Builder(appContext, channelId)
             .setSmallIcon(R.drawable.ic_stat_snapmusic_real)
-            .setLargeIcon(fallbackArtwork())
             .setColor(SNAPMUSIC_RED)
             .setColorized(true)
             .setContentTitle("Descarga completa")
@@ -157,11 +156,11 @@ class NotificationHelper(
             title = shortTitle(title),
             detail = message.take(52),
             thumbnailUrl = thumbnailUrl,
+            loadArtworkNow = true,
             progress = null,
         )
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_snapmusic_real)
-            .setLargeIcon(fallbackArtwork())
             .setColor(SNAPMUSIC_RED)
             .setColorized(true)
             .setContentTitle("No pude terminar la descarga")
@@ -179,13 +178,20 @@ class NotificationHelper(
         title: String,
         detail: String,
         thumbnailUrl: String,
+        loadArtworkNow: Boolean = false,
         progress: Int?,
     ): RemoteViews {
         return RemoteViews(appContext.packageName, R.layout.notification_download).apply {
             setTextViewText(R.id.notification_title, headline)
             setTextViewText(R.id.notification_message, title)
             setTextViewText(R.id.notification_detail, detail)
-            setImageViewBitmap(R.id.notification_artwork, artworkFor(thumbnailUrl))
+            val artwork = artworkFor(thumbnailUrl, loadArtworkNow)
+            if (artwork == null) {
+                setViewVisibility(R.id.notification_artwork, android.view.View.GONE)
+            } else {
+                setViewVisibility(R.id.notification_artwork, android.view.View.VISIBLE)
+                setImageViewBitmap(R.id.notification_artwork, artwork)
+            }
             if (progress == null) {
                 setViewVisibility(R.id.notification_progress, android.view.View.GONE)
             } else {
@@ -228,11 +234,16 @@ class NotificationHelper(
         return COMPLETION_CHANNEL_PREFIX + sound.preferenceKey
     }
 
-    private fun artworkFor(rawUrl: String): Bitmap {
-        if (rawUrl.isBlank()) return fallbackArtwork()
+    private fun artworkFor(rawUrl: String, loadNow: Boolean): Bitmap? {
+        if (rawUrl.isBlank()) return null
         artworkCache.get(rawUrl)?.let { return it }
+        val loaded = if (loadNow) fetchArtwork(rawUrl) else null
+        if (loaded != null) {
+            artworkCache.put(rawUrl, loaded)
+            return loaded
+        }
         warmArtworkAsync(rawUrl)
-        return fallbackArtwork()
+        return null
     }
 
     private fun warmArtworkAsync(rawUrl: String) {
@@ -240,8 +251,7 @@ class NotificationHelper(
         if (!artworkWarmups.add(rawUrl)) return
         artworkLoaderScope.launch {
             try {
-                val bitmap = fetchArtwork(rawUrl) ?: fallbackArtwork()
-                artworkCache.put(rawUrl, bitmap)
+                fetchArtwork(rawUrl)?.let { artworkCache.put(rawUrl, it) }
             } finally {
                 artworkWarmups.remove(rawUrl)
             }
@@ -283,14 +293,6 @@ class NotificationHelper(
                 else -> null
             }
         }.getOrNull()?.fitForNotification()
-    }
-
-    private fun fallbackArtwork(): Bitmap {
-        return BitmapFactory.decodeResource(
-            appContext.resources,
-            R.drawable.snapmusic_brand_logo,
-            BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 },
-        ).fitForNotification()
     }
 
     private fun Bitmap.fitForNotification(): Bitmap {
