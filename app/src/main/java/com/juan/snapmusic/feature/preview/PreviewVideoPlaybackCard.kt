@@ -1,6 +1,7 @@
 package com.juan.snapmusic.feature.preview
 
 import android.graphics.BitmapFactory
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
@@ -81,7 +82,6 @@ import com.juan.snapmusic.core.designsystem.TextSecondary
 import com.juan.snapmusic.core.designsystem.WarningAmber
 import com.juan.snapmusic.core.model.PreviewState
 import com.juan.snapmusic.core.platform.PlaybackArtworkBadgeHelper
-import com.juan.snapmusic.feature.player.LandscapeFullscreenVideoDialog
 import com.juan.snapmusic.feature.player.PlaybackOverlayState
 import com.juan.snapmusic.feature.player.PlayerSurface
 import com.juan.snapmusic.feature.player.VideoFullscreenOverlay
@@ -157,109 +157,162 @@ internal fun PreviewVideoPlaybackCard(
         }
     }
 
-    if (!isFullscreen) {
-        Column(
+    if (isFullscreen) {
+        LocalVideoFullscreenHost(
+            preview = preview,
+            player = player,
+            overlayState = overlayState,
+            canGoPrevious = canGoPrevious,
+            canGoNext = canGoNext,
+            thumbnailVisible = !hasRenderedFirstFrame && preview.thumbnailUrl.isNotBlank(),
+            onDismiss = pauseAndMinimizeVideo,
+            onPlayPause = { player.togglePlayPause() },
+            onPrevious = onPrevious,
+            onNext = onNext,
+            onSeekTo = player::seekTo,
+            showControls = showControls,
+            onShowControlsChange = { showControls = it },
+        )
+        return
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(PreviewPanelGradient)
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(PreviewPanelGradient)
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color.Black),
         ) {
+            if (!hasRenderedFirstFrame && preview.thumbnailUrl.isNotBlank()) {
+                LocalVideoThumbnail(preview)
+            }
+            key(preview.fileUri, player) {
+                PlayerSurface(
+                    player = player,
+                    modifier = Modifier.fillMaxSize(),
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                    shutterColor = android.graphics.Color.BLACK,
+                    keepScreenOn = player.playWhenReady,
+                )
+            }
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color.Black),
+                    .fillMaxSize()
+                    .draggable(
+                        state = minimizeBySwipeState,
+                        orientation = Orientation.Vertical,
+                        onDragStopped = { totalVerticalDrag = 0f },
+                    )
+                    .videoDoubleTapSeek(
+                        onTap = { showControls = !showControls },
+                        onSeekBack = { player.seekByClamped(-DOUBLE_TAP_SEEK_MS) },
+                        onSeekForward = { player.seekByClamped(DOUBLE_TAP_SEEK_MS) },
+                    ),
             ) {
-                if (!hasRenderedFirstFrame && preview.thumbnailUrl.isNotBlank()) {
-                    AsyncImage(
-                        model = preview.thumbnailUrl,
-                        contentDescription = preview.title,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                        error = painterResource(R.drawable.preview_local_music_fallback),
-                        fallback = painterResource(R.drawable.preview_local_music_fallback),
-                    )
-                }
-                key(preview.fileUri, player) {
-                    PlayerSurface(
-                        player = player,
-                        modifier = Modifier.fillMaxSize(),
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
-                        shutterColor = android.graphics.Color.BLACK,
-                        keepScreenOn = player.playWhenReady,
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .draggable(
-                            state = minimizeBySwipeState,
-                            orientation = Orientation.Vertical,
-                            onDragStopped = { totalVerticalDrag = 0f },
-                        )
-                        .videoDoubleTapSeek(
-                            onTap = { showControls = !showControls },
-                            onSeekBack = { player.seekByClamped(-DOUBLE_TAP_SEEK_MS) },
-                            onSeekForward = { player.seekByClamped(DOUBLE_TAP_SEEK_MS) },
-                        ),
-                ) {
-                    VideoFullscreenOverlay(
-                        playbackState = overlayState,
-                        canGoPrevious = canGoPrevious,
-                        canGoNext = canGoNext,
-                        onBack = pauseAndMinimizeVideo,
-                        onPlayPause = { player.togglePlayPause() },
-                        onPrevious = onPrevious,
-                        onNext = onNext,
-                        onMore = null,
-                        onSeekTo = player::seekTo,
-                        onToggleResize = {
-                            showControls = false
-                            onFullscreenChanged(true)
-                        },
-                    )
-                }
+                VideoFullscreenOverlay(
+                    playbackState = overlayState,
+                    canGoPrevious = canGoPrevious,
+                    canGoNext = canGoNext,
+                    onBack = pauseAndMinimizeVideo,
+                    onPlayPause = { player.togglePlayPause() },
+                    onPrevious = onPrevious,
+                    onNext = onNext,
+                    onMore = null,
+                    onSeekTo = player::seekTo,
+                    onToggleResize = {
+                        showControls = false
+                        onFullscreenChanged(true)
+                    },
+                )
             }
-            Spacer(modifier = Modifier.height(18.dp))
-            Text(
-                text = preview.title,
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
         }
+        Spacer(modifier = Modifier.height(18.dp))
+        Text(
+            text = preview.title,
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleMedium,
+            color = TextPrimary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
     }
-    LandscapeFullscreenVideoDialog(
-        visible = isFullscreen,
-        player = player,
-        overlayState = overlayState,
-        canGoPrevious = canGoPrevious,
-        canGoNext = canGoNext,
-        thumbnailVisible = !hasRenderedFirstFrame && preview.thumbnailUrl.isNotBlank(),
-        thumbnail = {
-            AsyncImage(
-                model = preview.thumbnailUrl,
-                contentDescription = preview.title,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                error = painterResource(R.drawable.preview_local_music_fallback),
-                fallback = painterResource(R.drawable.preview_local_music_fallback),
-            )
-        },
-        onDismiss = pauseAndMinimizeVideo,
-        onPlayPause = { player.togglePlayPause() },
-        onPrevious = onPrevious,
-        onNext = onNext,
-        onMore = null,
-        onSeekTo = player::seekTo,
-    )
 }
 
+@Composable
+private fun LocalVideoFullscreenHost(
+    preview: PreviewState,
+    player: Player,
+    overlayState: PlaybackOverlayState,
+    canGoPrevious: Boolean,
+    canGoNext: Boolean,
+    thumbnailVisible: Boolean,
+    showControls: Boolean,
+    onShowControlsChange: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+    onPlayPause: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onSeekTo: (Long) -> Unit,
+) {
+    BackHandler(onBack = onDismiss)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .videoDoubleTapSeek(
+                onTap = { onShowControlsChange(!showControls) },
+                onSeekBack = { player.seekByClamped(-DOUBLE_TAP_SEEK_MS) },
+                onSeekForward = { player.seekByClamped(DOUBLE_TAP_SEEK_MS) },
+            ),
+    ) {
+        if (thumbnailVisible) {
+            LocalVideoThumbnail(preview)
+        }
+        key(preview.fileUri, player) {
+            PlayerSurface(
+                player = player,
+                modifier = Modifier.fillMaxSize(),
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                shutterColor = android.graphics.Color.TRANSPARENT,
+                keepContentOnPlayerReset = true,
+                keepScreenOn = player.playWhenReady,
+            )
+        }
+        VideoFullscreenOverlay(
+            playbackState = overlayState.copy(showControls = showControls),
+            canGoPrevious = canGoPrevious,
+            canGoNext = canGoNext,
+            fullscreenLayout = true,
+            onBack = onDismiss,
+            onPlayPause = onPlayPause,
+            onPrevious = onPrevious,
+            onNext = onNext,
+            onMore = null,
+            onSeekTo = onSeekTo,
+            onToggleResize = onDismiss,
+        )
+    }
+}
+
+@Composable
+private fun LocalVideoThumbnail(preview: PreviewState) {
+    AsyncImage(
+        model = preview.thumbnailUrl,
+        contentDescription = preview.title,
+        modifier = Modifier.fillMaxSize(),
+        contentScale = ContentScale.Crop,
+        error = painterResource(R.drawable.preview_local_music_fallback),
+        fallback = painterResource(R.drawable.preview_local_music_fallback),
+    )
+}
 @Composable
 internal fun PreviewEmptyState() {
     Surface(
