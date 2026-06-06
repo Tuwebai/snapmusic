@@ -1,7 +1,6 @@
 package com.juan.snapmusic.feature.preview
 
 import android.graphics.BitmapFactory
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
@@ -68,6 +67,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.ui.AspectRatioFrameLayout
 import coil.compose.AsyncImage
@@ -82,7 +82,6 @@ import com.juan.snapmusic.core.designsystem.TextSecondary
 import com.juan.snapmusic.core.designsystem.WarningAmber
 import com.juan.snapmusic.core.model.PreviewState
 import com.juan.snapmusic.core.platform.PlaybackArtworkBadgeHelper
-import com.juan.snapmusic.feature.player.PlaybackOverlayState
 import com.juan.snapmusic.feature.player.PlayerSurface
 import com.juan.snapmusic.feature.player.VideoFullscreenOverlay
 import com.juan.snapmusic.feature.player.rememberPlaybackOverlayState
@@ -129,6 +128,11 @@ internal fun PreviewVideoPlaybackCard(
 
     DisposableEffect(player, preview.fileUri) {
         val listener = object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                hasRenderedFirstFrame = false
+                showControls = true
+            }
+
             override fun onRenderedFirstFrame() {
                 hasRenderedFirstFrame = true
             }
@@ -246,73 +250,6 @@ internal fun PreviewVideoPlaybackCard(
     }
 }
 
-@Composable
-private fun LocalVideoFullscreenHost(
-    preview: PreviewState,
-    player: Player,
-    overlayState: PlaybackOverlayState,
-    canGoPrevious: Boolean,
-    canGoNext: Boolean,
-    thumbnailVisible: Boolean,
-    showControls: Boolean,
-    onShowControlsChange: (Boolean) -> Unit,
-    onDismiss: () -> Unit,
-    onPlayPause: () -> Unit,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onSeekTo: (Long) -> Unit,
-) {
-    BackHandler(onBack = onDismiss)
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .videoDoubleTapSeek(
-                onTap = { onShowControlsChange(!showControls) },
-                onSeekBack = { player.seekByClamped(-DOUBLE_TAP_SEEK_MS) },
-                onSeekForward = { player.seekByClamped(DOUBLE_TAP_SEEK_MS) },
-            ),
-    ) {
-        if (thumbnailVisible) {
-            LocalVideoThumbnail(preview)
-        }
-        key(preview.fileUri, player) {
-            PlayerSurface(
-                player = player,
-                modifier = Modifier.fillMaxSize(),
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
-                shutterColor = android.graphics.Color.TRANSPARENT,
-                keepContentOnPlayerReset = true,
-                keepScreenOn = player.playWhenReady,
-            )
-        }
-        VideoFullscreenOverlay(
-            playbackState = overlayState.copy(showControls = showControls),
-            canGoPrevious = canGoPrevious,
-            canGoNext = canGoNext,
-            fullscreenLayout = true,
-            onBack = onDismiss,
-            onPlayPause = onPlayPause,
-            onPrevious = onPrevious,
-            onNext = onNext,
-            onMore = null,
-            onSeekTo = onSeekTo,
-            onToggleResize = onDismiss,
-        )
-    }
-}
-
-@Composable
-private fun LocalVideoThumbnail(preview: PreviewState) {
-    AsyncImage(
-        model = preview.thumbnailUrl,
-        contentDescription = preview.title,
-        modifier = Modifier.fillMaxSize(),
-        contentScale = ContentScale.Crop,
-        error = painterResource(R.drawable.preview_local_music_fallback),
-        fallback = painterResource(R.drawable.preview_local_music_fallback),
-    )
-}
 @Composable
 internal fun PreviewEmptyState() {
     Surface(

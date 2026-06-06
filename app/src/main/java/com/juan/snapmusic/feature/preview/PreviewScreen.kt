@@ -155,9 +155,7 @@ private fun PreviewDetailHost(
 
     if (localVideoFullscreen) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier = Modifier.fillMaxSize(),
         ) {
             PreviewPlaybackCardHost(
                 viewModel = viewModel,
