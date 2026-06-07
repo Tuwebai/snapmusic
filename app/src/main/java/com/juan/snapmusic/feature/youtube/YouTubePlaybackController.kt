@@ -13,15 +13,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
-import androidx.media3.datasource.HttpDataSource
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.juan.snapmusic.core.model.YouTubeFeaturedVideo
@@ -34,87 +30,7 @@ import kotlinx.coroutines.isActive
 
 private const val ACTIVE_STALL_RECOVERY_MS = 2_500L
 private const val ACTIVE_STALL_RECOVERY_REPEAT_MS = 4_000L
-
-private fun YouTubeFeaturedVideo.toMediaItem(): MediaItem {
-    val resolvedPlaybackUrl = playbackUrl ?: return MediaItem.EMPTY
-    val builder = MediaItem.Builder()
-        .setMediaId(sourceUrl)
-        .setUri(resolvedPlaybackUrl.toUri())
-        .setMediaMetadata(
-            MediaMetadata.Builder()
-                .setTitle(title)
-                .setArtist(author)
-                .setArtworkUri(thumbnailUrl.takeIf { it.isNotBlank() }?.toUri())
-                .build(),
-        )
-    adaptivePlaybackMimeType(resolvedPlaybackUrl)?.let(builder::setMimeType)
-    return builder.build()
-}
-
-private fun adaptivePlaybackMimeType(url: String): String? {
-    val lower = url.lowercase()
-    return when {
-        lower.startsWith("data:application/dash+xml") ||
-            lower.contains(".mpd") ||
-            lower.contains("manifest.googlevideo.com") ||
-            lower.contains("/manifest/") ||
-            lower.startsWith("https://manifest") -> MimeTypes.APPLICATION_MPD
-
-        lower.contains(".m3u8") -> MimeTypes.APPLICATION_M3U8
-        else -> null
-    }
-}
-
-private fun MediaItem.samePlaybackAs(other: MediaItem): Boolean {
-    return mediaId == other.mediaId &&
-        localConfiguration?.uri == other.localConfiguration?.uri
-}
-
-private fun buildYouTubeQueueMediaItems(
-    featured: YouTubeFeaturedVideo,
-): List<MediaItem> {
-    val currentItem = featured.toMediaItem().takeIf { it != MediaItem.EMPTY } ?: return emptyList()
-    return listOf(currentItem)
-}
-
-private fun MediaController.sameYouTubeQueueAs(queueItems: List<MediaItem>): Boolean {
-    if (mediaItemCount != queueItems.size) return false
-    return queueItems.indices.all { index ->
-        getMediaItemAt(index).samePlaybackAs(queueItems[index])
-    }
-}
-
-private fun MediaController.syncNextYouTubeQueueItem(queueItems: List<MediaItem>) {
-    val nextItem = queueItems.getOrNull(1)
-    when {
-        nextItem == null && mediaItemCount > 1 -> removeMediaItems(1, mediaItemCount)
-        nextItem != null && mediaItemCount > 1 && !getMediaItemAt(1).samePlaybackAs(nextItem) -> replaceMediaItem(1, nextItem)
-        nextItem != null && mediaItemCount == 1 -> addMediaItem(nextItem)
-    }
-}
-
-private fun stableResumePositionMs(
-    controllerPositionMs: Long,
-    statePositionMs: Long,
-    seekPositionMs: Long,
-): Long {
-    return maxOf(
-        controllerPositionMs.takeIf { it > 0L } ?: 0L,
-        statePositionMs.takeIf { it > 0L } ?: 0L,
-        seekPositionMs.takeIf { it > 0L } ?: 0L,
-    )
-}
-
-private fun androidx.media3.common.PlaybackException.isExpiredStream403(): Boolean {
-    var cursor: Throwable? = this
-    var has403Cause = false
-    while (cursor != null && !has403Cause) {
-        has403Cause = cursor is HttpDataSource.InvalidResponseCodeException && cursor.responseCode == 403
-        cursor = cursor.cause
-    }
-    return has403Cause ||
-        message?.contains("403", ignoreCase = true) == true
-}
+private const val STARTUP_REBUFFER_GRACE_POSITION_MS = 1_000L
 
 @androidx.media3.common.util.UnstableApi
 @Composable
@@ -172,6 +88,10 @@ fun rememberYouTubePlayer(
                 private var playbackStartedAtMs = 0L
                 private var bufferStartedAtMs = 0L
                 private var firstFrameReported = false
+                private var rebufferCount = 0
+                private var totalRebufferDurationMs = 0L
+                private var actualVideoHeight: Int? = null
+                private var lastQualitySignature = ""
 
                 fun syncTransitionIfNeeded() {
                     val mediaId = mediaController.currentMediaItem?.mediaId ?: return
@@ -187,6 +107,10 @@ fun rememberYouTubePlayer(
                     playbackStartedAtMs = SystemClock.elapsedRealtime()
                     bufferStartedAtMs = 0L
                     firstFrameReported = false
+                    rebufferCount = 0
+                    totalRebufferDurationMs = 0L
+                    actualVideoHeight = null
+                    lastQualitySignature = ""
                     val mediaId = mediaItem?.mediaId ?: return
                     onMediaTransition(
                         mediaId,
@@ -211,11 +135,21 @@ fun rememberYouTubePlayer(
                     } else if (playbackState == Player.STATE_READY && bufferStartedAtMs != 0L) {
                         val durationMs = now - bufferStartedAtMs
                         val positionMs = mediaController.currentPosition.coerceAtLeast(0L)
+                        val isPlaybackRebuffer = firstFrameReported && positionMs >= STARTUP_REBUFFER_GRACE_POSITION_MS
+                        if (isPlaybackRebuffer) {
+                            rebufferCount += 1
+                            totalRebufferDurationMs += durationMs
+                        }
                         Log.d(
                             "SnapMusicPlayback",
-                            "rebuffer media=${mediaController.currentMediaItem?.mediaId.orEmpty()} durationMs=$durationMs positionMs=$positionMs firstFrame=$firstFrameReported",
+                            "event=${if (isPlaybackRebuffer) "rebuffer" else "startupBuffer"} media=${mediaController.currentMediaItem?.mediaId.orEmpty()} " +
+                                "count=$rebufferCount durationMs=$durationMs totalDurationMs=$totalRebufferDurationMs " +
+                                "positionMs=$positionMs firstFrame=$firstFrameReported " +
+                                "selectedQuality=${featured.selectedVideoQualityId} " +
+                                "selectedHeight=${featured.selectedTelemetryHeight() ?: -1} " +
+                                "actualHeight=${actualVideoHeight ?: -1}",
                         )
-                        if (firstFrameReported) {
+                        if (isPlaybackRebuffer) {
                             onPlaybackRebuffer(positionMs, durationMs)
                         }
                         bufferStartedAtMs = 0L
@@ -287,15 +221,32 @@ fun rememberYouTubePlayer(
                     val firstFrameMs = (SystemClock.elapsedRealtime() - playbackStartedAtMs).takeIf { playbackStartedAtMs > 0L }
                     Log.d(
                         "SnapMusicPlayback",
-                        "firstFrame media=${mediaController.currentMediaItem?.mediaId.orEmpty()} firstFrameMs=${firstFrameMs ?: -1}",
+                        "event=firstFrame media=${mediaController.currentMediaItem?.mediaId.orEmpty()} " +
+                            "firstFrameMs=${firstFrameMs ?: -1} selectedQuality=${featured.selectedVideoQualityId} " +
+                            "selectedHeight=${featured.selectedTelemetryHeight() ?: -1} " +
+                            "actualHeight=${actualVideoHeight ?: -1}",
                     )
                 }
 
                 override fun onTracksChanged(tracks: Tracks) {
                     if (mediaController.currentMediaItem?.mediaId != currentFeaturedSourceUrl) return
+                    val availableHeights = resolveAvailableVideoHeights(tracks)
+                    val height = resolveActualVideoHeight(tracks)
+                    actualVideoHeight = height
+                    val signature = "${featured.selectedVideoQualityId}:${featured.selectedTelemetryHeight()}:$height:$availableHeights"
+                    if (signature != lastQualitySignature) {
+                        lastQualitySignature = signature
+                        Log.d(
+                            "SnapMusicPlayback",
+                            "event=quality media=${mediaController.currentMediaItem?.mediaId.orEmpty()} " +
+                                "selectedQuality=${featured.selectedVideoQualityId} " +
+                                "selectedHeight=${featured.selectedTelemetryHeight() ?: -1} " +
+                                "actualHeight=${height ?: -1} availableHeights=$availableHeights",
+                        )
+                    }
                     onPlaybackQualityChanged(
-                        resolveAvailableVideoHeights(tracks),
-                        resolveActualVideoHeight(tracks),
+                        availableHeights,
+                        height,
                     )
                 }
             }
