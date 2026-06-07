@@ -13,7 +13,7 @@ val snapMusicIconResDir = layout.buildDirectory.dir("generated/res/snapmusicIcon
 val syncSnapMusicIcons by tasks.registering {
     val sourceIcon = rootProject.layout.projectDirectory.file("assets/images/favicon.png")
     inputs.file(sourceIcon)
-    inputs.property("notificationIconMode", "favicon-red-fullcolor-v3")
+    inputs.property("notificationIconMode", "favicon-red-mask-v4")
     outputs.dir(snapMusicIconResDir)
 
     doLast {
@@ -41,13 +41,31 @@ val syncSnapMusicIcons by tasks.registering {
             return scaled
         }
 
+        fun notificationSmallIcon(image: BufferedImage, size: Int): BufferedImage {
+            val scaled = scale(image, size)
+            val masked = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
+            for (y in 0 until size) {
+                for (x in 0 until size) {
+                    val pixel = scaled.getRGB(x, y)
+                    val alpha = pixel ushr 24 and 0xff
+                    val red = pixel ushr 16 and 0xff
+                    val green = pixel ushr 8 and 0xff
+                    val blue = pixel and 0xff
+                    val isSnapMusicMark = alpha > 20 && red > 96 && red > green + 32 && red > blue + 32
+                    val outputAlpha = if (isSnapMusicMark) alpha else 0
+                    masked.setRGB(x, y, outputAlpha shl 24 or 0x00ffffff)
+                }
+            }
+            return masked
+        }
+
         fun writePng(image: BufferedImage, path: String) {
             javax.imageio.ImageIO.write(image, "png", output(path))
         }
 
         writePng(source, "drawable-nodpi/snapmusic_brand_logo.png")
         writePng(source, "drawable-nodpi/snapmusic_brand_badge.png")
-        writePng(scale(source, 96), "drawable-nodpi/ic_stat_snapmusic_real.png")
+        writePng(notificationSmallIcon(source, 96), "drawable-nodpi/ic_stat_snapmusic_real.png")
     }
 }
 
