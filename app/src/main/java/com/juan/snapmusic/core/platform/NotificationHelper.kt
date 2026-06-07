@@ -26,7 +26,6 @@ import kotlin.math.roundToInt
 
 private const val CHANNEL_ID = "snapmusic_downloads"
 private const val COMPLETION_CHANNEL_PREFIX = "snapmusic_downloads_complete_"
-private const val SNAPMUSIC_RED = 0xFFFF3131.toInt()
 
 class NotificationHelper(
     context: Context,
@@ -75,7 +74,7 @@ class NotificationHelper(
 
         return NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_snapmusic_real)
-            .setColor(SNAPMUSIC_RED)
+            .setColor(SNAPMUSIC_NOTIFICATION_RED)
             .setColorized(true)
             .setContentTitle("Descargando")
             .setContentText(shortTitle(title))
@@ -131,7 +130,7 @@ class NotificationHelper(
         )
         val notification = NotificationCompat.Builder(appContext, channelId)
             .setSmallIcon(R.drawable.ic_stat_snapmusic_real)
-            .setColor(SNAPMUSIC_RED)
+            .setColor(SNAPMUSIC_NOTIFICATION_RED)
             .setColorized(true)
             .setContentTitle("Descarga completa")
             .setContentText(shortTitle(title))
@@ -161,7 +160,7 @@ class NotificationHelper(
         )
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_snapmusic_real)
-            .setColor(SNAPMUSIC_RED)
+            .setColor(SNAPMUSIC_NOTIFICATION_RED)
             .setColorized(true)
             .setContentTitle("No pude terminar la descarga")
             .setContentText(shortTitle(title))
