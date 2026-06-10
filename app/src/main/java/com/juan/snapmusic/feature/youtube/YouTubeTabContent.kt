@@ -353,6 +353,9 @@ private fun YouTubeSuggestionsList(
         if (suggestionsState.isRefreshing) pullOffsetPx = 0f
         if (!suggestionsState.isRefreshing) refreshRequested = false
     }
+    val showSkeletonItems = suggestionsState.isRefreshing ||
+        (visibleItems.isEmpty() && suggestionsState.isWatchTransitioning)
+    val shimmerProgress = if (showSkeletonItems) rememberYouTubeFeedShimmerProgress() else 0f
 
     val listContent: @Composable () -> Unit = {
         LazyColumn(
@@ -363,32 +366,17 @@ private fun YouTubeSuggestionsList(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(bottom = 28.dp),
         ) {
-            if (visibleItems.isEmpty() && (suggestionsState.isRefreshing || suggestionsState.isWatchTransitioning)) {
-                item(key = "youtube_feed_loading", contentType = "youtube_feed_loading") {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 28.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.dp,
+            if (showSkeletonItems) {
+                youtubeFeedShimmerItems(progress = shimmerProgress)
+            } else {
+                suggestionsState.errorMessage?.let { message ->
+                    item {
+                        InlineStatusCard(
+                            title = "YouTube no respondió como esperábamos",
+                            message = message,
                         )
                     }
                 }
-            }
-
-            suggestionsState.errorMessage?.let { message ->
-                item {
-                    InlineStatusCard(
-                        title = "YouTube no respondió como esperábamos",
-                        message = message,
-                    )
-                }
-            }
-
-            if (visibleItems.isNotEmpty()) {
                 items(
                     items = visibleItems,
                     key = YouTubeFeedItem::url,
@@ -400,26 +388,26 @@ private fun YouTubeSuggestionsList(
                         onDownload = onItemDownload,
                     )
                 }
-            }
 
-            if (visibleItems.isNotEmpty() && suggestionsState.canLoadMore) {
-                item(key = "youtube_feed_load_more_trigger", contentType = "youtube_feed_load_more_trigger") {
-                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp))
+                if (visibleItems.isNotEmpty() && suggestionsState.canLoadMore) {
+                    item(key = "youtube_feed_load_more_trigger", contentType = "youtube_feed_load_more_trigger") {
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp))
+                    }
                 }
-            }
 
-            if (suggestionsState.isLoadingMore) {
-                item(key = "youtube_feed_loading_more", contentType = "youtube_feed_loading_more") {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                        )
+                if (suggestionsState.isLoadingMore) {
+                    item(key = "youtube_feed_loading_more", contentType = "youtube_feed_loading_more") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        }
                     }
                 }
             }
