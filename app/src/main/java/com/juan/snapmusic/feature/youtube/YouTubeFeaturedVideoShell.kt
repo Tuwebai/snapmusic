@@ -92,8 +92,8 @@ import com.juan.snapmusic.feature.player.PlaybackOverlayState
 import com.juan.snapmusic.feature.player.PlayerSurface
 import com.juan.snapmusic.feature.player.rememberPlaybackOverlayState
 import com.juan.snapmusic.feature.player.DOUBLE_TAP_SEEK_MS
+import com.juan.snapmusic.feature.player.DoubleTapSeekGestureLayer
 import com.juan.snapmusic.feature.player.seekByClamped
-import com.juan.snapmusic.feature.player.videoDoubleTapSeek
 import androidx.compose.ui.text.style.TextOverflow
 import java.text.DecimalFormat
 import kotlinx.coroutines.delay
@@ -237,14 +237,11 @@ internal fun FeaturedVideoPlayerShell(
             }
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .videoDoubleTapSeek(
-                    onTap = { showOverlayControls = !showOverlayControls },
-                    onSeekBack = { player?.seekByClamped(-DOUBLE_TAP_SEEK_MS) },
-                    onSeekForward = { player?.seekByClamped(DOUBLE_TAP_SEEK_MS) },
-                )
+        DoubleTapSeekGestureLayer(
+            modifier = Modifier.fillMaxSize(),
+            onTap = { showOverlayControls = !showOverlayControls },
+            onSeekBack = { player?.seekByClamped(-DOUBLE_TAP_SEEK_MS) },
+            onSeekForward = { player?.seekByClamped(DOUBLE_TAP_SEEK_MS) },
         ) {
             FeaturedVideoOverlayHost(
                 overlayState = overlayState,

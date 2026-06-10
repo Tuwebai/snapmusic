@@ -182,21 +182,23 @@ internal fun LandscapeFullscreenVideoDialog(
                             }
                         },
                     )
-                    .videoDoubleTapSeek(
-                        onTap = {
-                            hasInteracted = true
-                            showControls = !showControls
-                        },
-                        onSeekBack = {
-                            hasInteracted = true
-                            player.seekByClamped(-DOUBLE_TAP_SEEK_MS)
-                        },
-                        onSeekForward = {
-                            hasInteracted = true
-                            player.seekByClamped(DOUBLE_TAP_SEEK_MS)
-                        },
-                    ),
+                    ,
             ) {
+                DoubleTapSeekGestureLayer(
+                    modifier = Modifier.fillMaxSize(),
+                    onTap = {
+                        hasInteracted = true
+                        showControls = !showControls
+                    },
+                    onSeekBack = {
+                        hasInteracted = true
+                        player.seekByClamped(-DOUBLE_TAP_SEEK_MS)
+                    },
+                    onSeekForward = {
+                        hasInteracted = true
+                        player.seekByClamped(DOUBLE_TAP_SEEK_MS)
+                    },
+                ) {
                 if (thumbnailVisible) {
                     thumbnail?.invoke()
                 }
@@ -226,6 +228,7 @@ internal fun LandscapeFullscreenVideoDialog(
                             modifier = Modifier.size(32.dp),
                         )
                     }
+                }
                 }
                 VideoFullscreenOverlay(
                     playbackState = overlayState.copy(showControls = showControls),
