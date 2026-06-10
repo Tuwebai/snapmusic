@@ -20,7 +20,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -306,9 +305,6 @@ private fun YouTubeSuggestionsList(
         animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing),
         label = "youtubePullRefreshOffset",
     )
-    val isAtTop by remember(listState) {
-        derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
-    }
     var pullGestureBlockedUntilRelease by remember { mutableStateOf(false) }
     var refreshRequested by remember { mutableStateOf(false) }
     val pullRefreshConnection = remember(listState, suggestionsState.isRefreshing, refreshThresholdPx) {
@@ -332,7 +328,7 @@ private fun YouTubeSuggestionsList(
             ): Offset {
                 if (source != NestedScrollSource.UserInput) return Offset.Zero
                 val delta = available.y
-                if (delta <= 0f || !isAtTop || suggestionsState.isRefreshing) return Offset.Zero
+                if (delta <= 0f || !listState.isScrolledToTop() || suggestionsState.isRefreshing) return Offset.Zero
                 if (pullOffsetPx <= 0f && pullGestureBlockedUntilRelease) return Offset.Zero
                 val consumedY = delta * 0.55f
                 pullOffsetPx = (pullOffsetPx + consumedY).coerceAtMost(refreshThresholdPx * 1.35f)

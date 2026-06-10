@@ -199,7 +199,7 @@ internal fun SnapMusicViewModel.refreshWatchNextByPull(snapshot: YouTubeUiState)
     watchNextEnrichmentJob?.cancel()
     youtubeLoadMoreJob?.cancel()
     _youtubeState.value = snapshot.copy(
-        isLoading = false,
+        isLoading = true,
         isLoadingMore = true,
         watchNextItems = seededWatchNext,
         errorMessage = null,

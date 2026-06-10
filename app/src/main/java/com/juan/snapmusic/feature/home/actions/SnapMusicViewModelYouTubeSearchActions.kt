@@ -243,9 +243,8 @@ fun SnapMusicViewModel.refreshYoutubeHome(silent: Boolean = false) {
         if (!silent) {
             youTubeFeedSessionSeed = System.currentTimeMillis()
         }
-        val shouldShowLoader = _youtubeState.value.items.isEmpty() && !silent
         _youtubeState.value = _youtubeState.value.copy(
-            isLoading = shouldShowLoader,
+            isLoading = !silent,
             isLoadingMore = false,
             watchNextItems = emptyList(),
             watchNextCursor = null,
