@@ -48,7 +48,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import java.util.LinkedHashSet
 
 private const val YOUTUBE_THUMBNAIL_PREFETCH_AHEAD = 8
+private const val YOUTUBE_RELATED_THUMBNAIL_PREFETCH_AHEAD = 2
 private const val YOUTUBE_THUMBNAIL_PREFETCH_CACHE_SIZE = 160
+private const val YOUTUBE_RELATED_THUMBNAIL_PREFETCH_CACHE_SIZE = 72
 private const val YOUTUBE_LOAD_MORE_THRESHOLD = 5
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -163,6 +165,7 @@ private fun YouTubeSuggestionsHost(
         items = visibleItems,
         listState = listState,
         isActive = isActive,
+        isWatchNext = suggestionsState.isPlayerVisible,
     )
 
     LaunchedEffect(resultsAnchor) {
@@ -173,13 +176,22 @@ private fun YouTubeSuggestionsHost(
         }
     }
 
-    LaunchedEffect(listState, visibleItems.size, suggestionsState.canLoadMore, suggestionsState.isLoadingMore, isActive) {
+    LaunchedEffect(
+        listState,
+        visibleItems.size,
+        suggestionsState.canLoadMore,
+        suggestionsState.isLoadingMore,
+        suggestionsState.isPlayerVisible,
+        isActive,
+    ) {
         if (!isActive || !suggestionsState.canLoadMore || suggestionsState.isLoadingMore || visibleItems.isEmpty()) {
             return@LaunchedEffect
         }
         snapshotFlow {
             val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            lastVisibleIndex >= visibleItems.lastIndex - YOUTUBE_LOAD_MORE_THRESHOLD
+            val nearEnd = lastVisibleIndex >= visibleItems.lastIndex - YOUTUBE_LOAD_MORE_THRESHOLD
+            val allowWhileScrolling = !suggestionsState.isPlayerVisible
+            nearEnd && (allowWhileScrolling || !listState.isScrollInProgress)
         }
             .distinctUntilChanged()
             .collect { shouldLoadMore ->
@@ -206,13 +218,24 @@ private fun YouTubeThumbnailPrefetcher(
     items: List<YouTubeFeedItem>,
     listState: LazyListState,
     isActive: Boolean,
+    isWatchNext: Boolean,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
     val thumbnailWidthPx = androidx.compose.runtime.remember(density) { with(density) { 154.dp.roundToPx() } }
     val thumbnailHeightPx = androidx.compose.runtime.remember(density) { with(density) { 88.dp.roundToPx() } }
+    val prefetchAhead = if (isWatchNext) {
+        YOUTUBE_RELATED_THUMBNAIL_PREFETCH_AHEAD
+    } else {
+        YOUTUBE_THUMBNAIL_PREFETCH_AHEAD
+    }
+    val prefetchCacheSize = if (isWatchNext) {
+        YOUTUBE_RELATED_THUMBNAIL_PREFETCH_CACHE_SIZE
+    } else {
+        YOUTUBE_THUMBNAIL_PREFETCH_CACHE_SIZE
+    }
     val prefetchedUrls = androidx.compose.runtime.remember { LinkedHashSet<String>() }
-    LaunchedEffect(items, listState, isActive, thumbnailWidthPx, thumbnailHeightPx) {
+    LaunchedEffect(items, listState, isActive, isWatchNext, thumbnailWidthPx, thumbnailHeightPx) {
         if (!isActive || items.isEmpty()) return@LaunchedEffect
         val imageLoader = context.imageLoader
         snapshotFlow {
@@ -221,7 +244,7 @@ private fun YouTubeThumbnailPrefetcher(
             val last = visible.lastOrNull()?.index ?: -1
             Triple(
                 first,
-                minOf(items.lastIndex, last + YOUTUBE_THUMBNAIL_PREFETCH_AHEAD),
+                minOf(items.lastIndex, last + prefetchAhead),
                 listState.isScrollInProgress,
             )
         }
@@ -245,7 +268,7 @@ private fun YouTubeThumbnailPrefetcher(
                             ),
                         )
                     }
-                while (prefetchedUrls.size > YOUTUBE_THUMBNAIL_PREFETCH_CACHE_SIZE) {
+                while (prefetchedUrls.size > prefetchCacheSize) {
                     val iterator = prefetchedUrls.iterator()
                     if (!iterator.hasNext()) break
                     iterator.next()
