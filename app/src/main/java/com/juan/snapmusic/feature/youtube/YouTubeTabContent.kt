@@ -155,7 +155,7 @@ private fun YouTubeSuggestionsHost(
 ) {
     val suggestionsState by viewModel.youtubeSuggestionsScreen.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
-    val visibleItems = suggestionsState.items
+    val visibleItems = if (suggestionsState.isWatchTransitioning) emptyList() else suggestionsState.items
     var lastResultsAnchor by remember { mutableStateOf<String?>(null) }
     val resultsAnchor = visibleItems.firstOrNull()?.url?.let { firstUrl ->
         val mode = if (suggestionsState.isPlayerVisible) "watch" else "feed"
@@ -367,7 +367,7 @@ private fun YouTubeSuggestionsList(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(bottom = 28.dp),
         ) {
-            if (visibleItems.isEmpty() && suggestionsState.isRefreshing) {
+            if (visibleItems.isEmpty() && (suggestionsState.isRefreshing || suggestionsState.isWatchTransitioning)) {
                 item(key = "youtube_feed_loading", contentType = "youtube_feed_loading") {
                     Box(
                         modifier = Modifier

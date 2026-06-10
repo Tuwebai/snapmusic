@@ -237,6 +237,7 @@ internal fun SnapMusicViewModel.createYoutubeFeedProjectionFlow() = youtubeState
             isLoading = state.isLoading,
             isLoadingMore = state.isLoadingMore,
             showPlayer = state.showPlayer,
+            isWatchTransitioning = state.showPlayer && state.pendingTransition,
             featuredSourceUrl = state.featured.sourceUrl,
             watchNextItems = state.watchNextItems,
             playbackQueue = state.playbackQueue,
@@ -284,6 +285,7 @@ internal fun SnapMusicViewModel.createYoutubeSuggestionsScreenFlow() = youtubeFe
         YouTubeSuggestionsUiState(
             query = state.query,
             isPlayerVisible = state.showPlayer,
+            isWatchTransitioning = state.isWatchTransitioning,
             items = if (state.showPlayer) {
                 state.watchNextItems
             } else {

@@ -191,6 +191,7 @@ data class YouTubeFeedProjection(
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
     val showPlayer: Boolean = false,
+    val isWatchTransitioning: Boolean = false,
     val featuredSourceUrl: String = "",
     val watchNextItems: List<YouTubeFeedItem> = emptyList(),
     val playbackQueue: List<YouTubeFeedItem> = emptyList(),
@@ -205,6 +206,7 @@ data class YouTubeFeedProjection(
 data class YouTubeSuggestionsUiState(
     val query: String = "",
     val isPlayerVisible: Boolean = false,
+    val isWatchTransitioning: Boolean = false,
     val items: List<YouTubeFeedItem> = emptyList(),
     val isRefreshing: Boolean = false,
     val isLoadingMore: Boolean = false,

@@ -295,7 +295,6 @@ fun SnapMusicViewModel.playYouTubeQueueItem(
                 _youtubeState.value = latest.copy(
                     featured = featured,
                     isRefreshingVideo = false,
-                    pendingTransition = false,
                     showPlayer = !keepMiniPlayer,
                     showMiniPlayer = keepMiniPlayer,
                     watchNextItems = seededWatchNextItems,

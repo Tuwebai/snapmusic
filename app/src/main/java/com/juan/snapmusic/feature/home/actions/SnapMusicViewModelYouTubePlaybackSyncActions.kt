@@ -235,6 +235,16 @@ fun SnapMusicViewModel.syncYouTubePlaybackProgress(
     }
 }
 
+fun SnapMusicViewModel.onYouTubePlaybackFirstFrame(sourceUrl: String) {
+    val current = _youtubeState.value
+    if (sourceUrl.isBlank() || current.featured.sourceUrl != sourceUrl || !current.pendingTransition) return
+    _youtubeState.value = current.copy(
+        pendingTransition = false,
+        isRefreshingVideo = false,
+        errorMessage = null,
+    )
+}
+
 fun SnapMusicViewModel.restoreYouTubePlaybackSnapshot() {
     youTubePlaybackSnapshotRestoreStarted = true
     viewModelScope.launch(Dispatchers.IO) {

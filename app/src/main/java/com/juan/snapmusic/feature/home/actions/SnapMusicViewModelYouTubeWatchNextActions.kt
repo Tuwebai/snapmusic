@@ -71,6 +71,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
+private const val YOUTUBE_WATCH_NEXT_POST_FRAME_IDLE_MS = 250L
+
 internal fun SnapMusicViewModel.enrichWatchNextQueue(
     item: YouTubeFeedItem,
     requireWarmPlayback: Boolean = true,
@@ -93,6 +95,7 @@ internal fun SnapMusicViewModel.enrichWatchNextQueue(
                 delay(150L)
                 attempts += 1
             }
+            delay(YOUTUBE_WATCH_NEXT_POST_FRAME_IDLE_MS)
         }
         val startupState = _youtubeState.value
         if (

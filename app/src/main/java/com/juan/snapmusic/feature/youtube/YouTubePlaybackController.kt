@@ -42,6 +42,7 @@ fun rememberYouTubePlayer(
     onPlaybackError: (String?, Boolean) -> Unit,
     onPlaybackProgress: (Long, Boolean, Boolean) -> Unit,
     onMediaTransition: (String, Long, Boolean) -> Unit,
+    onPlaybackFirstFrame: (String) -> Unit,
     onPlaybackQualityChanged: (List<Int>, Int?) -> Unit,
     onPlaybackRebuffer: (Long, Long) -> Unit,
     onPlaybackStalled: (Long, Long) -> Unit,
@@ -226,6 +227,7 @@ fun rememberYouTubePlayer(
                             "selectedHeight=${featured.selectedTelemetryHeight() ?: -1} " +
                             "actualHeight=${actualVideoHeight ?: -1}",
                     )
+                    onPlaybackFirstFrame(mediaController.currentMediaItem?.mediaId.orEmpty())
                 }
 
                 override fun onTracksChanged(tracks: Tracks) {
