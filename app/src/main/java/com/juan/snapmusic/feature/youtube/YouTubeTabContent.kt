@@ -309,10 +309,16 @@ private fun YouTubeSuggestionsList(
     val isAtTop by remember(listState) {
         derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
     }
+    var pullGestureBlockedUntilRelease by remember { mutableStateOf(false) }
+    var refreshRequested by remember { mutableStateOf(false) }
     val pullRefreshConnection = remember(listState, suggestionsState.isRefreshing, refreshThresholdPx) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source != NestedScrollSource.UserInput) return Offset.Zero
                 val delta = available.y
+                if (pullOffsetPx <= 0f && !listState.isScrolledToTop()) {
+                    pullGestureBlockedUntilRelease = true
+                }
                 if (delta >= 0f || pullOffsetPx <= 0f) return Offset.Zero
                 val consumed = delta.coerceAtLeast(-pullOffsetPx)
                 pullOffsetPx += consumed
@@ -324,15 +330,19 @@ private fun YouTubeSuggestionsList(
                 available: Offset,
                 source: NestedScrollSource,
             ): Offset {
+                if (source != NestedScrollSource.UserInput) return Offset.Zero
                 val delta = available.y
                 if (delta <= 0f || !isAtTop || suggestionsState.isRefreshing) return Offset.Zero
+                if (pullOffsetPx <= 0f && pullGestureBlockedUntilRelease) return Offset.Zero
                 val consumedY = delta * 0.55f
                 pullOffsetPx = (pullOffsetPx + consumedY).coerceAtMost(refreshThresholdPx * 1.35f)
                 return Offset(x = 0f, y = delta)
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                if (pullOffsetPx >= refreshThresholdPx && !suggestionsState.isRefreshing) {
+                pullGestureBlockedUntilRelease = false
+                if (pullOffsetPx >= refreshThresholdPx && !suggestionsState.isRefreshing && !refreshRequested) {
+                    refreshRequested = true
                     currentOnRefresh()
                 }
                 if (pullOffsetPx > 0f) {
@@ -345,6 +355,7 @@ private fun YouTubeSuggestionsList(
     }
     LaunchedEffect(suggestionsState.isRefreshing) {
         if (suggestionsState.isRefreshing) pullOffsetPx = 0f
+        if (!suggestionsState.isRefreshing) refreshRequested = false
     }
 
     val listContent: @Composable () -> Unit = {
@@ -460,4 +471,8 @@ private fun YouTubePullRefreshIndicator(
             strokeWidth = 2.dp,
         )
     }
+}
+
+private fun LazyListState.isScrolledToTop(): Boolean {
+    return firstVisibleItemIndex == 0 && firstVisibleItemScrollOffset == 0
 }
