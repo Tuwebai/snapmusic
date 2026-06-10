@@ -1,12 +1,12 @@
 package com.juan.snapmusic.data.recommendation
 
 import android.os.SystemClock
-import android.util.Log
 import com.juan.snapmusic.core.model.FeedImpression
 import com.juan.snapmusic.core.model.MusicInterestProfile
 import com.juan.snapmusic.core.model.MusicHomeFeedState
 import com.juan.snapmusic.core.model.YouTubeFeedItem
 import com.juan.snapmusic.core.model.YouTubeFeedPage
+import com.juan.snapmusic.core.performance.SnapMusicFeedPagingTelemetry
 import com.juan.snapmusic.data.extractor.StreamResolverRepository
 
 internal class FeedPagingCoordinator(
@@ -14,7 +14,6 @@ internal class FeedPagingCoordinator(
     private val engine: MusicRecommendationEngine,
 ) {
     private companion object {
-        const val TAG = "SnapMusicFeedPaging"
         const val MAX_SESSION_COUNT = 24
         const val MAX_PAGE_ROUNDS = 5
     }
@@ -85,7 +84,13 @@ internal class FeedPagingCoordinator(
             seedSignature = (31 * sessionSeed.hashCode()) + profile.feedSignature(),
         )
         session.seenUrls.addAll(seededItems.map(YouTubeFeedItem::url))
-        Log.d(TAG, "kind=home seeded=${seededItems.size} cursor=${session.id}")
+        SnapMusicFeedPagingTelemetry.cursor(
+            kind = "home",
+            session = session.id,
+            cursor = session.id,
+            added = seededItems.size,
+            exhausted = seededItems.isEmpty(),
+        )
         return session.id.takeIf { seededItems.isNotEmpty() }
     }
 
@@ -163,12 +168,19 @@ internal class FeedPagingCoordinator(
                 val startedAt = SystemClock.elapsedRealtime()
                 val page = runCatching { lane.fetch(cursor) }
                     .onFailure {
-                        Log.w(
-                            TAG,
-                            "event=lane kind=${session.telemetryKind()} session=${session.id} " +
-                                "cursor=${cursor.orEmpty()} lane=${lane.id} round=${session.round} " +
-                                "fetched=0 added=0 duplicates=0 exhausted=true nextCursor= " +
-                                "durationMs=${SystemClock.elapsedRealtime() - startedAt} error=${it.message}",
+                        SnapMusicFeedPagingTelemetry.lane(
+                            kind = session.telemetryKind(),
+                            session = session.id,
+                            cursor = cursor,
+                            lane = lane.id,
+                            round = session.round,
+                            fetched = 0,
+                            added = 0,
+                            duplicates = 0,
+                            exhausted = true,
+                            nextCursor = null,
+                            durationMs = SystemClock.elapsedRealtime() - startedAt,
+                            error = it.message,
                         )
                     }
                     .getOrDefault(YouTubeFeedPage())
@@ -192,14 +204,18 @@ internal class FeedPagingCoordinator(
                 } else {
                     session.laneCursors[lane.id] = page.nextCursor
                 }
-                Log.d(
-                    TAG,
-                    "event=lane kind=${session.telemetryKind()} session=${session.id} " +
-                        "cursor=${cursor.orEmpty()} lane=${lane.id} round=${session.round} " +
-                        "fetched=${page.items.size} added=$added duplicates=$duplicated " +
-                        "exhausted=${session.exhaustedLanes.contains(lane.id)} " +
-                        "nextCursor=${page.nextCursor.orEmpty()} " +
-                        "durationMs=${SystemClock.elapsedRealtime() - startedAt}",
+                SnapMusicFeedPagingTelemetry.lane(
+                    kind = session.telemetryKind(),
+                    session = session.id,
+                    cursor = cursor,
+                    lane = lane.id,
+                    round = session.round,
+                    fetched = page.items.size,
+                    added = added,
+                    duplicates = duplicated,
+                    exhausted = session.exhaustedLanes.contains(lane.id),
+                    nextCursor = page.nextCursor,
+                    durationMs = SystemClock.elapsedRealtime() - startedAt,
                 )
                 if (candidates.size >= limit) break
             }
@@ -246,17 +262,21 @@ internal class FeedPagingCoordinator(
 
     private fun nextCursor(session: FeedPagingSession, items: List<YouTubeFeedItem>): String? {
         if (items.isEmpty()) {
-            Log.d(
-                TAG,
-                "event=cursor kind=${session.telemetryKind()} session=${session.id} " +
-                    "cursor=${session.id} lane=page added=0 duplicates=0 exhausted=true durationMs=0",
+            SnapMusicFeedPagingTelemetry.cursor(
+                kind = session.telemetryKind(),
+                session = session.id,
+                cursor = session.id,
+                added = 0,
+                exhausted = true,
             )
             return null
         }
-        Log.d(
-            TAG,
-            "event=cursor kind=${session.telemetryKind()} session=${session.id} " +
-                "cursor=${session.id} lane=page added=${items.size} duplicates=0 exhausted=false durationMs=0",
+        SnapMusicFeedPagingTelemetry.cursor(
+            kind = session.telemetryKind(),
+            session = session.id,
+            cursor = session.id,
+            added = items.size,
+            exhausted = false,
         )
         return session.id
     }
@@ -269,11 +289,16 @@ internal class FeedPagingCoordinator(
         duplicates: Int,
         durationMs: Long,
     ) {
-        Log.d(
-            TAG,
-            "event=load-more kind=${session.telemetryKind()} session=${session.id} " +
-                "cursor=${requestCursor.orEmpty()} lane=page added=$added duplicates=$duplicates " +
-                "exhausted=${resultCursor == null} resultCursor=${resultCursor.orEmpty()} durationMs=$durationMs",
+        SnapMusicFeedPagingTelemetry.loadMore(
+            kind = session.telemetryKind(),
+            session = session.id,
+            cursor = requestCursor,
+            lane = "page",
+            added = added,
+            duplicates = duplicates,
+            exhausted = resultCursor == null,
+            durationMs = durationMs,
+            resultCursor = resultCursor,
         )
     }
 

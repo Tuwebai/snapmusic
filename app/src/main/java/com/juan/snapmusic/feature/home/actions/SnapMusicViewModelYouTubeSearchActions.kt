@@ -1,5 +1,6 @@
 ﻿package com.juan.snapmusic.feature.home
 
+import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -37,6 +38,7 @@ import com.juan.snapmusic.core.model.YouTubePlaybackSnapshot
 import com.juan.snapmusic.core.model.YouTubeQueueOrigin
 import com.juan.snapmusic.core.model.YouTubeUiState
 import com.juan.snapmusic.core.model.YouTubeWatchHistoryEntry
+import com.juan.snapmusic.core.performance.SnapMusicFeedPagingTelemetry
 import com.juan.snapmusic.core.platform.MergedPlaybackUri
 import com.juan.snapmusic.core.platform.PlaybackNotificationRouteStore
 import com.juan.snapmusic.core.platform.PlaybackNotificationRouteTarget
@@ -364,6 +366,7 @@ internal fun SnapMusicViewModel.loadMoreYoutubeHome(): Job? {
     val cursor = current.nextCursor ?: return null
     _youtubeState.value = current.copy(isLoadingMore = true)
     return viewModelScope.launch {
+        val startedAt = SystemClock.elapsedRealtime()
         runCatching {
             var page = graph.musicHomeFeedRepository.loadMusicHomeFeed(
                 sessionSeed = youTubeFeedSessionSeed,
@@ -391,16 +394,40 @@ internal fun SnapMusicViewModel.loadMoreYoutubeHome(): Job? {
             .onSuccess { state ->
                 val latest = _youtubeState.value
                 val merged = mergeUniqueYoutubeItems(latest.items, state.items)
+                val added = (merged.size - latest.items.size).coerceAtLeast(0)
+                val duplicates = (state.items.size - added).coerceAtLeast(0)
                 _youtubeState.value = latest.copy(
                     items = merged,
                     isLoadingMore = false,
                     nextCursor = state.nextCursor,
                 )
+                SnapMusicFeedPagingTelemetry.loadMore(
+                    kind = "home",
+                    session = state.nextCursor ?: cursor,
+                    cursor = cursor,
+                    lane = "home-load-more",
+                    added = added,
+                    duplicates = duplicates,
+                    exhausted = state.nextCursor == null,
+                    durationMs = SystemClock.elapsedRealtime() - startedAt,
+                    resultCursor = state.nextCursor,
+                )
                 startupPrefetchDone = false
                 prefetchFeedItems(state.items)
             }
-            .onFailure {
+            .onFailure { error ->
                 _youtubeState.value = _youtubeState.value.copy(isLoadingMore = false)
+                SnapMusicFeedPagingTelemetry.loadMore(
+                    kind = "home",
+                    session = cursor,
+                    cursor = cursor,
+                    lane = "home-load-more",
+                    added = 0,
+                    duplicates = 0,
+                    exhausted = false,
+                    durationMs = SystemClock.elapsedRealtime() - startedAt,
+                    error = error.message,
+                )
             }
     }
 }
