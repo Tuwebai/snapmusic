@@ -141,6 +141,7 @@ private fun YouTubeWatchPlayerHost(
             onDismissFullscreen = viewModel::exitYouTubeFullscreen,
             onToggleAutoplay = viewModel::toggleYouTubeAutoplay,
             onSwitchQuality = viewModel::switchYouTubePlaybackQuality,
+            onArtistClick = viewModel::searchArtist,
         )
     }
 }
@@ -214,6 +215,7 @@ private fun YouTubeSuggestionsHost(
         onItemDownload = onItemDownload,
         onRefresh = viewModel::refreshYoutubeByPull,
         onLoadMore = viewModel::loadMoreYoutubeSuggestions,
+        onArtistClick = viewModel::searchArtist,
     )
 }
 
@@ -293,6 +295,7 @@ private fun YouTubeSuggestionsList(
     onItemDownload: (YouTubeFeedItem) -> Unit,
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
+    onArtistClick: (String) -> Unit,
 ) {
     val density = LocalDensity.current
     val currentOnRefresh by rememberUpdatedState(onRefresh)
@@ -392,6 +395,7 @@ private fun YouTubeSuggestionsList(
                         onClick = onItemClick,
                         onDownload = onItemDownload,
                         isDownloaded = item.url in suggestionsState.downloadedSourceUrls,
+                        onArtistClick = onArtistClick,
                     )
                 }
 

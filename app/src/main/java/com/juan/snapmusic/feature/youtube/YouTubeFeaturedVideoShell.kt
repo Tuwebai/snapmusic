@@ -84,7 +84,6 @@ import com.juan.snapmusic.core.designsystem.TextSecondary
 import com.juan.snapmusic.core.designsystem.WarningAmber
 import com.juan.snapmusic.core.model.YouTubeFeaturedVideo
 import com.juan.snapmusic.core.model.YouTubeFeedItem
-import com.juan.snapmusic.core.platform.formatDuration
 import com.juan.snapmusic.core.model.SeekPreviewFrameset
 import com.juan.snapmusic.feature.player.VideoFullscreenOverlay
 import com.juan.snapmusic.feature.player.LandscapeFullscreenVideoDialog
@@ -395,6 +394,7 @@ internal fun FeaturedVideoMetadataPanel(
     autoplayEnabled: Boolean,
     nextUpLabel: String?,
     onDownload: () -> Unit,
+    onArtistClick: (String) -> Unit,
 ) {
     val cinematicBrush = remember {
         Brush.verticalGradient(
@@ -438,7 +438,7 @@ internal fun FeaturedVideoMetadataPanel(
                 )
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(featured.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                    Text(featuredMeta(featured), style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    YouTubeFeaturedMetadataText(featured = featured, onArtistClick = onArtistClick)
                 }
             }
 
@@ -486,12 +486,4 @@ internal fun FeaturedVideoMetadataPanel(
             }
         }
     }
-}
-
-private fun featuredMeta(featured: YouTubeFeaturedVideo): String {
-    return listOfNotNull(
-        featured.author.takeIf { it.isNotBlank() },
-        featured.publishedText?.takeIf { it.isNotBlank() },
-        formatDuration(featured.durationSeconds).takeIf { featured.durationSeconds > 0 },
-    ).joinToString(" · ")
 }

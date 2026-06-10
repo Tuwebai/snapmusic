@@ -101,6 +101,7 @@ fun YouTubeFeedRow(
     onDownload: ((YouTubeFeedItem) -> Unit)?,
     watchedProgressFraction: Float = 0f,
     isDownloaded: Boolean = false,
+    onArtistClick: ((String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -182,7 +183,7 @@ fun YouTubeFeedRow(
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
-                Text(item.author, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 1)
+                YouTubeArtistChip(author = item.author, onClick = onArtistClick)
                 Text(metaLabel, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 1)
             }
         }

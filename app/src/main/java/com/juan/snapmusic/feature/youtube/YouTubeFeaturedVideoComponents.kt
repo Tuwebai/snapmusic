@@ -113,6 +113,7 @@ fun FeaturedVideoCard(
     onDismissFullscreen: () -> Unit,
     onToggleAutoplay: () -> Unit,
     onSwitchQuality: (String) -> Unit,
+    onArtistClick: (String) -> Unit,
 ) {
     val context = LocalContext.current
     YouTubeCastPlaybackEffect(featured = featured, player = player)
@@ -200,6 +201,7 @@ fun FeaturedVideoCard(
                 autoplayEnabled = autoplayEnabled,
                 nextUpLabel = nextUpLabel,
                 onDownload = onDownload,
+                onArtistClick = onArtistClick,
             )
         }
     }

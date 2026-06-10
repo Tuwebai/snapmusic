@@ -83,6 +83,14 @@ fun SnapMusicViewModel.searchYoutubeSuggestion(query: String) {
     searchYoutube()
 }
 
+fun SnapMusicViewModel.searchArtist(author: String) {
+    val query = author.trim()
+    if (query.isBlank()) return
+    val current = _youtubeState.value
+    _youtubeState.value = current.copy(showPlayer = false, isFullscreen = false, showMiniPlayer = current.showMiniPlayer || current.featured.isReady, compactMiniPlayer = false)
+    searchYoutubeSuggestion(query)
+}
+
 fun SnapMusicViewModel.clearYoutubeQuery() {
     _youtubeState.value = _youtubeState.value.copy(query = "")
     clearYouTubeSuggestions()
