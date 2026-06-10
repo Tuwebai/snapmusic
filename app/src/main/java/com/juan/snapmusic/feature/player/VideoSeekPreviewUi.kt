@@ -14,6 +14,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -140,23 +141,85 @@ internal fun SeekPreviewStrip(
 }
 
 @Composable
+internal fun SeekPreviewPopup(
+    framesets: List<SeekPreviewFrameset>,
+    positionMs: Long,
+    durationMs: Long,
+    sliderFraction: Float,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val frameset = remember(framesets) { framesets.bestSeekPreviewFrameset() } ?: return
+    val frame = remember(frameset, positionMs, durationMs) {
+        frameset.frameAt(positionMs.coerceIn(0L, durationMs.coerceAtLeast(0L)))
+    } ?: return
+    LaunchedEffect(context, frame.imageUrl) {
+        context.imageLoader.enqueue(seekPreviewImageRequest(context, frame.imageUrl))
+    }
+    val previewWidth = 142.dp
+    val previewHeight = previewWidth * (frame.frameHeight.toFloat() / frame.frameWidth.toFloat())
+    BoxWithConstraints(
+        modifier = modifier.height(previewHeight + 34.dp),
+    ) {
+        val travel = (maxWidth - previewWidth).coerceAtLeast(0.dp)
+        val offsetX = travel * sliderFraction.coerceIn(0f, 1f)
+        Surface(
+            modifier = Modifier.offset(x = offsetX),
+            shape = RoundedCornerShape(14.dp),
+            color = Color.Black.copy(alpha = 0.72f),
+        ) {
+            Column(
+                modifier = Modifier.padding(6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                StoryboardFrameThumbnail(
+                    frame = frame,
+                    width = previewWidth,
+                    radius = 10.dp,
+                )
+                Text(
+                    text = formatOverlayMillis(frame.positionMs),
+                    color = TextPrimary,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun StoryboardFrameThumbnail(
     frame: SeekPreviewFrame,
     selected: Boolean,
 ) {
+    StoryboardFrameThumbnail(
+        frame = frame,
+        width = if (selected) 104.dp else 72.dp,
+        radius = if (selected) 10.dp else 8.dp,
+    )
+}
+
+@Composable
+private fun StoryboardFrameThumbnail(
+    frame: SeekPreviewFrame,
+    width: androidx.compose.ui.unit.Dp,
+    radius: androidx.compose.ui.unit.Dp,
+) {
     val context = LocalContext.current
     val request = remember(frame.imageUrl, context) { seekPreviewImageRequest(context, frame.imageUrl) }
-    val thumbnailWidth = if (selected) 104.dp else 72.dp
-    val thumbnailHeight = thumbnailWidth * (frame.frameHeight.toFloat() / frame.frameWidth.toFloat())
-    val pageWidth = thumbnailWidth * (frame.pageWidth.toFloat() / frame.frameWidth.toFloat())
+    val thumbnailWidth = width
+    val thumbnailHeight = width * (frame.frameHeight.toFloat() / frame.frameWidth.toFloat())
+    val pageWidth = width * (frame.pageWidth.toFloat() / frame.frameWidth.toFloat())
     val pageHeight = thumbnailHeight * (frame.pageHeight.toFloat() / frame.frameHeight.toFloat())
-    val offsetX = -thumbnailWidth * (frame.left.toFloat() / frame.frameWidth.toFloat())
+    val offsetX = -width * (frame.left.toFloat() / frame.frameWidth.toFloat())
     val offsetY = -thumbnailHeight * (frame.top.toFloat() / frame.frameHeight.toFloat())
 
     Box(
         modifier = Modifier
             .size(width = thumbnailWidth, height = thumbnailHeight)
-            .clip(RoundedCornerShape(if (selected) 10.dp else 8.dp))
+            .clip(RoundedCornerShape(radius))
             .background(Color.Black),
     ) {
         AsyncImage(

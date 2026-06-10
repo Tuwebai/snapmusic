@@ -384,11 +384,12 @@ internal fun VideoFullscreenOverlay(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             if (sliderBindings.isDragging) {
-                SeekPreviewStrip(
+                SeekPreviewPopup(
                     framesets = seekPreviewFramesets,
                     positionMs = sliderBindings.displayedPositionMs,
                     durationMs = playbackState.durationMs,
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                    sliderFraction = sliderBindings.playedFraction,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             Box(
