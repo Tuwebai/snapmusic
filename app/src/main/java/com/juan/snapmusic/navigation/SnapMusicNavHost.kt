@@ -143,6 +143,10 @@ fun SnapMusicNavHost(
                     } else {
                         Modifier.fillMaxSize()
                     },
+                    enterTransition = snapMusicPageEnterTransition(),
+                    exitTransition = snapMusicPageExitTransition(),
+                    popEnterTransition = snapMusicPageEnterTransition(),
+                    popExitTransition = snapMusicPageExitTransition(),
                 ) {
                     composable(SnapMusicDestination.Home.route) {
                         HomeScreen(

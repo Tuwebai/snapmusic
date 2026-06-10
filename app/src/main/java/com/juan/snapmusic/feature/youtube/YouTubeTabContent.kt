@@ -119,25 +119,30 @@ private fun YouTubeWatchPlayerHost(
         viewModel.minimizeYouTubePlayer()
     }
 
-    if (!playerState.showPlayer || playerState.featured.sourceUrl.isBlank()) return
-
-    FeaturedVideoCard(
-        featured = playerState.featured,
-        player = player,
-        isFullscreen = playerState.isFullscreen,
-        isDownloadEnabled = playerState.featured.resolvedMedia != null,
-        autoplayEnabled = playerState.autoplayEnabled,
-        nextUpLabel = playerState.nextUpTitle,
-        onDownload = onOpenDownloadSheet,
-        onPrevious = viewModel::playPreviousYouTubeItem,
-        onNext = { viewModel.playNextYouTubeItem() },
-        onBackToFeed = viewModel::minimizeYouTubePlayer,
-        onMinimizeVideo = viewModel::minimizeYouTubePlayer,
-        onEnterFullscreen = viewModel::enterYouTubeFullscreen,
-        onDismissFullscreen = viewModel::exitYouTubeFullscreen,
-        onToggleAutoplay = viewModel::toggleYouTubeAutoplay,
-        onSwitchQuality = viewModel::switchYouTubePlaybackQuality,
-    )
+    val showPlayer = playerState.showPlayer && playerState.featured.sourceUrl.isNotBlank()
+    var renderState by remember { mutableStateOf(playerState) }
+    LaunchedEffect(showPlayer, playerState) {
+        if (showPlayer) renderState = playerState
+    }
+    YouTubeHorizontalPageTransition(visible = showPlayer) {
+        FeaturedVideoCard(
+            featured = renderState.featured,
+            player = player,
+            isFullscreen = renderState.isFullscreen,
+            isDownloadEnabled = renderState.featured.resolvedMedia != null,
+            autoplayEnabled = renderState.autoplayEnabled,
+            nextUpLabel = renderState.nextUpTitle,
+            onDownload = onOpenDownloadSheet,
+            onPrevious = viewModel::playPreviousYouTubeItem,
+            onNext = { viewModel.playNextYouTubeItem() },
+            onBackToFeed = viewModel::minimizeYouTubePlayer,
+            onMinimizeVideo = viewModel::minimizeYouTubePlayer,
+            onEnterFullscreen = viewModel::enterYouTubeFullscreen,
+            onDismissFullscreen = viewModel::exitYouTubeFullscreen,
+            onToggleAutoplay = viewModel::toggleYouTubeAutoplay,
+            onSwitchQuality = viewModel::switchYouTubePlaybackQuality,
+        )
+    }
 }
 
 @Composable
