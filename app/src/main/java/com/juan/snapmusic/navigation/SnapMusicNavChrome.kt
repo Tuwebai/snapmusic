@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.ui.Alignment
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationBarItem as MaterialNavigationBarItem
 import androidx.compose.material3.NavigationRail
@@ -104,7 +103,10 @@ internal fun SnapMusicBottomBar(
     onNavigate: (String) -> Unit,
 ) {
     val state by viewModel.bottomBarUiState.collectAsStateWithLifecycle()
-    NavigationBar {
+    LiquidBottomNavigationFrame(
+        items = items,
+        currentRoute = currentRoute,
+    ) {
         items.forEach { item ->
             when (item) {
                 SnapMusicDestination.Home -> HomeNavigationItem(
