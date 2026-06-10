@@ -422,7 +422,13 @@ class DownloadWorker(
         }
         lastPublishedProgress = safeProgress
         lastPublishedAtMs = now
-        graph.queueRepository.updateStatus(queueId, status, safeProgress, variantLabel = variantLabel)
+        graph.queueRepository.updateStatus(
+            id = queueId,
+            status = status,
+            progress = safeProgress,
+            variantLabel = variantLabel,
+            speedBytesPerSecond = snapshot.speedBytesPerSecond,
+        )
         setProgress(
             workDataOf(
                 "progress" to safeProgress,

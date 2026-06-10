@@ -37,6 +37,7 @@ import com.juan.snapmusic.core.designsystem.TextPrimary
 import com.juan.snapmusic.core.designsystem.TextSecondary
 import com.juan.snapmusic.core.model.QueueEntry
 import com.juan.snapmusic.core.model.QueueStatus
+import com.juan.snapmusic.core.platform.formatSpeed
 
 @Composable
 internal fun PreviewDownloadsSummaryCard(
@@ -212,12 +213,24 @@ private fun PreviewDownloadRow(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = statusLabel(item.status),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (item.status == QueueStatus.RUNNING) AccentRed else TextSecondary,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = statusLabel(item.status),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (item.status == QueueStatus.RUNNING) AccentRed else TextSecondary,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        if (item.status == QueueStatus.RUNNING) {
+                            Text(
+                                text = formatSpeed(item.speedBytesPerSecond),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TextSecondary,
+                            )
+                        }
+                    }
                     Text(
                         text = "${item.progress.coerceIn(0, 100)}%",
                         style = MaterialTheme.typography.labelMedium,

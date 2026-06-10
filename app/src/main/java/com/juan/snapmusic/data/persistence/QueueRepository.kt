@@ -53,6 +53,7 @@ class QueueRepository(
                 destinationTreeUri = request.destinationTreeUri?.trim().takeUnless { it.isNullOrEmpty() },
                 status = QueueStatus.PENDING,
                 progress = 0,
+                speedBytesPerSecond = 0L,
                 outputUri = null,
                 createdAt = System.currentTimeMillis(),
                 errorMessage = null,
@@ -105,12 +106,19 @@ class QueueRepository(
         errorMessage: String? = null,
         variantLabel: String? = null,
         thumbnailUrl: String? = null,
+        speedBytesPerSecond: Long? = null,
     ) {
         val current = dao.getQueueById(id) ?: return
+        val nextSpeed = speedBytesPerSecond ?: if (status == QueueStatus.RUNNING) {
+            current.speedBytesPerSecond
+        } else {
+            0L
+        }
         dao.upsertQueue(
             current.copy(
                 status = status,
                 progress = progress,
+                speedBytesPerSecond = nextSpeed.coerceAtLeast(0L),
                 outputUri = outputUri ?: current.outputUri,
                 errorMessage = errorMessage,
                 variantLabel = variantLabel ?: current.variantLabel,
