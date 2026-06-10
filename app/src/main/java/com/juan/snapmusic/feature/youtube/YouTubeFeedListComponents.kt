@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -94,8 +95,11 @@ fun YouTubeFeedRow(
     val density = LocalDensity.current
     val thumbnailWidthPx = remember(density) { with(density) { 154.dp.roundToPx() } }
     val thumbnailHeightPx = remember(density) { with(density) { 88.dp.roundToPx() } }
-    val metaLabel = remember(item.author, item.viewCount, item.publishedText, item.durationSeconds) {
+    val metaLabel = remember(item.author, item.viewCount, item.publishedText) {
         feedMeta(item)
+    }
+    val durationLabel = remember(item.durationSeconds) {
+        item.durationSeconds.takeIf { it > 0 }?.let(::formatDuration).orEmpty()
     }
     val thumbnailModel = remember(context, item.thumbnailUrl, thumbnailWidthPx, thumbnailHeightPx) {
         buildYouTubeThumbnailRequest(
@@ -143,6 +147,21 @@ fun YouTubeFeedRow(
                             .background(AccentRed),
                     )
                 }
+                if (durationLabel.isNotBlank()) {
+                    Text(
+                        text = durationLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(4.dp)
+                            .background(
+                                color = Color.Black.copy(alpha = 0.82f),
+                                shape = RoundedCornerShape(4.dp),
+                            )
+                            .padding(horizontal = 4.dp, vertical = 1.dp),
+                    )
+                }
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
@@ -167,9 +186,6 @@ private fun feedMeta(item: YouTubeFeedItem): String {
     }
     item.viewCount?.let(::formatViews)?.let(::appendPart)
     item.publishedText?.let(::appendPart)
-    if (item.durationSeconds > 0) {
-        appendPart(formatDuration(item.durationSeconds))
-    }
     return builder.toString()
 }
 
