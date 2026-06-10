@@ -278,6 +278,12 @@ fun SnapMusicViewModel.resumeQueue(id: String) {
     graph.downloadCoordinator.resumeByQueueId(id)
 }
 
+fun SnapMusicViewModel.reorderPendingQueue(ids: List<String>) {
+    viewModelScope.launch {
+        graph.downloadCoordinator.reorderPending(ids)
+    }
+}
+
 fun SnapMusicViewModel.removeQueueItem(id: String) {
     viewModelScope.launch {
         graph.queueRepository.remove(id)

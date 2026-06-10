@@ -8,7 +8,19 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SnapMusicDao {
-    @Query("SELECT * FROM queue_entries ORDER BY createdAt DESC")
+    @Query(
+        """
+        SELECT * FROM queue_entries
+        ORDER BY
+          CASE status
+            WHEN 'RUNNING' THEN 0
+            WHEN 'PENDING' THEN 1
+            WHEN 'PAUSED' THEN 2
+            ELSE 3
+          END ASC,
+          CASE WHEN status IN ('RUNNING', 'PENDING', 'PAUSED') THEN queueOrder ELSE -createdAt END ASC
+        """,
+    )
     fun observeQueue(): Flow<List<QueueEntity>>
 
     @Query("SELECT * FROM history_entries ORDER BY createdAt DESC")
@@ -31,6 +43,12 @@ interface SnapMusicDao {
 
     @Query("SELECT * FROM queue_entries WHERE id = :id LIMIT 1")
     suspend fun getQueueById(id: String): QueueEntity?
+
+    @Query("SELECT COALESCE(MAX(queueOrder), 0) + 1 FROM queue_entries")
+    suspend fun nextQueueOrder(): Long
+
+    @Query("UPDATE queue_entries SET queueOrder = :queueOrder WHERE id = :id AND status = 'PENDING'")
+    suspend fun updatePendingQueueOrder(id: String, queueOrder: Long)
 
     @Query(
         """

@@ -117,43 +117,15 @@ fun QueueScreen(
         Box(modifier = Modifier.weight(1f)) {
             when (selectedTab) {
                 QueueHubTab.QUEUE -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                        contentPadding = PaddingValues(bottom = 28.dp),
-                    ) {
-                        if (items.isEmpty()) {
-                            item { EmptyQueueState() }
-                            return@LazyColumn
-                        }
-
-                        if (activeItems.isNotEmpty()) {
-                            item {
-                                SectionTitle("Descargas activas", "${activeItems.size} en curso")
-                            }
-                            items(
-                                items = activeItems,
-                                key = { it.id },
-                                contentType = { "active_queue_item" },
-                            ) { item ->
-                                ActiveQueueCard(
-                                    item = item,
-                                    onPause = { viewModel.pauseQueue(item.id) },
-                                    onResume = { viewModel.resumeQueue(item.id) },
-                                    onCancel = { viewModel.cancelQueue(item.id) },
-                                    onRemove = { viewModel.removeQueueItem(item.id) },
-                                )
-                            }
-                        }
-                        if (activeItems.isEmpty() && archivedItems.isNotEmpty()) {
-                            item {
-                                EmptyQueueTabState(
-                                    title = "No hay descargas activas",
-                                    subtitle = "Pasate a Historial para ver lo último que ya salió de la cola.",
-                                )
-                            }
-                        }
-                    }
+                    ActiveQueueReorderableList(
+                        activeItems = activeItems,
+                        archivedItems = archivedItems,
+                        onPause = { viewModel.pauseQueue(it.id) },
+                        onResume = { viewModel.resumeQueue(it.id) },
+                        onCancel = { viewModel.cancelQueue(it.id) },
+                        onRemove = { viewModel.removeQueueItem(it.id) },
+                        onReorderPending = viewModel::reorderPendingQueue,
+                    )
                 }
 
                 QueueHubTab.HISTORY -> {
@@ -290,7 +262,7 @@ private fun QueueHubTabs(
 }
 
 @Composable
-private fun EmptyQueueTabState(
+internal fun EmptyQueueTabState(
     title: String,
     subtitle: String,
 ) {
@@ -372,7 +344,7 @@ private fun QueueHeader(
 }
 
 @Composable
-private fun EmptyQueueState() {
+internal fun EmptyQueueState() {
     Column(
         modifier = Modifier
             .padding(horizontal = 20.dp)
@@ -397,7 +369,7 @@ private fun EmptyQueueState() {
 }
 
 @Composable
-private fun SectionTitle(
+internal fun SectionTitle(
     title: String,
     subtitle: String,
 ) {

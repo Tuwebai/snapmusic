@@ -62,6 +62,7 @@ class SnapMusicGraph(
             .addMigrations(SnapMusicDatabase.MIGRATION_5_6)
             .addMigrations(SnapMusicDatabase.MIGRATION_6_7)
             .addMigrations(SnapMusicDatabase.MIGRATION_7_8)
+            .addMigrations(SnapMusicDatabase.MIGRATION_8_9)
             .build()
     }
 

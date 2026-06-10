@@ -113,6 +113,18 @@ class DownloadCoordinator(
         }
     }
 
+    suspend fun reorderPending(queueIds: List<String>) = withContext(Dispatchers.IO) {
+        val ids = queueIds.distinct()
+        if (ids.size < 2) return@withContext
+        queueRepository.reorderPending(ids)
+        val pending = ids.mapNotNull { queueRepository.get(it) }
+            .filter { it.status == QueueStatus.PENDING }
+            .sortedBy { it.queueOrder }
+        val workManager = WorkManager.getInstance(context)
+        pending.forEach { workManager.cancelAllWorkByTag(it.id).result.get() }
+        pending.forEach { scheduleWork(queueId = it.id, laneIndex = it.laneIndex) }
+    }
+
     private fun scheduleWork(queueId: String, laneIndex: Int) {
         val workRequest = OneTimeWorkRequestBuilder<DownloadWorker>()
             .setInputData(workDataOf(DownloadWorker.KEY_QUEUE_ID to queueId))

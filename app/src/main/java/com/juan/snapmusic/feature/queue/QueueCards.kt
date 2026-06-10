@@ -83,6 +83,7 @@ internal fun ActiveQueueCard(
     onResume: () -> Unit,
     onCancel: () -> Unit,
     onRemove: () -> Unit,
+    dragHandle: (@Composable () -> Unit)? = null,
 ) {
     val progress = item.progress.coerceIn(0, 100)
     val isResuming = item.status == QueueStatus.PENDING && progress > 0
@@ -113,6 +114,7 @@ internal fun ActiveQueueCard(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.Top,
     ) {
+        dragHandle?.invoke()
         AsyncImage(
             model = thumbnailModel,
             contentDescription = item.title,

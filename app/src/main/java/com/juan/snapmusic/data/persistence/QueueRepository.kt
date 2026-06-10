@@ -38,6 +38,7 @@ class QueueRepository(
 
     private suspend fun insertDirectLocked(request: ConversionRequest, parallelSlots: Int) {
         val laneIndex = selectLaneIndex(parallelSlots)
+        val queueOrder = dao.nextQueueOrder()
         dao.upsertQueue(
             QueueEntity(
                 id = request.id.toString(),
@@ -73,6 +74,7 @@ class QueueRepository(
                 allowMuxFallback = request.downloadSelection.allowMuxFallback,
                 allowTranscodeFallback = request.downloadSelection.allowTranscodeFallback,
                 laneIndex = laneIndex,
+                queueOrder = queueOrder,
             ),
         )
     }
@@ -140,6 +142,12 @@ class QueueRepository(
 
     suspend fun remove(id: String) {
         dao.deleteQueue(id)
+    }
+
+    suspend fun reorderPending(ids: List<String>) {
+        ids.distinct().forEachIndexed { index, id ->
+            dao.updatePendingQueueOrder(id, index.toLong())
+        }
     }
 
     private suspend fun selectLaneIndex(parallelSlots: Int): Int {
