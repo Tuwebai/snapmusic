@@ -37,6 +37,7 @@ import com.juan.snapmusic.core.model.YouTubePlaybackSnapshot
 import com.juan.snapmusic.core.model.YouTubeQueueOrigin
 import com.juan.snapmusic.core.model.YouTubeUiState
 import com.juan.snapmusic.core.model.YouTubeWatchHistoryEntry
+import com.juan.snapmusic.core.performance.SnapMusicStartupDeferral
 import com.juan.snapmusic.core.platform.MergedPlaybackUri
 import com.juan.snapmusic.core.platform.PlaybackNotificationRouteStore
 import com.juan.snapmusic.core.platform.PlaybackNotificationRouteTarget
@@ -73,6 +74,7 @@ import kotlinx.coroutines.withContext
 internal fun SnapMusicViewModel.restoreYouTubeHomeFeedCache() {
     youTubeHomeFeedCacheRestoreStarted = true
     viewModelScope.launch(Dispatchers.IO) {
+        delay(SnapMusicStartupDeferral.HOME_CACHE_RESTORE_DELAY_MS)
         val cachedItems = graph.preferencesRepository.readYouTubeHomeFeedCache()
         if (cachedItems.isEmpty()) return@launch
         cachedYouTubeHomeFeed = cachedItems
@@ -103,7 +105,10 @@ internal fun SnapMusicViewModel.ensureYouTubeHomeFeedCacheRestored() {
 internal fun SnapMusicViewModel.ensureYouTubePlaybackSnapshotRestored() {
     if (youTubePlaybackSnapshotRestoreStarted) return
     youTubePlaybackSnapshotRestoreStarted = true
-    restoreYouTubePlaybackSnapshot()
+    viewModelScope.launch {
+        delay(SnapMusicStartupDeferral.PLAYBACK_SNAPSHOT_RESTORE_DELAY_MS)
+        restoreYouTubePlaybackSnapshot()
+    }
 }
 
 internal fun SnapMusicViewModel.onHomeYouTubeTabOpened() {

@@ -17,13 +17,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.activity.compose.setContent
 import androidx.media3.common.util.UnstableApi
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.metrics.performance.JankStats
 import com.juan.snapmusic.core.performance.PerformanceTelemetry
+import com.juan.snapmusic.core.performance.SnapMusicStartupDeferral
 import com.juan.snapmusic.core.designsystem.SnapMusicTheme
 import com.juan.snapmusic.core.model.IncomingSharePayload
 import com.juan.snapmusic.core.model.IncomingShareSourceAction
@@ -98,8 +97,7 @@ class MainActivity : ComponentActivity() {
         }
         val app = application as SnapMusicApplication
         setContent {
-            val themeMode by app.appGraph.launchPreferencesRepository.themeMode.collectAsStateWithLifecycle()
-            SnapMusicTheme(themeMode = themeMode) {
+            SnapMusicTheme {
                 SnapMusicApp(
                     graph = app.appGraph,
                     notificationRoute = routeOverride.value,
@@ -111,13 +109,16 @@ class MainActivity : ComponentActivity() {
             }
         }
         window.decorView.post {
-            publishAppShortcuts()
             if (isFrameTelemetryEnabled() && jankStats == null) {
                 jankStats = JankStats.createAndTrack(window) { frameData ->
                     PerformanceTelemetry.recordFrame(frameData)
                 }
             }
         }
+        window.decorView.postDelayed(
+            { publishAppShortcuts() },
+            SnapMusicStartupDeferral.APP_SHORTCUTS_DELAY_MS,
+        )
         window.decorView.post {
             lifecycleScope.launch(Dispatchers.IO) {
                 delay(1_500L)
@@ -128,7 +129,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        window.decorView.post { requestRuntimePermissionsIfNeeded() }
+        window.decorView.postDelayed(
+            { requestRuntimePermissionsIfNeeded() },
+            SnapMusicStartupDeferral.RUNTIME_PERMISSIONS_DELAY_MS,
+        )
     }
 
     override fun onNewIntent(intent: Intent) {
