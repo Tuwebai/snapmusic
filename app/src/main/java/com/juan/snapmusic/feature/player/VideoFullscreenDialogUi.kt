@@ -140,10 +140,10 @@ internal fun LandscapeFullscreenVideoDialog(
         }
     }
 
-    LaunchedEffect(showControls, hasInteracted, mediaKey, isSeekingPreview) {
-        if (showControls && hasInteracted && !isSeekingPreview) {
-            delay(2400)
-            if (!isSeekingPreview) {
+    LaunchedEffect(showControls, hasInteracted, mediaKey, isSeekingPreview, overlayState.isPlaying) {
+        if (showControls && hasInteracted && overlayState.isPlaying && !isSeekingPreview) {
+            delay(PlayerControlsOverlayDefaults.AutoHideDelayMs)
+            if (overlayState.isPlaying && !isSeekingPreview) {
                 showControls = false
             }
         }

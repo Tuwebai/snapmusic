@@ -279,8 +279,7 @@ internal fun VideoFullscreenOverlay(
     onSeekPreviewFinished: () -> Unit = {},
     onToggleResize: () -> Unit,
 ) {
-    if (!playbackState.showControls) return
-
+    val overlayVisible = playbackState.showControls || !playbackState.isPlaying
     val sliderBindings = rememberPlaybackSliderBindings(
         currentPositionMs = playbackState.currentPositionMs,
         durationMs = playbackState.durationMs,
@@ -290,11 +289,12 @@ internal fun VideoFullscreenOverlay(
         onScrubFinished = onSeekPreviewFinished,
     )
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.22f)),
-    ) {
+    PlayerControlsOverlayVisibility(visible = overlayVisible, modifier = modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.22f)),
+        ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -482,6 +482,7 @@ internal fun VideoFullscreenOverlay(
                     )
                 }
             }
+        }
         }
     }
 }

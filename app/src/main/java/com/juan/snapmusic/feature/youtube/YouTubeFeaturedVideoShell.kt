@@ -161,10 +161,10 @@ internal fun FeaturedVideoPlayerShell(
         }
     }
 
-    LaunchedEffect(showOverlayControls, featured.sourceUrl, isSeekingPreview) {
-        if (showOverlayControls && !isSeekingPreview) {
-            delay(2400)
-            if (!isSeekingPreview) {
+    LaunchedEffect(showOverlayControls, featured.sourceUrl, isSeekingPreview, overlayState.isPlaying) {
+        if (showOverlayControls && overlayState.isPlaying && !isSeekingPreview) {
+            delay(com.juan.snapmusic.feature.player.PlayerControlsOverlayDefaults.AutoHideDelayMs)
+            if (overlayState.isPlaying && !isSeekingPreview) {
                 showOverlayControls = false
             }
         }
