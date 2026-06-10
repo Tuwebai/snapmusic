@@ -149,6 +149,7 @@ class SnapMusicPlaybackService : MediaSessionService() {
 
         return MediaSession.Builder(this, sessionPlayer)
             .setSessionActivity(MainActivity.buildOpenPlaybackPendingIntent(this))
+            .setBitmapLoader(PlaybackLockScreenArtworkLoader(this))
             .setCallback(
                 object : MediaSession.Callback {
                     override fun onConnect(

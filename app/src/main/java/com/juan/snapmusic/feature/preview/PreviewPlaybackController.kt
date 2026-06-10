@@ -223,7 +223,6 @@ private fun buildPreviewQueueMediaItems(
         val artworkUri = item.thumbnailUrl
             .takeIfLocalArtworkSource()
             ?.toUri()
-            ?.takeUnless { it.scheme?.lowercase() == "file" }
         MediaItem.Builder()
             .setMediaId(item.fileUri)
             .setUri(item.fileUri.toUri())
