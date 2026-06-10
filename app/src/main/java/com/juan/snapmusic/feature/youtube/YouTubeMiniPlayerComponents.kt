@@ -129,103 +129,147 @@ fun YouTubeMiniPlayer(
             tonalElevation = 0.dp,
             shadowElevation = 2.dp,
         ) {
-            Row(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(if (compact) 112.dp else 122.dp)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.Top,
+                    .height(if (compact) 112.dp else 122.dp),
             ) {
-                YouTubeMiniPlayerVideoShell(
-                    featured = featured,
-                    player = player,
-                    compact = compact,
-                    thumbnailModel = miniThumbnailModel,
-                    fillAvailableHeight = true,
-                    onOpen = onOpen,
-                )
-                Column(
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    verticalArrangement = Arrangement.SpaceBetween,
+                        .fillMaxWidth()
+                        .fillMaxHeight()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.Top,
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(
-                                text = featured.title,
-                                modifier = Modifier.clickable(onClick = onOpen),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextPrimary,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = featuredMeta(featured),
-                                modifier = Modifier.clickable(onClick = onOpen),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
-                            Icon(
-                                imageVector = Icons.Outlined.Close,
-                                contentDescription = "Cerrar",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        YouTubeMiniPlaybackControls(
-                            player = player,
-                            onPrevious = onPrevious,
-                            onTogglePlayPause = onTogglePlayPause,
-                            onNext = onNext,
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        Surface(
-                            shape = RoundedCornerShape(999.dp),
-                            color = BackgroundSecondary,
-                            modifier = Modifier.clickable(onClick = onShare),
-                        ) {
-                            Text(
-                                text = "Compartir",
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = TextPrimary,
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            shape = RoundedCornerShape(999.dp),
-                            color = AccentRed,
-                            modifier = Modifier.clickable(onClick = onDownload),
-                        ) {
-                            Text(
-                                text = "Descargar",
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = TextPrimary,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                    }
+                    YouTubeMiniPlayerVideoShell(
+                        featured = featured,
+                        player = player,
+                        compact = compact,
+                        thumbnailModel = miniThumbnailModel,
+                        fillAvailableHeight = true,
+                        onOpen = onOpen,
+                    )
+                    YouTubeMiniPlayerDetails(
+                        featured = featured,
+                        player = player,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        onOpen = onOpen,
+                        onDismiss = onDismiss,
+                        onPrevious = onPrevious,
+                        onTogglePlayPause = onTogglePlayPause,
+                        onNext = onNext,
+                        onShare = onShare,
+                        onDownload = onDownload,
+                    )
                 }
+                YouTubeMiniPlayerProgressBar(
+                    player = player,
+                    sourceUrl = featured.sourceUrl,
+                    modifier = Modifier.align(Alignment.BottomStart),
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun YouTubeMiniPlayerDetails(
+    featured: YouTubeFeaturedVideo,
+    player: Player?,
+    modifier: Modifier = Modifier,
+    onOpen: () -> Unit,
+    onDismiss: () -> Unit,
+    onPrevious: () -> Unit,
+    onTogglePlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onShare: () -> Unit,
+    onDownload: () -> Unit,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        YouTubeMiniPlayerHeader(featured, onOpen, onDismiss)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            YouTubeMiniPlaybackControls(
+                player = player,
+                onPrevious = onPrevious,
+                onTogglePlayPause = onTogglePlayPause,
+                onNext = onNext,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            YouTubeMiniPlayerPill("Compartir", BackgroundSecondary, onShare)
+            Spacer(modifier = Modifier.width(8.dp))
+            YouTubeMiniPlayerPill("Descargar", AccentRed, onDownload, bold = true)
+        }
+    }
+}
+
+@Composable
+private fun YouTubeMiniPlayerHeader(
+    featured: YouTubeFeaturedVideo,
+    onOpen: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = featured.title,
+                modifier = Modifier.clickable(onClick = onOpen),
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = featuredMeta(featured),
+                modifier = Modifier.clickable(onClick = onOpen),
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.Close,
+                contentDescription = "Cerrar",
+                tint = TextSecondary,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun YouTubeMiniPlayerPill(
+    text: String,
+    color: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
+    bold: Boolean = false,
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = color,
+        modifier = Modifier.clickable(onClick = onClick),
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = TextPrimary,
+            fontWeight = if (bold) FontWeight.SemiBold else null,
+        )
     }
 }
 
