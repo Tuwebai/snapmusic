@@ -1,5 +1,12 @@
 package com.juan.snapmusic.feature.youtube
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -14,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -21,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import com.juan.snapmusic.core.designsystem.AccentRed
 import com.juan.snapmusic.core.designsystem.BorderSubtle
+import com.juan.snapmusic.core.designsystem.SuccessGreen
 import com.juan.snapmusic.core.designsystem.SurfaceElevated
 import com.juan.snapmusic.core.designsystem.TextPrimary
 import com.juan.snapmusic.core.designsystem.TextSecondary
@@ -90,6 +100,7 @@ fun YouTubeFeedRow(
     onClick: (YouTubeFeedItem) -> Unit,
     onDownload: ((YouTubeFeedItem) -> Unit)?,
     watchedProgressFraction: Float = 0f,
+    isDownloaded: Boolean = false,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -162,6 +173,12 @@ fun YouTubeFeedRow(
                             .padding(horizontal = 4.dp, vertical = 1.dp),
                     )
                 }
+                DownloadedFeedBadge(
+                    visible = isDownloaded,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp),
+                )
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
@@ -173,6 +190,43 @@ fun YouTubeFeedRow(
             IconButton(onClick = { onDownload(item) }) {
                 Icon(Icons.Outlined.Download, contentDescription = "Descargar", tint = TextSecondary)
             }
+        }
+    }
+}
+
+@Composable
+private fun DownloadedFeedBadge(
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val visibilityState = remember { MutableTransitionState(false) }
+    LaunchedEffect(visible) {
+        visibilityState.targetState = visible
+    }
+    AnimatedVisibility(
+        visibleState = visibilityState,
+        enter = scaleIn(
+            initialScale = 0.5f,
+            animationSpec = tween(durationMillis = 200),
+        ) + fadeIn(animationSpec = tween(durationMillis = 200)),
+        exit = scaleOut(
+            targetScale = 0.5f,
+            animationSpec = tween(durationMillis = 120),
+        ) + fadeOut(animationSpec = tween(durationMillis = 120)),
+        modifier = modifier,
+    ) {
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = SuccessGreen,
+            contentColor = Color.White,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Check,
+                contentDescription = "Ya descargado",
+                modifier = Modifier
+                    .padding(4.dp)
+                    .size(14.dp),
+            )
         }
     }
 }

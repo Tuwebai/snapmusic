@@ -386,6 +386,7 @@ private fun YouTubeSuggestionsList(
                         item = item,
                         onClick = onItemClick,
                         onDownload = onItemDownload,
+                        isDownloaded = item.url in suggestionsState.downloadedSourceUrls,
                     )
                 }
 

@@ -25,6 +25,7 @@ import com.juan.snapmusic.core.model.PreviewPlaybackQueueItem
 import com.juan.snapmusic.core.model.PreviewPlaybackRenderState
 import com.juan.snapmusic.core.model.PreviewPlaybackSnapshot
 import com.juan.snapmusic.core.model.PreviewState
+import com.juan.snapmusic.core.model.QueueStatus
 import com.juan.snapmusic.core.model.ResolvedMedia
 import com.juan.snapmusic.core.model.YouTubePlayerSeekState
 import com.juan.snapmusic.core.model.YouTubePlayerSessionState
@@ -280,8 +281,10 @@ internal fun SnapMusicViewModel.createYoutubeFeedScreenFlow() = youtubeFeedProje
         initialValue = YouTubeFeedState(),
     )
 
-internal fun SnapMusicViewModel.createYoutubeSuggestionsScreenFlow() = youtubeFeedProjection
-    .map { state ->
+internal fun SnapMusicViewModel.createYoutubeSuggestionsScreenFlow() = combine(
+    youtubeFeedProjection,
+    createDownloadedSourceUrlsFlow(),
+) { state, downloadedSourceUrls ->
         YouTubeSuggestionsUiState(
             query = state.query,
             isPlayerVisible = state.showPlayer,
@@ -291,6 +294,7 @@ internal fun SnapMusicViewModel.createYoutubeSuggestionsScreenFlow() = youtubeFe
             } else {
                 state.items
             },
+            downloadedSourceUrls = downloadedSourceUrls,
             isRefreshing = state.isLoading,
             isLoadingMore = state.isLoadingMore,
             canLoadMore = state.canLoadMoreSuggestions(),
@@ -303,6 +307,27 @@ internal fun SnapMusicViewModel.createYoutubeSuggestionsScreenFlow() = youtubeFe
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = YouTubeSuggestionsUiState(),
     )
+
+private fun SnapMusicViewModel.createDownloadedSourceUrlsFlow(): Flow<Set<String>> {
+    val queueDownloads = graph.queueRepository.observeQueue()
+        .map { entries ->
+            entries.asSequence()
+                .filter { entry -> entry.status == QueueStatus.SUCCESS }
+                .map { entry -> entry.sourceUrl.trim() }
+                .filter(String::isNotBlank)
+                .toSet()
+        }
+    val historyDownloads = graph.historyRepository.observeHistory()
+        .map { entries ->
+            entries.asSequence()
+                .map { entry -> entry.sourceUrl.trim() }
+                .filter(String::isNotBlank)
+                .toSet()
+        }
+    return combine(queueDownloads, historyDownloads) { queueUrls, historyUrls ->
+        queueUrls + historyUrls
+    }.distinctUntilChanged()
+}
 
 internal fun SnapMusicViewModel.createSearchSuggestionCorpusFlow() = combine(
     youtubeState.map { it.items }.distinctUntilChanged(),
