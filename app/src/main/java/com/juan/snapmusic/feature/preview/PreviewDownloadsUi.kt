@@ -17,7 +17,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.PauseCircle
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -203,11 +202,10 @@ private fun PreviewDownloadRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                LinearProgressIndicator(
-                    progress = { item.progress.coerceIn(0, 100) / 100f },
+                DownloadProgressIndicator(
+                    progress = item.progress.coerceIn(0, 100) / 100f,
+                    running = item.status == QueueStatus.RUNNING,
                     modifier = Modifier.fillMaxWidth(),
-                    color = AccentRed,
-                    trackColor = SurfaceElevated,
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
