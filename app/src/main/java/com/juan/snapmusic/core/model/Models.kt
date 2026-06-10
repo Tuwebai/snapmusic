@@ -146,6 +146,8 @@ data class QueueEntry(
     val status: QueueStatus,
     val progress: Int,
     val speedBytesPerSecond: Long,
+    val bytesDownloaded: Long,
+    val totalBytes: Long?,
     val outputUri: String?,
     val createdAt: Long,
     val errorMessage: String?,

@@ -420,14 +420,13 @@ class DownloadWorker(
         if (status == QueueStatus.RUNNING && graph.queueRepository.get(queueId)?.status == QueueStatus.PAUSED) {
             throw DownloadPausedException()
         }
-        lastPublishedProgress = safeProgress
-        lastPublishedAtMs = now
+        lastPublishedProgress = safeProgress; lastPublishedAtMs = now
         graph.queueRepository.updateStatus(
-            id = queueId,
-            status = status,
-            progress = safeProgress,
+            id = queueId, status = status, progress = safeProgress,
             variantLabel = variantLabel,
             speedBytesPerSecond = snapshot.speedBytesPerSecond,
+            bytesDownloaded = snapshot.bytesDownloaded,
+            totalBytes = snapshot.totalBytes,
         )
         setProgress(
             workDataOf(

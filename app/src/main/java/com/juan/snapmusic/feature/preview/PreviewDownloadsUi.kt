@@ -37,6 +37,7 @@ import com.juan.snapmusic.core.designsystem.TextPrimary
 import com.juan.snapmusic.core.designsystem.TextSecondary
 import com.juan.snapmusic.core.model.QueueEntry
 import com.juan.snapmusic.core.model.QueueStatus
+import com.juan.snapmusic.core.platform.formatDownloadEta
 import com.juan.snapmusic.core.platform.formatSpeed
 
 @Composable
@@ -208,6 +209,17 @@ private fun PreviewDownloadRow(
                     running = item.status == QueueStatus.RUNNING,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                formatDownloadEta(
+                    bytesDownloaded = item.bytesDownloaded,
+                    totalBytes = item.totalBytes,
+                    speedBytesPerSecond = item.speedBytesPerSecond,
+                )?.takeIf { item.status == QueueStatus.RUNNING }?.let { eta ->
+                    Text(
+                        text = eta,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary,
+                    )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,

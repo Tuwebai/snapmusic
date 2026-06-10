@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [QueueEntity::class, HistoryEntity::class, YouTubeWatchHistoryEntity::class],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 @TypeConverters(DatabaseConverters::class)
@@ -147,6 +147,13 @@ abstract class SnapMusicDatabase : RoomDatabase() {
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE queue_entries ADD COLUMN speedBytesPerSecond INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE queue_entries ADD COLUMN bytesDownloaded INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE queue_entries ADD COLUMN totalBytes INTEGER")
             }
         }
     }

@@ -54,6 +54,8 @@ class QueueRepository(
                 status = QueueStatus.PENDING,
                 progress = 0,
                 speedBytesPerSecond = 0L,
+                bytesDownloaded = 0L,
+                totalBytes = null,
                 outputUri = null,
                 createdAt = System.currentTimeMillis(),
                 errorMessage = null,
@@ -107,6 +109,8 @@ class QueueRepository(
         variantLabel: String? = null,
         thumbnailUrl: String? = null,
         speedBytesPerSecond: Long? = null,
+        bytesDownloaded: Long? = null,
+        totalBytes: Long? = null,
     ) {
         val current = dao.getQueueById(id) ?: return
         val nextSpeed = speedBytesPerSecond ?: if (status == QueueStatus.RUNNING) {
@@ -114,11 +118,18 @@ class QueueRepository(
         } else {
             0L
         }
+        val nextBytesDownloaded = bytesDownloaded ?: when (status) {
+            QueueStatus.SUCCESS -> current.totalBytes ?: current.bytesDownloaded
+            QueueStatus.RUNNING, QueueStatus.PENDING, QueueStatus.PAUSED -> current.bytesDownloaded
+            QueueStatus.ERROR, QueueStatus.CANCELLED -> 0L
+        }
         dao.upsertQueue(
             current.copy(
                 status = status,
                 progress = progress,
                 speedBytesPerSecond = nextSpeed.coerceAtLeast(0L),
+                bytesDownloaded = nextBytesDownloaded.coerceAtLeast(0L),
+                totalBytes = totalBytes ?: current.totalBytes,
                 outputUri = outputUri ?: current.outputUri,
                 errorMessage = errorMessage,
                 variantLabel = variantLabel ?: current.variantLabel,
