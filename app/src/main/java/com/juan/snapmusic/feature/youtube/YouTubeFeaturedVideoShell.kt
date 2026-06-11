@@ -106,6 +106,11 @@ internal fun FeaturedVideoPlayerShell(
     featuredThumbnailModel: ImageRequest,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
+    watchNextItems: List<YouTubeFeedItem>,
+    canLoadMoreWatchNext: Boolean,
+    isLoadingMoreWatchNext: Boolean,
+    onSelectWatchNext: (YouTubeFeedItem) -> Unit,
+    onLoadMoreWatchNext: () -> Unit,
     onMinimizeVideo: () -> Unit,
     onEnterFullscreen: () -> Unit,
     onDismissFullscreen: () -> Unit,
@@ -309,6 +314,11 @@ internal fun FeaturedVideoPlayerShell(
         featuredThumbnailModel = featuredThumbnailModel,
         thumbnailVisible = !hasRenderedFirstFrame,
         isBuffering = isBuffering,
+        watchNextItems = watchNextItems,
+        canLoadMoreWatchNext = canLoadMoreWatchNext,
+        isLoadingMoreWatchNext = isLoadingMoreWatchNext,
+        onSelectWatchNext = onSelectWatchNext,
+        onLoadMoreWatchNext = onLoadMoreWatchNext,
         onDismiss = onDismissFullscreen,
         onPlayPause = {
             player?.let { currentPlayer ->
@@ -370,6 +380,11 @@ internal fun FeaturedVideoFullscreenShell(
     featuredThumbnailModel: ImageRequest,
     thumbnailVisible: Boolean,
     isBuffering: Boolean,
+    watchNextItems: List<YouTubeFeedItem>,
+    canLoadMoreWatchNext: Boolean,
+    isLoadingMoreWatchNext: Boolean,
+    onSelectWatchNext: (YouTubeFeedItem) -> Unit,
+    onLoadMoreWatchNext: () -> Unit,
     onDismiss: () -> Unit,
     onPlayPause: () -> Unit,
     onPrevious: () -> Unit,
@@ -404,6 +419,15 @@ internal fun FeaturedVideoFullscreenShell(
         onSeekTo = onSeekTo,
         onSeekPreviewStart = onSeekPreviewStart,
         onSeekPreviewFinished = onSeekPreviewFinished,
+        extraOverlay = {
+            YouTubeFullscreenOverlay(
+                watchNextItems = watchNextItems,
+                canLoadMore = canLoadMoreWatchNext,
+                isLoadingMore = isLoadingMoreWatchNext,
+                onSelectItem = onSelectWatchNext,
+                onLoadMore = onLoadMoreWatchNext,
+            )
+        },
     )
 }
 

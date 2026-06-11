@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -88,6 +89,7 @@ internal fun LandscapeFullscreenVideoDialog(
     onSeekPreviewStart: () -> Unit = {},
     onSeekPreviewFinished: () -> Unit = {},
     forceLandscape: Boolean = true,
+    extraOverlay: @Composable BoxScope.() -> Unit = {},
 ) {
     if (!visible || player == null) return
 
@@ -275,6 +277,7 @@ internal fun LandscapeFullscreenVideoDialog(
                         dismissFullscreen()
                     },
                 )
+                extraOverlay()
                 VideoAdjustmentFeedbackOverlay(
                     feedback = adjustmentFeedback,
                     modifier = Modifier.align(Alignment.Center),
