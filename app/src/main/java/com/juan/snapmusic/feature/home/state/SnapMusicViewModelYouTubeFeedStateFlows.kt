@@ -169,7 +169,7 @@ internal fun SnapMusicViewModel.createHomeYouTubeTabsVisibleFlow() = youtubeRout
 internal fun SnapMusicViewModel.createYoutubePictureInPictureEligibilityFlow() = youtubeState
     .map { state ->
         PictureInPictureEligibilityState(
-            eligible = (state.showPlayer || state.showMiniPlayer) && state.featured.isReady,
+            eligible = (state.showPlayer || state.showMiniPlayer) && state.featured.sourceUrl.isNotBlank(),
         )
     }
     .distinctUntilChanged()

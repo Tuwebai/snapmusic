@@ -71,7 +71,7 @@ fun PictureInPicturePlayerSurface(
         modifier = modifier.background(androidx.compose.ui.graphics.Color.Black),
         contentAlignment = Alignment.Center,
     ) {
-        if (player != null && featured.playbackUrl != null) {
+        if (player != null && featured.sourceUrl.isNotBlank()) {
             key(featured.sourceUrl, player) {
                 PlayerSurface(
                     player = player,
