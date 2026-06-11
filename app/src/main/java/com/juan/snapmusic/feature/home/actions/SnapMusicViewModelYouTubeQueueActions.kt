@@ -90,6 +90,7 @@ fun SnapMusicViewModel.selectYouTubeItem(item: YouTubeFeedItem) {
         )
         maybeRecordYouTubeWatchHistory(item, effectivePositionMs, force = true)
         persistCurrentYouTubeSnapshot()
+        ensureWatchNextAfterRestore()
         return
     }
     val sourceItems = when {

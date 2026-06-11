@@ -229,6 +229,7 @@ fun SnapMusicViewModel.restoreYouTubePlayer() {
         showMiniPlayer = false,
         errorMessage = null,
     )
+    ensureWatchNextAfterRestore()
     persistCurrentYouTubeSnapshot()
 }
 

@@ -102,7 +102,7 @@ internal fun SnapMusicViewModel.enrichWatchNextQueue(
         val startupState = _youtubeState.value
         if (
             startupState.featured.sourceUrl != item.url ||
-            !startupState.showPlayer ||
+            (!startupState.showPlayer && !startupState.showMiniPlayer) ||
             startupState.isRefreshingVideo ||
             startupState.pendingTransition
         ) {
@@ -263,6 +263,13 @@ internal fun SnapMusicViewModel.refreshWatchNextByPull(snapshot: YouTubeUiState)
         persistCurrentYouTubeSnapshot()
         preResolveNextQueueItem(updatedQueue, currentIndex, latest.continuationMode)
     }
+}
+
+internal fun SnapMusicViewModel.ensureWatchNextAfterRestore() {
+    val current = _youtubeState.value
+    if (!current.showPlayer || !current.featured.isReady || current.watchNextItems.isNotEmpty()) return
+    if (youtubeLoadMoreJob?.isActive == true || watchNextEnrichmentJob?.isActive == true) return
+    youtubeLoadMoreJob = loadMoreWatchNextQueue()
 }
 
 internal fun SnapMusicViewModel.loadMoreWatchNextQueue(): Job? {
