@@ -388,7 +388,7 @@ private fun YouTubeSuggestionsList(
                 youtubeFeedShimmerItems(progress = shimmerProgress)
             } else {
                 val searchHeaderQuery = suggestionsState.query.trim()
-                if (searchHeaderQuery.isNotEmpty() && onSearchHeaderBack != null) {
+                if (!suggestionsState.isPlayerVisible && searchHeaderQuery.isNotEmpty() && onSearchHeaderBack != null) {
                     item(
                         key = "youtube_search_header:$searchHeaderQuery",
                         contentType = "youtube_search_header",
