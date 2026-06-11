@@ -75,6 +75,7 @@ fun rememberYouTubePlayer(
     val currentFeaturedSourceUrl by rememberUpdatedState(featured.sourceUrl)
     val currentFeatured by rememberUpdatedState(featured)
     var lastKnownPlaybackPositionMs by remember { mutableStateOf(0L) }
+    var handledSeekRequestId by remember(featured.sourceUrl) { mutableStateOf(seekState.requestId) }
 
     LaunchedEffect(featured.sourceUrl) {
         lastKnownPlaybackPositionMs = sessionState.currentPositionMs.coerceAtLeast(0L)
@@ -286,9 +287,13 @@ fun rememberYouTubePlayer(
         if (sameCurrent) {
             if (
                 seekState.requestId > 0L &&
+                seekState.requestId != handledSeekRequestId &&
                 abs(mediaController.currentPosition - seekState.positionMs) > 1_200L
             ) {
                 mediaController.seekTo(seekState.positionMs.coerceAtLeast(0L))
+            }
+            if (seekState.requestId > 0L) {
+                handledSeekRequestId = seekState.requestId
             }
             mediaController.syncNextYouTubeQueueItem(queueItems)
         } else if (!sameQueue) {
@@ -351,11 +356,13 @@ fun rememberYouTubePlayer(
     LaunchedEffect(controller, featured.sourceUrl, seekState.requestId) {
         val mediaController = controller ?: return@LaunchedEffect
         if (seekState.requestId <= 0L) return@LaunchedEffect
+        if (seekState.requestId == handledSeekRequestId) return@LaunchedEffect
         if (mediaController.currentMediaItem?.mediaId != featured.sourceUrl) return@LaunchedEffect
         val targetPositionMs = seekState.positionMs.coerceAtLeast(0L)
         if (abs(mediaController.currentPosition - targetPositionMs) > 1_200L) {
             mediaController.seekTo(targetPositionMs)
         }
+        handledSeekRequestId = seekState.requestId
     }
 
     LaunchedEffect(controller, featured.sourceUrl, shouldAutoPlayCurrent) {
