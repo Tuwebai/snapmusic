@@ -383,10 +383,14 @@ internal fun SnapMusicViewModel.createSearchSuggestionCorpusFlow() = combine(
     youtubeState.map { it.items }.distinctUntilChanged(),
     _downloadSearchState.map { it.popularQueries }.distinctUntilChanged(),
     _recentSearchQueries,
-) { items, popularQueries, recentQueries ->
+    history,
+    youtubeWatchHistory,
+) { items, popularQueries, recentQueries, downloadHistory, watchHistory ->
     buildSearchSuggestionCorpus(
         popularQueries = recentQueries + popularQueries,
         items = items,
+        downloadHistory = downloadHistory,
+        watchHistory = watchHistory,
     )
 }
     .stateIn(

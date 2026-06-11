@@ -181,14 +181,14 @@ internal fun SnapMusicViewModel.clearYouTubeSuggestions() {
 }
 
 internal fun SnapMusicViewModel.defaultPopularDownloadQueries(): List<String> = listOf(
-    "María Becerra",
-    "Jere Klein",
-    "Callejero Fino",
-    "Khea",
-    "Cuarteto en vivo",
-    "Enganchados",
-    "Cumbia 2026",
-    "Q' Lokura",
+    "María Becerra oficial",
+    "Jere Klein oficial",
+    "Callejero Fino oficial",
+    "Khea oficial",
+    "Q' Lokura oficial",
+    "Música argentina oficial",
+    "Lanzamientos latinos",
+    "Cumbia oficial",
 )
 
 internal fun SnapMusicViewModel.buildFallbackSearchSuggestions(query: String): List<String> {

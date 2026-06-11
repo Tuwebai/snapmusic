@@ -29,13 +29,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.juan.snapmusic.core.designsystem.AccentRed
@@ -207,9 +214,22 @@ private fun SearchCommandBar(
                         maxLines = 1,
                     )
                 } else {
+                    var editableValue by remember {
+                        mutableStateOf(TextFieldValue(value, selection = TextRange(value.length)))
+                    }
+                    LaunchedEffect(value) {
+                        if (value != editableValue.text) {
+                            editableValue = TextFieldValue(value, selection = TextRange(value.length))
+                        }
+                    }
                     BasicTextField(
-                        value = value,
-                        onValueChange = onValueChange,
+                        value = editableValue,
+                        onValueChange = { nextValue ->
+                            editableValue = nextValue
+                            if (nextValue.text != value) {
+                                onValueChange(nextValue.text)
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         cursorBrush = SolidColor(SearchAccent),
