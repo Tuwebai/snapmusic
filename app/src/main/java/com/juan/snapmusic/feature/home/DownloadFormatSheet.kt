@@ -76,6 +76,7 @@ fun DownloadFormatSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        modifier = Modifier.downloadFormatMaterialReveal(revealKey = media.sourceUrl),
         containerColor = SurfacePrimary,
         dragHandle = {
             Box(
