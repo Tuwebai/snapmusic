@@ -3,6 +3,7 @@ package com.juan.snapmusic.core.platform
 import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.FlagSet
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -305,17 +306,20 @@ class SnapMusicPlaybackService : MediaSessionService() {
                 .setTitle(state.title ?: base.title)
                 .setArtist(state.subtitle ?: base.artist)
                 .apply {
+                    state.artworkUri?.let(::setArtworkUri)
                     state.artworkData?.let { data ->
                         setArtworkData(data, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
-                    } ?: state.artworkUri?.let(::setArtworkUri)
+                    }
                 }
                 .build()
         }
 
         fun notifyMediaMetadataChanged() {
             val metadata = mediaMetadata
+            val events = Player.Events(FlagSet.Builder().add(Player.EVENT_MEDIA_METADATA_CHANGED).build())
             listeners.forEach { listener ->
                 listener.onMediaMetadataChanged(metadata)
+                listener.onEvents(this, events)
             }
         }
 
