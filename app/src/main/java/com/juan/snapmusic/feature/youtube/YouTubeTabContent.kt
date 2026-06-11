@@ -366,8 +366,8 @@ private fun YouTubeSuggestionsList(
         if (suggestionsState.isRefreshing) pullOffsetPx = 0f
         if (!suggestionsState.isRefreshing) refreshRequested = false
     }
-    val showSkeletonItems = suggestionsState.isRefreshing ||
-        (visibleItems.isEmpty() && suggestionsState.isWatchTransitioning)
+    val showSkeletonItems = visibleItems.isEmpty() &&
+        (suggestionsState.isRefreshing || suggestionsState.isWatchTransitioning)
     val shimmerProgress = if (showSkeletonItems) rememberYouTubeFeedShimmerProgress() else 0f
 
     val listContent: @Composable () -> Unit = {
