@@ -2,6 +2,7 @@ package com.juan.snapmusic.feature.player
 
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.view.ViewGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -21,6 +22,7 @@ internal fun PlayerSurface(
     keepScreenOn: Boolean,
     shutterColor: Int,
     keepContentOnPlayerReset: Boolean = false,
+    backgroundColor: Int = android.graphics.Color.BLACK,
     layoutParams: ViewGroup.LayoutParams? = null,
     active: Boolean = true,
 ) {
@@ -35,6 +37,7 @@ internal fun PlayerSurface(
                 this.resizeMode = resizeMode
                 setKeepContentOnPlayerReset(keepContentOnPlayerReset)
                 setShutterBackgroundColor(shutterColor)
+                applyPlayerSurfaceBackground(backgroundColor)
                 layoutParams?.let { this.layoutParams = it }
                 if (active) {
                     PlayerSurfaceTargetRegistry.attach(player, this)
@@ -54,6 +57,7 @@ internal fun PlayerSurface(
             }
             view.setKeepContentOnPlayerReset(keepContentOnPlayerReset)
             view.setShutterBackgroundColor(shutterColor)
+            view.applyPlayerSurfaceBackground(backgroundColor)
             layoutParams?.let { view.layoutParams = it }
             if (view.keepScreenOn != keepScreenOn) {
                 view.keepScreenOn = keepScreenOn
@@ -70,6 +74,11 @@ internal fun PlayerSurface(
             PlayerSurfaceTargetRegistry.release(player, view)
         },
     )
+}
+
+private fun PlayerView.applyPlayerSurfaceBackground(color: Int) {
+    setBackgroundColor(color)
+    findViewById<View>(androidx.media3.ui.R.id.exo_content_frame)?.setBackgroundColor(color)
 }
 
 private object PlayerSurfaceTargetRegistry {

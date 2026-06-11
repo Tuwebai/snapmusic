@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.ui.AspectRatioFrameLayout
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -128,6 +129,9 @@ internal fun FeaturedVideoPlayerShell(
             } == true,
         )
     }
+    var videoAspectRatio by remember(featured.sourceUrl, player) {
+        mutableStateOf(player?.videoSize?.snapMusicAspectRatio() ?: 0f)
+    }
     var isSeekingPreview by remember(featured.sourceUrl) { mutableStateOf(false) }
     var resumeAfterSeekPreview by remember(featured.sourceUrl, player) { mutableStateOf(false) }
 
@@ -146,11 +150,17 @@ internal fun FeaturedVideoPlayerShell(
 
                 override fun onRenderedFirstFrame() {
                     hasRenderedFirstFrame = true
+                    videoAspectRatio = currentPlayer.videoSize.snapMusicAspectRatio()
+                }
+
+                override fun onVideoSizeChanged(videoSize: VideoSize) {
+                    videoAspectRatio = videoSize.snapMusicAspectRatio()
                 }
             }
             hasRenderedFirstFrame =
                 currentPlayer.currentMediaItem?.mediaId == featured.sourceUrl &&
                     currentPlayer.videoSize.width > 0
+            videoAspectRatio = currentPlayer.videoSize.snapMusicAspectRatio()
             isBuffering =
                 currentPlayer.currentMediaItem?.mediaId == featured.sourceUrl &&
                     currentPlayer.playWhenReady &&
@@ -191,6 +201,9 @@ internal fun FeaturedVideoPlayerShell(
         isSeekingPreview = false
         showOverlayControls = true
     }
+    val showTheaterBackdrop = !isFullscreen &&
+        shouldShowTheaterBackdrop(videoAspectRatio) &&
+        featured.thumbnailUrl.isNotBlank()
 
     Box(
         modifier = Modifier
@@ -198,6 +211,13 @@ internal fun FeaturedVideoPlayerShell(
             .aspectRatio(16f / 9f)
             .background(androidx.compose.ui.graphics.Color.Black),
     ) {
+        if (showTheaterBackdrop) {
+            YouTubeTheaterBackdrop(
+                model = featuredThumbnailModel,
+                contentDescription = featured.title,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         if (!hasRenderedFirstFrame) {
             AsyncImage(
                 model = featuredThumbnailModel,
@@ -216,6 +236,7 @@ internal fun FeaturedVideoPlayerShell(
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
                     keepContentOnPlayerReset = true,
                     shutterColor = Color.TRANSPARENT,
+                    backgroundColor = if (showTheaterBackdrop) Color.TRANSPARENT else Color.BLACK,
                     keepScreenOn = player.playWhenReady,
                 )
             }
@@ -386,104 +407,3 @@ internal fun FeaturedVideoFullscreenShell(
     )
 }
 
-@Composable
-internal fun FeaturedVideoMetadataPanel(
-    featured: YouTubeFeaturedVideo,
-    featuredAvatarModel: ImageRequest,
-    isDownloadEnabled: Boolean,
-    autoplayEnabled: Boolean,
-    nextUpLabel: String?,
-    onDownload: () -> Unit,
-    onArtistClick: (String) -> Unit,
-) {
-    val cinematicBrush = remember {
-        Brush.verticalGradient(
-            colors = listOf(
-                AccentRed.copy(alpha = 0.12f),
-                SurfacePrimary.copy(alpha = 0.98f),
-                SurfacePrimary,
-            ),
-        )
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(SurfacePrimary),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(132.dp)
-                .background(cinematicBrush),
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 10.dp, bottom = 2.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                AsyncImage(
-                    model = featuredAvatarModel,
-                    contentDescription = featured.title,
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape),
-                    filterQuality = FilterQuality.Low,
-                )
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(featured.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                    YouTubeFeaturedMetadataText(featured = featured, onArtistClick = onArtistClick)
-                }
-            }
-
-            nextUpLabel?.takeIf { autoplayEnabled }?.let { title ->
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "Sigue: $title",
-                        color = TextSecondary,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Button(
-                    onClick = onDownload,
-                    enabled = isDownloadEnabled,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AccentRed,
-                        contentColor = SurfacePrimary,
-                        disabledContainerColor = AccentRed.copy(alpha = 0.4f),
-                        disabledContentColor = SurfacePrimary,
-                    ),
-                    shape = RoundedCornerShape(999.dp),
-                ) {
-                    Icon(Icons.Outlined.Download, contentDescription = null)
-                    Text(
-                        text = if (isDownloadEnabled) "Descargar" else "Preparando descarga...",
-                        modifier = Modifier.padding(start = 8.dp),
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-                YouTubeCastRouteButton(modifier = Modifier.size(48.dp))
-            }
-        }
-    }
-}
