@@ -45,6 +45,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -74,6 +76,11 @@ import com.juan.snapmusic.core.platform.buildOpenFolderIntent
 import com.juan.snapmusic.core.platform.buildShareIntent
 import com.juan.snapmusic.core.platform.formatTimestamp
 import com.juan.snapmusic.feature.home.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private const val CompletionVisualRetentionMs = 1_350L
+private val ActiveQueueStatuses = setOf(QueueStatus.RUNNING, QueueStatus.PENDING, QueueStatus.PAUSED)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,11 +92,32 @@ fun QueueScreen(
     val context = LocalContext.current
     val items by viewModel.queue.collectAsStateWithLifecycle()
     val feedback by viewModel.queueFeedback.collectAsStateWithLifecycle()
-    val activeItems = remember(items) {
-        items.filter { it.status == QueueStatus.RUNNING || it.status == QueueStatus.PENDING || it.status == QueueStatus.PAUSED }
+    val completingIds = remember { mutableStateListOf<String>() }
+    val previousStatuses = remember { mutableStateMapOf<String, QueueStatus>() }
+    LaunchedEffect(items) {
+        val previous = previousStatuses.toMap()
+        items.forEach { item ->
+            if (
+                item.status == QueueStatus.SUCCESS &&
+                previous[item.id] in ActiveQueueStatuses &&
+                item.id !in completingIds
+            ) {
+                completingIds.add(item.id)
+                launch {
+                    delay(CompletionVisualRetentionMs)
+                    completingIds.remove(item.id)
+                }
+            }
+        }
+        previousStatuses.clear()
+        items.forEach { item -> previousStatuses[item.id] = item.status }
     }
-    val archivedItems = remember(items) {
-        items.filterNot { it.status == QueueStatus.RUNNING || it.status == QueueStatus.PENDING || it.status == QueueStatus.PAUSED }
+    val completingIdSnapshot = completingIds.toSet()
+    val activeItems = remember(items, completingIdSnapshot) {
+        items.filter { it.isVisibleInActiveQueue(completingIdSnapshot) }
+    }
+    val archivedItems = remember(items, completingIdSnapshot) {
+        items.filterNot { it.isVisibleInActiveQueue(completingIdSnapshot) }
     }
     var modalItem by remember { mutableStateOf<QueueEntry?>(null) }
     var selectedTab by rememberSaveable { mutableStateOf(QueueHubTab.QUEUE) }
@@ -380,5 +408,9 @@ internal fun SectionTitle(
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Text(subtitle, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
     }
+}
+
+private fun QueueEntry.isVisibleInActiveQueue(completingIds: Set<String>): Boolean {
+    return status in ActiveQueueStatuses || (status == QueueStatus.SUCCESS && id in completingIds)
 }
 

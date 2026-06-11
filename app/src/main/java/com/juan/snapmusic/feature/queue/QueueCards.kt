@@ -39,7 +39,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -88,8 +87,15 @@ internal fun ActiveQueueCard(
     val progress = item.progress.coerceIn(0, 100)
     val isResuming = item.status == QueueStatus.PENDING && progress > 0
     val isPaused = item.status == QueueStatus.PAUSED
+    val isCompleting = item.status == QueueStatus.SUCCESS
+    val completionAnimation = rememberDownloadCompletionAnimation(
+        itemId = item.id,
+        isComplete = isCompleting,
+        progressFraction = progress / 100f,
+    )
     val context = LocalContext.current
     val statusLabel = when {
+        isCompleting -> "Descarga completa. Preparando el archivo para el historial..."
         isPaused -> "Descarga pausada. Podés reanudarla sin perder el avance."
         isResuming -> "Reanudando la descarga donde había quedado..."
         item.status == QueueStatus.PENDING -> "Preparando descarga..."
@@ -109,7 +115,7 @@ internal fun ActiveQueueCard(
         modifier = Modifier
             .padding(horizontal = 20.dp)
             .fillMaxWidth()
-            .background(SurfacePrimary, RoundedCornerShape(24.dp))
+            .background(completionAnimation.cardColor, RoundedCornerShape(24.dp))
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.Top,
@@ -134,75 +140,72 @@ internal fun ActiveQueueCard(
                 FormatBadge(item.variantLabel)
                 StatusBadge(
                     label = when {
+                        isCompleting -> "100%"
                         isPaused -> "Pausada"
                         isResuming -> "Reanudando"
                         item.status == QueueStatus.PENDING -> "En cola"
                         else -> "${progress}%"
                     },
                     icon = when {
+                        isCompleting -> Icons.Outlined.CheckCircle
                         isPaused -> Icons.Outlined.PauseCircle
                         isResuming -> Icons.Outlined.Downloading
                         item.status == QueueStatus.PENDING -> Icons.Outlined.Schedule
                         else -> Icons.Outlined.Downloading
                     },
-                    tint = AccentRed,
+                    tint = if (isCompleting) Color(0xFF25D366) else AccentRed,
                 )
             }
             Text(statusLabel, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
-            LinearProgressIndicator(
-                progress = {
-                    when {
-                        isPaused -> progress / 100f
-                        isResuming -> progress / 100f
-                        item.status == QueueStatus.PENDING -> 0.06f
-                        else -> progress / 100f
-                    }
-                },
+            DownloadCompletionProgressBar(
+                animation = completionAnimation,
+                isComplete = isCompleting,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(999.dp)),
-                color = AccentRed,
-                trackColor = SurfaceElevated,
+                    .fillMaxWidth(),
             )
         }
-        Box {
-            IconButton(onClick = { menuExpanded = true }) {
-                Icon(Icons.Outlined.MoreVert, contentDescription = "Más acciones", tint = TextSecondary)
-            }
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
-                containerColor = SurfaceElevated,
-            ) {
-                DropdownMenuItem(
-                    text = { Text(if (isPaused) "Reanudar descarga" else "Pausar descarga") },
-                    onClick = {
-                        menuExpanded = false
-                        if (isPaused) onResume() else onPause()
-                    },
-                    leadingIcon = {
-                        Icon(
-                            if (isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.PauseCircle,
-                            contentDescription = null,
-                        )
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text("Cancelar descarga") },
-                    onClick = {
-                        menuExpanded = false
-                        onCancel()
-                    },
-                    leadingIcon = { Icon(Icons.Outlined.Close, contentDescription = null) },
-                )
-                DropdownMenuItem(
-                    text = { Text("Quitar de la lista") },
-                    onClick = {
-                        menuExpanded = false
-                        onRemove()
-                    },
-                    leadingIcon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null) },
-                )
+        if (isCompleting) {
+            Icon(Icons.Outlined.CheckCircle, contentDescription = "Descarga completa", tint = Color(0xFF25D366))
+        } else {
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(Icons.Outlined.MoreVert, contentDescription = "Más acciones", tint = TextSecondary)
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                    containerColor = SurfaceElevated,
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(if (isPaused) "Reanudar descarga" else "Pausar descarga") },
+                        onClick = {
+                            menuExpanded = false
+                            if (isPaused) onResume() else onPause()
+                        },
+                        leadingIcon = {
+                            Icon(
+                                if (isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.PauseCircle,
+                                contentDescription = null,
+                            )
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Cancelar descarga") },
+                        onClick = {
+                            menuExpanded = false
+                            onCancel()
+                        },
+                        leadingIcon = { Icon(Icons.Outlined.Close, contentDescription = null) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Quitar de la lista") },
+                        onClick = {
+                            menuExpanded = false
+                            onRemove()
+                        },
+                        leadingIcon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null) },
+                    )
+                }
             }
         }
     }
