@@ -4,6 +4,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -19,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.concurrent.CopyOnWriteArraySet
 
 @androidx.media3.common.util.UnstableApi
 class SnapMusicPlaybackService : MediaSessionService() {
@@ -171,8 +173,14 @@ class SnapMusicPlaybackService : MediaSessionService() {
                 mediaSession = session
                 serviceScope.launch {
                     var lastNotificationTransportState: Triple<PlaybackSessionTarget, Boolean, Boolean>? = null
+                    var lastPublishedMetadataKey: PlaybackMetadataKey? = null
                     PlaybackSessionStateStore.state.collectLatest { state ->
                         HomePlaybackWidgetProvider.updateAll(this@SnapMusicPlaybackService, state)
+                        val metadataKey = state.toMetadataKey()
+                        if (metadataKey != lastPublishedMetadataKey) {
+                            lastPublishedMetadataKey = metadataKey
+                            sessionPlayer.notifyMediaMetadataChanged()
+                        }
                         val notificationController = session.mediaNotificationControllerInfo ?: return@collectLatest
                         val transportState = Triple(
                             state.target,
@@ -206,6 +214,26 @@ class SnapMusicPlaybackService : MediaSessionService() {
         return duration.takeIf { it != C.TIME_UNSET && it > 0L } ?: 0L
     }
 
+    private data class PlaybackMetadataKey(
+        val mediaId: String?,
+        val title: String?,
+        val subtitle: String?,
+        val artworkUri: String?,
+        val artworkDataHash: Int?,
+        val artworkDataSize: Int?,
+    )
+
+    private fun PlaybackSessionState.toMetadataKey(): PlaybackMetadataKey {
+        return PlaybackMetadataKey(
+            mediaId = mediaId,
+            title = title,
+            subtitle = subtitle,
+            artworkUri = artworkUri?.toString(),
+            artworkDataHash = artworkData?.contentHashCode(),
+            artworkDataSize = artworkData?.size,
+        )
+    }
+
     private fun buildNotificationPlayerCommands(state: PlaybackSessionState): Player.Commands {
         if (state.target != PlaybackSessionTarget.YOUTUBE) {
             return MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
@@ -230,6 +258,39 @@ class SnapMusicPlaybackService : MediaSessionService() {
     private class SessionTransportPlayer(
         player: Player,
     ) : ForwardingPlayer(player) {
+        private val listeners = CopyOnWriteArraySet<Player.Listener>()
+
+        override fun addListener(listener: Player.Listener) {
+            listeners.add(listener)
+            super.addListener(listener)
+        }
+
+        override fun removeListener(listener: Player.Listener) {
+            listeners.remove(listener)
+            super.removeListener(listener)
+        }
+
+        override fun getMediaMetadata(): MediaMetadata {
+            val state = PlaybackSessionStateStore.state.value
+            val base = super.getMediaMetadata()
+            return base.buildUpon()
+                .setTitle(state.title ?: base.title)
+                .setArtist(state.subtitle ?: base.artist)
+                .apply {
+                    state.artworkData?.let { data ->
+                        setArtworkData(data, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                    } ?: state.artworkUri?.let(::setArtworkUri)
+                }
+                .build()
+        }
+
+        fun notifyMediaMetadataChanged() {
+            val metadata = mediaMetadata
+            listeners.forEach { listener ->
+                listener.onMediaMetadataChanged(metadata)
+            }
+        }
+
         override fun getAvailableCommands(): Player.Commands {
             val state = PlaybackSessionStateStore.state.value
             if (state.target != PlaybackSessionTarget.YOUTUBE) {
