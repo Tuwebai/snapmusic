@@ -64,22 +64,12 @@ fun PreviewScreen(
     PreviewDownloadsLifecycleHost(
         viewModel = viewModel,
         hasPermission = hasPermission,
-        showDownloadsScreen = showDownloadsScreen,
         onShowDownloadsScreenChange = { showDownloadsScreen = it },
     )
     PreviewSceneReporterHost(
         viewModel = viewModel,
         showDownloadsScreen = showDownloadsScreen,
     )
-
-    if (routeVisibility.detailVisible && routeVisibility.isReady) {
-        PreviewDetailHost(
-            viewModel = viewModel,
-            padding = padding,
-            player = player,
-        )
-        return
-    }
 
     if (showDownloadsScreen) {
         BackHandler {
@@ -90,6 +80,16 @@ fun PreviewScreen(
             viewModel = viewModel,
             padding = padding,
             onBack = { showDownloadsScreen = false },
+        )
+        return
+    }
+
+    if (routeVisibility.detailVisible && routeVisibility.isReady) {
+        PreviewDetailHost(
+            viewModel = viewModel,
+            padding = padding,
+            player = player,
+            onOpenDownloads = { showDownloadsScreen = true },
         )
         return
     }
@@ -108,6 +108,7 @@ private fun PreviewDetailHost(
     viewModel: SnapMusicViewModel,
     padding: PaddingValues,
     player: Player?,
+    onOpenDownloads: () -> Unit,
 ) {
     val libraryState = viewModel.previewLibraryScreen.collectAsStateWithLifecycle().value
     val activePreviewUri = viewModel.previewActiveFileUri.collectAsStateWithLifecycle().value
@@ -186,6 +187,7 @@ private fun PreviewDetailHost(
                         title = "Todas las canciones",
                         selectionMode = selectionMode,
                         selectedCount = selectedItems.size,
+                        onOpenDownloads = onOpenDownloads,
                         onShareSelected = {
                             if (selectedItems.isNotEmpty()) {
                                 shareLocalMediaItems(context, selectedItems)
@@ -324,31 +326,6 @@ private fun PreviewPlaybackCardHost(
 }
 
 @Composable
-private fun PreviewDownloadsDetailHost(
-    viewModel: SnapMusicViewModel,
-    padding: PaddingValues,
-    onBack: () -> Unit,
-) {
-    val downloadsState = viewModel.previewDownloadsState.collectAsStateWithLifecycle().value
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(top = 14.dp, bottom = 28.dp),
-    ) {
-        item {
-            PreviewDownloadsDetailScreen(
-                activeDownloads = downloadsState.activeItems,
-                onBack = onBack,
-                onCancel = viewModel::cancelQueue,
-                onCancelAll = viewModel::cancelActiveDownloads,
-            )
-        }
-    }
-}
-
-@Composable
 private fun PreviewLibraryRoot(
     viewModel: SnapMusicViewModel,
     padding: PaddingValues,
@@ -393,6 +370,26 @@ private fun PreviewLibraryRoot(
             item {
                 PreviewDownloadsSummaryVisibilityHost(viewModel = viewModel, onOpenDownloads = onOpenDownloads)
             }
+            item {
+                PreviewLibraryHeader(
+                    totalItems = libraryState.items.size,
+                    selectionMode = selectionMode,
+                    selectedCount = selectedItems.size,
+                    onSearch = { showSearch = true },
+                    onOpenDownloads = onOpenDownloads,
+                    onShareSelected = {
+                        if (selectedItems.isNotEmpty()) {
+                            shareLocalMediaItems(context, selectedItems)
+                        }
+                    },
+                    onDeleteSelected = {
+                        if (selectedItems.isNotEmpty()) {
+                            deleteTarget = selectedItems
+                        }
+                    },
+                    onCloseSelection = { selectedIds = emptySet() },
+                )
+            }
         }
         when {
             !hasPermission -> {
@@ -404,25 +401,6 @@ private fun PreviewLibraryRoot(
             }
 
             else -> {
-                item {
-                    PreviewLibraryHeader(
-                        totalItems = libraryState.items.size,
-                        selectionMode = selectionMode,
-                        selectedCount = selectedItems.size,
-                        onSearch = { showSearch = true },
-                        onShareSelected = {
-                            if (selectedItems.isNotEmpty()) {
-                                shareLocalMediaItems(context, selectedItems)
-                            }
-                        },
-                        onDeleteSelected = {
-                            if (selectedItems.isNotEmpty()) {
-                                deleteTarget = selectedItems
-                            }
-                        },
-                        onCloseSelection = { selectedIds = emptySet() },
-                    )
-                }
                 items(
                     items = libraryState.items,
                     key = { it.id },

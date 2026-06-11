@@ -52,7 +52,6 @@ import kotlinx.coroutines.launch
 internal fun PreviewDownloadsLifecycleHost(
     viewModel: SnapMusicViewModel,
     hasPermission: Boolean,
-    showDownloadsScreen: Boolean,
     onShowDownloadsScreenChange: (Boolean) -> Unit,
 ) {
     val downloadsShell = viewModel.previewDownloadsShellState.collectAsStateWithLifecycle().value
@@ -67,15 +66,9 @@ internal fun PreviewDownloadsLifecycleHost(
         }
     }
 
-    LaunchedEffect(downloadsShell.openRequestId, downloadsShell.hasActiveDownloads) {
-        if (downloadsShell.openRequestId > 0L && downloadsShell.hasActiveDownloads) {
+    LaunchedEffect(downloadsShell.openRequestId) {
+        if (downloadsShell.openRequestId > 0L) {
             onShowDownloadsScreenChange(true)
-        }
-    }
-
-    LaunchedEffect(downloadsShell.hasActiveDownloads, showDownloadsScreen) {
-        if (!downloadsShell.hasActiveDownloads && showDownloadsScreen) {
-            onShowDownloadsScreenChange(false)
         }
     }
 }
@@ -93,7 +86,7 @@ internal fun PreviewSceneReporterHost(
         detail = when {
             routeVisibility.detailVisible && routeVisibility.isReady && previewPerformance.isVideo -> "preview-player-video"
             routeVisibility.detailVisible && routeVisibility.isReady -> "preview-player-audio"
-            showDownloadsScreen -> "downloads-active"
+            showDownloadsScreen -> "downloads"
             else -> "preview-library"
         },
     )

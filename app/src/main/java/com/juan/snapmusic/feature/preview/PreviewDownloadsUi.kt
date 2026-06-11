@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.FileDownloadOff
 import androidx.compose.material.icons.outlined.PauseCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -67,7 +68,7 @@ internal fun PreviewDownloadsSummaryCard(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "Descargando(${activeDownloads.size})",
+                        text = "Descargas (${activeDownloads.size})",
                         style = MaterialTheme.typography.titleMedium,
                         color = TextPrimary,
                         fontWeight = FontWeight.Bold,
@@ -107,6 +108,7 @@ internal fun PreviewDownloadsSummaryCard(
 @Composable
 internal fun PreviewDownloadsDetailScreen(
     activeDownloads: List<QueueEntry>,
+    recentDownloads: List<QueueEntry>,
     onBack: () -> Unit,
     onCancel: (String) -> Unit,
     onCancelAll: () -> Unit,
@@ -134,7 +136,7 @@ internal fun PreviewDownloadsDetailScreen(
                     Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Volver", tint = TextPrimary)
                 }
                 Text(
-                    text = "Descargando${if (activeDownloads.isNotEmpty()) "(${activeDownloads.size})" else ""}",
+                    text = "Descargas${if (activeDownloads.isNotEmpty()) " (${activeDownloads.size})" else ""}",
                     style = MaterialTheme.typography.titleLarge,
                     color = TextPrimary,
                     fontWeight = FontWeight.Bold,
@@ -154,6 +156,7 @@ internal fun PreviewDownloadsDetailScreen(
         }
 
         if (activeDownloads.isNotEmpty()) {
+            PreviewDownloadsSectionTitle("Activas", "Progreso en tiempo real desde la cola.")
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 activeDownloads.forEach { item ->
                     PreviewDownloadRow(
@@ -162,7 +165,56 @@ internal fun PreviewDownloadsDetailScreen(
                     )
                 }
             }
+        } else {
+            PreviewDownloadsEmptyActiveState()
         }
+
+        if (recentDownloads.isNotEmpty()) {
+            PreviewDownloadsSectionTitle("Recientes", "Completadas, canceladas o con error.")
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                recentDownloads.forEach { item ->
+                    PreviewDownloadRow(item = item)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreviewDownloadsEmptyActiveState() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = SurfacePrimary,
+        border = BorderStroke(1.dp, BorderSubtle),
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.FileDownloadOff,
+                contentDescription = null,
+                tint = TextSecondary,
+                modifier = Modifier.size(28.dp),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("No hay descargas activas", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                Text("Las completadas y recientes quedan debajo.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreviewDownloadsSectionTitle(
+    title: String,
+    subtitle: String,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
     }
 }
 

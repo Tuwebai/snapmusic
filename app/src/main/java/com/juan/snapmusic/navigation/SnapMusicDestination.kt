@@ -14,7 +14,7 @@ enum class SnapMusicDestination(
     val icon: ImageVector,
 ) {
     Home("home", "Descargar", Icons.Outlined.Search),
-    Queue("queue", "Cola", Icons.Outlined.Download),
+    Queue("queue", "Descargas", Icons.Outlined.Download),
     History("history", "YouTube", Icons.Outlined.SmartDisplay),
     Preview("preview", "Reproducir", Icons.Outlined.PlayCircle),
     Settings("settings", "Configuración", Icons.Outlined.Settings),

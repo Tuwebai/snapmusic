@@ -126,6 +126,7 @@ data class PreviewDetailUiState(
 @Immutable
 data class PreviewDownloadsState(
     val activeItems: List<QueueEntry> = emptyList(),
+    val recentItems: List<QueueEntry> = emptyList(),
     val completedCount: Int = 0,
 )
 

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Info
@@ -97,6 +98,7 @@ internal fun PreviewLibraryHeader(
     selectionMode: Boolean = false,
     selectedCount: Int = 0,
     onSearch: (() -> Unit)? = null,
+    onOpenDownloads: (() -> Unit)? = null,
     onShareSelected: (() -> Unit)? = null,
     onDeleteSelected: (() -> Unit)? = null,
     onCloseSelection: (() -> Unit)? = null,
@@ -139,6 +141,11 @@ internal fun PreviewLibraryHeader(
             onSearch?.let { action ->
                 IconButton(onClick = action) {
                     Icon(Icons.Outlined.Search, contentDescription = "Buscar archivos locales", tint = TextPrimary)
+                }
+            }
+            onOpenDownloads?.let { action ->
+                IconButton(onClick = action) {
+                    Icon(Icons.Outlined.Download, contentDescription = "Abrir descargas", tint = TextPrimary)
                 }
             }
         }

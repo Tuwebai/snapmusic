@@ -234,12 +234,17 @@ internal fun SnapMusicViewModel.createPreviewDetailScreenFlow() = combine(
 
 internal fun SnapMusicViewModel.createPreviewDownloadsStateFlow() = queue
     .map { items ->
+        val activeStatuses = setOf(
+            com.juan.snapmusic.core.model.QueueStatus.RUNNING,
+            com.juan.snapmusic.core.model.QueueStatus.PENDING,
+            com.juan.snapmusic.core.model.QueueStatus.PAUSED,
+        )
         PreviewDownloadsState(
-            activeItems = items.filter {
-                it.status == com.juan.snapmusic.core.model.QueueStatus.RUNNING ||
-                    it.status == com.juan.snapmusic.core.model.QueueStatus.PENDING ||
-                    it.status == com.juan.snapmusic.core.model.QueueStatus.PAUSED
-            },
+            activeItems = items.filter { it.status in activeStatuses },
+            recentItems = items
+                .filterNot { it.status in activeStatuses }
+                .sortedByDescending { it.createdAt }
+                .take(30),
             completedCount = items.count { it.status == com.juan.snapmusic.core.model.QueueStatus.SUCCESS },
         )
     }
