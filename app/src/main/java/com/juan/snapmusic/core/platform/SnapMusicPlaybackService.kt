@@ -1,5 +1,6 @@
 package com.juan.snapmusic.core.platform
 
+import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
@@ -14,6 +15,7 @@ import androidx.media3.session.MediaSessionService
 import com.juan.snapmusic.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -29,6 +31,7 @@ class SnapMusicPlaybackService : MediaSessionService() {
 
     private companion object {
         const val WIDGET_PROGRESS_TICK_MS = 5_000L
+        const val ARTWORK_TAG = "SnapMusicArtwork"
     }
 
     override fun onCreate() {
@@ -88,6 +91,7 @@ class SnapMusicPlaybackService : MediaSessionService() {
                 )
                 setHandleAudioBecomingNoisy(true)
             }
+        val artworkLoader = PlaybackLockScreenArtworkLoader(this)
         val sessionPlayer = SessionTransportPlayer(player)
         val playbackRouteListener = object : Player.Listener {
             private fun publishCurrentTarget(currentItem: MediaItem?) {
@@ -151,7 +155,7 @@ class SnapMusicPlaybackService : MediaSessionService() {
 
         return MediaSession.Builder(this, sessionPlayer)
             .setSessionActivity(MainActivity.buildOpenPlaybackPendingIntent(this))
-            .setBitmapLoader(PlaybackLockScreenArtworkLoader(this))
+            .setBitmapLoader(artworkLoader)
             .setCallback(
                 object : MediaSession.Callback {
                     override fun onConnect(
@@ -174,8 +178,26 @@ class SnapMusicPlaybackService : MediaSessionService() {
                 serviceScope.launch {
                     var lastNotificationTransportState: Triple<PlaybackSessionTarget, Boolean, Boolean>? = null
                     var lastPublishedMetadataKey: PlaybackMetadataKey? = null
+                    var lastArtworkLoadKey: String? = null
+                    var artworkLoadJob: Job? = null
                     PlaybackSessionStateStore.state.collectLatest { state ->
                         HomePlaybackWidgetProvider.updateAll(this@SnapMusicPlaybackService, state)
+                        val artworkLoadKey = state.artworkLoadKey()
+                        if (artworkLoadKey != null && state.artworkData == null && artworkLoadKey != lastArtworkLoadKey) {
+                            lastArtworkLoadKey = artworkLoadKey
+                            artworkLoadJob?.cancel()
+                            artworkLoadJob = serviceScope.launch(Dispatchers.IO) {
+                                val uri = state.artworkUri ?: return@launch
+                                val mediaId = state.mediaId ?: return@launch
+                                val data = artworkLoader.loadArtworkDataForMetadata(uri)
+                                if (data != null) {
+                                    PlaybackSessionStateStore.updateArtwork(mediaId = mediaId, artworkData = data)
+                                    Log.d(ARTWORK_TAG, "loaded mediaId=$mediaId bytes=${data.size}")
+                                } else {
+                                    Log.w(ARTWORK_TAG, "missing mediaId=$mediaId uri=$uri")
+                                }
+                            }
+                        }
                         val metadataKey = state.toMetadataKey()
                         if (metadataKey != lastPublishedMetadataKey) {
                             lastPublishedMetadataKey = metadataKey
@@ -232,6 +254,12 @@ class SnapMusicPlaybackService : MediaSessionService() {
             artworkDataHash = artworkData?.contentHashCode(),
             artworkDataSize = artworkData?.size,
         )
+    }
+
+    private fun PlaybackSessionState.artworkLoadKey(): String? {
+        val id = mediaId ?: return null
+        val uri = artworkUri ?: return null
+        return "$id|$uri"
     }
 
     private fun buildNotificationPlayerCommands(state: PlaybackSessionState): Player.Commands {

@@ -102,7 +102,7 @@ object PlaybackSessionStateStore {
     ) {
         if (artworkUri == null && artworkData == null) return
         _state.update { current ->
-            if (current.target != PlaybackSessionTarget.PREVIEW || current.mediaId != mediaId) {
+            if (current.target == PlaybackSessionTarget.NONE || current.mediaId != mediaId) {
                 current
             } else {
                 val effectiveArtworkUri = artworkUri ?: current.artworkUri

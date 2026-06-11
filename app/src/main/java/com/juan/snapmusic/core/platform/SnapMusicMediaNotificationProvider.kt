@@ -1,5 +1,6 @@
 package com.juan.snapmusic.core.platform
 
+import android.app.Notification
 import android.content.Context
 import android.os.Bundle
 import androidx.media3.common.util.UnstableApi
@@ -35,6 +36,8 @@ internal class SnapMusicMediaNotificationProvider(
             onNotificationChangedCallback,
         )
         created.notification.color = SNAPMUSIC_NOTIFICATION_RED
+        created.notification.category = Notification.CATEGORY_TRANSPORT
+        created.notification.visibility = Notification.VISIBILITY_PUBLIC
         created.notification.extras.putBoolean(COLORIZED_EXTRA, true)
         return MediaNotification(created.notificationId, created.notification)
     }

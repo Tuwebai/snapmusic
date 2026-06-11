@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import okhttp3.Request
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 
 private const val LOCK_SCREEN_ARTWORK_MAX_SIZE_PX = 1024
@@ -48,6 +49,21 @@ internal class PlaybackLockScreenArtworkLoader(
         metadata.artworkData?.let { data -> return decodeBitmap(data) }
         metadata.artworkUri?.let { uri -> return loadBitmap(uri) }
         return failedFuture(IOException("Metadata sin artwork."))
+    }
+
+    fun loadArtworkDataForMetadata(uri: Uri): ByteArray? {
+        val candidates = uri.youtubeHighResolutionCandidates()
+        candidates.forEachIndexed { index, candidate ->
+            val data = readArtworkBytes(candidate) ?: return@forEachIndexed
+            val bitmap = decodeArtwork(data) ?: return@forEachIndexed
+            val encoded = bitmap.toMetadataJpeg()
+            val width = bitmap.width
+            bitmap.recycle()
+            if (encoded != null && (width >= 320 || index == candidates.lastIndex)) {
+                return encoded
+            }
+        }
+        return null
     }
 
     private fun future(
@@ -127,6 +143,12 @@ internal class PlaybackLockScreenArtworkLoader(
             scaledHeight /= 2
         }
         return sample.coerceAtLeast(1)
+    }
+}
+
+private fun Bitmap.toMetadataJpeg(): ByteArray? {
+    return ByteArrayOutputStream().use { output ->
+        if (compress(Bitmap.CompressFormat.JPEG, 92, output)) output.toByteArray() else null
     }
 }
 
