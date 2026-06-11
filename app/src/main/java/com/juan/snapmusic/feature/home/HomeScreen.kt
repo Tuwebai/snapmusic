@@ -156,6 +156,7 @@ private fun HomeYouTubeLanding(
                 renderSuggestions = renderSuggestions,
                 contentPadding = PaddingValues(bottom = padding.calculateBottomPadding()),
                 onDownloadQueued = onDownloadQueued,
+                onSearchHeaderBack = onSelectSearch,
             )
         }
     }

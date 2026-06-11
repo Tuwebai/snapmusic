@@ -26,8 +26,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -62,6 +62,7 @@ fun YouTubeTabContent(
     renderSuggestions: Boolean = true,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     onDownloadQueued: () -> Unit,
+    onSearchHeaderBack: (() -> Unit)? = null,
 ) {
     LaunchedEffect(isActive) {
         if (!isActive) return@LaunchedEffect
@@ -88,6 +89,7 @@ fun YouTubeTabContent(
                 viewModel = viewModel,
                 isActive = isActive,
                 onItemDownload = viewModel::prepareYouTubeDownload,
+                onSearchHeaderBack = onSearchHeaderBack,
             )
         } else {
             Box(
@@ -157,6 +159,7 @@ private fun YouTubeSuggestionsHost(
     viewModel: SnapMusicViewModel,
     isActive: Boolean,
     onItemDownload: (YouTubeFeedItem) -> Unit,
+    onSearchHeaderBack: (() -> Unit)?,
 ) {
     val suggestionsState by viewModel.youtubeSuggestionsScreen.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
@@ -216,6 +219,7 @@ private fun YouTubeSuggestionsHost(
         onRefresh = viewModel::refreshYoutubeByPull,
         onLoadMore = viewModel::loadMoreYoutubeSuggestions,
         onArtistClick = viewModel::searchArtist,
+        onSearchHeaderBack = onSearchHeaderBack,
     )
 }
 
@@ -296,6 +300,7 @@ private fun YouTubeSuggestionsList(
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
     onArtistClick: (String) -> Unit,
+    onSearchHeaderBack: (() -> Unit)?,
 ) {
     val density = LocalDensity.current
     val currentOnRefresh by rememberUpdatedState(onRefresh)
@@ -377,6 +382,18 @@ private fun YouTubeSuggestionsList(
             if (showSkeletonItems) {
                 youtubeFeedShimmerItems(progress = shimmerProgress)
             } else {
+                val searchHeaderQuery = suggestionsState.query.trim()
+                if (searchHeaderQuery.isNotEmpty() && onSearchHeaderBack != null) {
+                    item(
+                        key = "youtube_search_header:$searchHeaderQuery",
+                        contentType = "youtube_search_header",
+                    ) {
+                        YouTubeSearchResultHeader(
+                            query = searchHeaderQuery,
+                            onBack = onSearchHeaderBack,
+                        )
+                    }
+                }
                 suggestionsState.errorMessage?.let { message ->
                     item {
                         InlineStatusCard(
