@@ -14,6 +14,8 @@ import java.text.Normalizer
 import kotlin.math.ln
 
 class MusicRecommendationEngine {
+    private val relevancePolicy = FeedRelevancePolicy()
+
     fun classify(item: YouTubeFeedItem): MusicClassification = classify(item.title, item.author, item.description, item.durationSeconds)
 
     fun classifyQuery(query: String): MusicClassification = classify(query, "", null, 0L)
@@ -146,8 +148,9 @@ class MusicRecommendationEngine {
         val scored = candidates.mapNotNull { item ->
             val classification = classify(item)
             if (!classification.isMusic) return@mapNotNull null
-            val score = homeScore(item, classification, profile, recentByUrl[item.url], sessionSeed)
-            RelatedMusicRecommendation(item = item, score = score, classification = classification)
+            val baseScore = homeScore(item, classification, profile, recentByUrl[item.url], sessionSeed)
+            val adjusted = relevancePolicy.apply(FeedRankingKind.HOME, item, classification, profile, baseScore)
+            RelatedMusicRecommendation(item = item, score = adjusted.score, classification = classification)
         }.sortedByDescending(RelatedMusicRecommendation::score)
         return diversify(scored, limit)
     }
@@ -166,7 +169,7 @@ class MusicRecommendationEngine {
             if (item.url == currentItem.url) return@mapNotNull null
             val classification = classify(item)
             if (!classification.isMusic) return@mapNotNull null
-            val score = relatedScore(
+            val baseScore = relatedScore(
                 currentItem = currentItem,
                 currentClassification = currentClassification,
                 candidate = item,
@@ -175,7 +178,16 @@ class MusicRecommendationEngine {
                 impression = recentByUrl[item.url],
                 primaryUrls = primaryUrls,
             )
-            RelatedMusicRecommendation(item = item, score = score, classification = classification)
+            val adjusted = relevancePolicy.apply(
+                kind = FeedRankingKind.WATCH_NEXT,
+                item = item,
+                classification = classification,
+                profile = profile,
+                baseScore = baseScore,
+                currentClassification = currentClassification,
+                primaryRelated = item.url in primaryUrls,
+            )
+            RelatedMusicRecommendation(item = item, score = adjusted.score, classification = classification)
         }.sortedByDescending(RelatedMusicRecommendation::score)
         return diversify(scored, limit, strictArtistDiversity = true)
     }

@@ -123,9 +123,13 @@ private fun watchNextQueries(
         add("${currentItem.author} $cleanTitle")
         add(currentItem.author)
         tags.take(3).forEach { add("${currentItem.author} $it") }
-        profile.recentArtists.take(3).forEach { add("$it música") }
-        add("música recomendada ${round + 1}")
-        add("tendencias música")
+        if (round > 0) {
+            profile.recentArtists.take(2).forEach { add("$it música oficial") }
+        }
+        if (round > 1) {
+            add("música recomendada ${round + 1}")
+            add("tendencias música oficial")
+        }
     }
         .map(String::trim)
         .filter { it.length >= 3 }

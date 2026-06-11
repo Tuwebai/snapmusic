@@ -22,6 +22,6 @@ class BuildSearchSuggestionCorpusUseCase {
         .toList()
 
     private companion object {
-        val DEFAULT_PRESETS = listOf("Cumbia 2025", "Cuarteto en vivo", "Mix DJ", "Enganchados", "Roze Oficial")
+        val DEFAULT_PRESETS = listOf("Música argentina oficial", "Lanzamientos latinos", "Cumbia oficial", "Cuarteto oficial", "Roze Oficial")
     }
 }
