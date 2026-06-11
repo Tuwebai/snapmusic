@@ -394,6 +394,7 @@ private fun YouTubeSuggestionsList(
                         item = item,
                         onClick = onItemClick,
                         onDownload = onItemDownload,
+                        watchedProgressFraction = suggestionsState.watchProgressFractions[item.url] ?: 0f,
                         isDownloaded = item.url in suggestionsState.downloadedSourceUrls,
                         onArtistClick = onArtistClick,
                     )

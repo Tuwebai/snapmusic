@@ -209,6 +209,7 @@ data class YouTubeSuggestionsUiState(
     val isWatchTransitioning: Boolean = false,
     val items: List<YouTubeFeedItem> = emptyList(),
     val downloadedSourceUrls: Set<String> = emptySet(),
+    val watchProgressFractions: Map<String, Float> = emptyMap(),
     val isRefreshing: Boolean = false,
     val isLoadingMore: Boolean = false,
     val canLoadMore: Boolean = false,

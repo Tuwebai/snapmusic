@@ -284,7 +284,8 @@ internal fun SnapMusicViewModel.createYoutubeFeedScreenFlow() = youtubeFeedProje
 internal fun SnapMusicViewModel.createYoutubeSuggestionsScreenFlow() = combine(
     youtubeFeedProjection,
     createDownloadedSourceUrlsFlow(),
-) { state, downloadedSourceUrls ->
+    createWatchProgressFractionsFlow(),
+) { state, downloadedSourceUrls, watchProgressFractions ->
         YouTubeSuggestionsUiState(
             query = state.query,
             isPlayerVisible = state.showPlayer,
@@ -295,6 +296,7 @@ internal fun SnapMusicViewModel.createYoutubeSuggestionsScreenFlow() = combine(
                 state.items
             },
             downloadedSourceUrls = downloadedSourceUrls,
+            watchProgressFractions = watchProgressFractions,
             isRefreshing = state.isLoading,
             isLoadingMore = state.isLoadingMore,
             canLoadMore = state.canLoadMoreSuggestions(),
@@ -326,7 +328,27 @@ private fun SnapMusicViewModel.createDownloadedSourceUrlsFlow(): Flow<Set<String
         }
     return combine(queueDownloads, historyDownloads) { queueUrls, historyUrls ->
         queueUrls + historyUrls
-    }.distinctUntilChanged()
+}.distinctUntilChanged()
+}
+
+private fun SnapMusicViewModel.createWatchProgressFractionsFlow(): Flow<Map<String, Float>> {
+    return graph.youtubeWatchHistoryRepository.observeHistory()
+        .map { entries ->
+            entries.asSequence()
+                .mapNotNull { entry ->
+                    val url = entry.sourceUrl.trim()
+                    val progress = entry.toWatchProgressFraction()
+                    if (url.isBlank() || progress <= 0f) null else url to progress
+                }
+                .toMap()
+        }
+        .distinctUntilChanged()
+}
+
+private fun YouTubeWatchHistoryEntry.toWatchProgressFraction(): Float {
+    val durationMs = durationSeconds * 1_000L
+    if (durationMs <= 0L || lastPositionMs <= 0L) return 0f
+    return (lastPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
 }
 
 internal fun SnapMusicViewModel.createSearchSuggestionCorpusFlow() = combine(
