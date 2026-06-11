@@ -283,9 +283,9 @@ internal fun SnapMusicViewModel.createYoutubeFeedScreenFlow() = youtubeFeedProje
 
 internal fun SnapMusicViewModel.createYoutubeSuggestionsScreenFlow() = combine(
     youtubeFeedProjection,
-    createDownloadedSourceUrlsFlow(),
+    createDownloadedQualityLabelsFlow(),
     createWatchProgressFractionsFlow(),
-) { state, downloadedSourceUrls, watchProgressFractions ->
+) { state, downloadedQualityLabels, watchProgressFractions ->
         YouTubeSuggestionsUiState(
             query = state.query,
             isPlayerVisible = state.showPlayer,
@@ -295,7 +295,7 @@ internal fun SnapMusicViewModel.createYoutubeSuggestionsScreenFlow() = combine(
             } else {
                 state.items
             },
-            downloadedSourceUrls = downloadedSourceUrls,
+            downloadedQualityLabels = downloadedQualityLabels,
             watchProgressFractions = watchProgressFractions,
             isRefreshing = state.isLoading,
             isLoadingMore = state.isLoadingMore,
@@ -310,25 +310,53 @@ internal fun SnapMusicViewModel.createYoutubeSuggestionsScreenFlow() = combine(
         initialValue = YouTubeSuggestionsUiState(),
     )
 
-private fun SnapMusicViewModel.createDownloadedSourceUrlsFlow(): Flow<Set<String>> {
+private fun SnapMusicViewModel.createDownloadedQualityLabelsFlow(): Flow<Map<String, String>> {
     val queueDownloads = graph.queueRepository.observeQueue()
         .map { entries ->
             entries.asSequence()
                 .filter { entry -> entry.status == QueueStatus.SUCCESS }
-                .map { entry -> entry.sourceUrl.trim() }
-                .filter(String::isNotBlank)
-                .toSet()
+                .mapNotNull(QueueEntry::toDownloadedQualityEntry)
+                .toMap()
         }
     val historyDownloads = graph.historyRepository.observeHistory()
         .map { entries ->
             entries.asSequence()
-                .map { entry -> entry.sourceUrl.trim() }
-                .filter(String::isNotBlank)
-                .toSet()
+                .mapNotNull(HistoryEntry::toDownloadedQualityEntry)
+                .toMap()
         }
-    return combine(queueDownloads, historyDownloads) { queueUrls, historyUrls ->
-        queueUrls + historyUrls
+    return combine(queueDownloads, historyDownloads) { queueLabels, historyLabels ->
+        queueLabels + historyLabels
 }.distinctUntilChanged()
+}
+
+private fun QueueEntry.toDownloadedQualityEntry(): Pair<String, String>? {
+    val source = sourceUrl.trim().takeIf(String::isNotBlank) ?: return null
+    return source to variantLabel.toDownloadedQualityLabel(container)
+}
+
+private fun HistoryEntry.toDownloadedQualityEntry(): Pair<String, String>? {
+    val source = sourceUrl.trim().takeIf(String::isNotBlank) ?: return null
+    return source to qualityLabel.toDownloadedQualityLabel(format)
+}
+
+private fun String.toDownloadedQualityLabel(container: ContainerFormat): String {
+    val cleaned = trim().replace("·", " ").replace(Regex("\\s+"), " ")
+    val resolution = Regex("""(?i)\b(2160|1440|1080|720|480|360|240|144)\s*p\b""")
+        .find(cleaned)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.let { "${it}p" }
+    val bitrate = Regex("""(?i)\b([0-9]{2,3})\s*kbps\b""")
+        .find(cleaned)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.let { "${it}k" }
+    return when (container) {
+        ContainerFormat.MP4 -> resolution ?: container.name
+        ContainerFormat.MP3,
+        ContainerFormat.M4A,
+        ContainerFormat.WEBM -> listOfNotNull(container.name, bitrate).joinToString(" ")
+    }
 }
 
 private fun SnapMusicViewModel.createWatchProgressFractionsFlow(): Flow<Map<String, Float>> {

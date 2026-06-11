@@ -100,7 +100,7 @@ fun YouTubeFeedRow(
     onClick: (YouTubeFeedItem) -> Unit,
     onDownload: ((YouTubeFeedItem) -> Unit)?,
     watchedProgressFraction: Float = 0f,
-    isDownloaded: Boolean = false,
+    downloadedBadgeLabel: String? = null,
     onArtistClick: ((String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -175,7 +175,7 @@ fun YouTubeFeedRow(
                     )
                 }
                 DownloadedFeedBadge(
-                    visible = isDownloaded,
+                    label = downloadedBadgeLabel,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(6.dp),
@@ -197,9 +197,10 @@ fun YouTubeFeedRow(
 
 @Composable
 private fun DownloadedFeedBadge(
-    visible: Boolean,
+    label: String?,
     modifier: Modifier = Modifier,
 ) {
+    val visible = !label.isNullOrBlank()
     val visibilityState = remember { MutableTransitionState(false) }
     LaunchedEffect(visible) {
         visibilityState.targetState = visible
@@ -221,13 +222,22 @@ private fun DownloadedFeedBadge(
             color = SuccessGreen,
             contentColor = Color.White,
         ) {
-            Icon(
-                imageVector = Icons.Outlined.Check,
-                contentDescription = "Ya descargado",
-                modifier = Modifier
-                    .padding(4.dp)
-                    .size(14.dp),
-            )
+            Row(
+                modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Check,
+                    contentDescription = "Ya descargado",
+                    modifier = Modifier.size(12.dp),
+                )
+                Text(
+                    text = label.orEmpty(),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }
